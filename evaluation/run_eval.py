@@ -205,6 +205,17 @@ def compare(new: dict[str, Any], old: dict[str, Any], old_name: str) -> str:
     return "\n".join(rows) + "\n"
 
 
+def free_name(folder: Path, name: str) -> str:
+    """Never overwrite a report (a baseline is evidence): `<name>`, else `<name>-2`, `-3`, …"""
+    taken = {p.stem for p in folder.glob("*")}
+    if name not in taken:
+        return name
+    n = 2
+    while f"{name}-{n}" in taken:
+        n += 1
+    return f"{name}-{n}"
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0] if __doc__ else None)
     ap.add_argument("--no-write", action="store_true", help="print the summary, write no files")
@@ -221,7 +232,7 @@ def main(argv: list[str] | None = None) -> int:
         print(compare(report, old, args.compare.name))
     if not args.no_write:
         REPORTS.mkdir(parents=True, exist_ok=True)
-        name = f"{dt.date.today().isoformat()}-{args.label}"
+        name = free_name(REPORTS, f"{dt.date.today().isoformat()}-{args.label}")
         (REPORTS / f"{name}.json").write_text(
             json.dumps(report, indent=1, default=str, ensure_ascii=False), "utf-8"
         )

@@ -4,11 +4,12 @@ measured baseline, not thresholds; they are reported, never asserted to a target
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 import pytest
 from evaluation.harness import metrics as m
-from evaluation.run_eval import run_all, to_markdown
+from evaluation.run_eval import free_name, run_all, to_markdown
 
 
 def test_metric_definitions() -> None:
@@ -69,3 +70,12 @@ def test_stand_ins_are_declared(report: dict[str, Any]) -> None:
     assert set(st["indexed_from_transcription"]) <= set(st["held_files"])
     assert st["rules"] == "mock"
     assert "Baseline on the reference stack, not on GCP" in to_markdown(report)
+
+
+def test_reports_are_never_overwritten(tmp_path: Path) -> None:
+    assert free_name(tmp_path, "2026-11-04-baseline") == "2026-11-04-baseline"
+    (tmp_path / "2026-11-04-baseline.md").write_text("x")
+    (tmp_path / "2026-11-04-baseline.json").write_text("{}")
+    assert free_name(tmp_path, "2026-11-04-baseline") == "2026-11-04-baseline-2"
+    (tmp_path / "2026-11-04-baseline-2.md").write_text("x")
+    assert free_name(tmp_path, "2026-11-04-baseline") == "2026-11-04-baseline-3"
