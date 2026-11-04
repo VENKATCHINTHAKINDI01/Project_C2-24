@@ -189,6 +189,7 @@ Legend: ✅ done · 🟡 in progress · ⬜ not started · ⛔ blocked
 | 4 Nov 2026 | Evaluation harness (`evaluation/`): corpus built by the ingestion job, 24 golden questions, pre-send conflicts A–G, leakage matrix over 8 paths × 8 officers, touchpoints; baseline: 0 disclosures / 1062 checks, Recall@10 0.561, MRR 0.684, ladder-level 0.579, A/C/E/F P 1.00 R 0.71; `make eval`; 1094 → 1099 tests | Owner: run `make check` + `make eval` on the Mac; next: fix the pipeline gaps the baseline found (base-ID lookup of dated memos, 'G.O.Ms.No.31 of 2025', missing subjects, validity end dates), re-run and compare |
 
 | 4 Nov 2026 | Baseline gaps fixed (dated-memo lookup by base number, 'G.O.Ms.No.31 of 2025', order end dates from subjects, missing subjects, D11 department via ADR-0011); eval vs baseline: Recall@10 0.561 → 0.754, MRR 0.684 → 0.833, A/C/E/F recall 0.714 → 0.857, leakage still 0; 1099 → 1109 tests | Next: clause-level effective windows for D27's type F, then Telugu metadata (D16) |
+| 4 Nov 2026 | First commits + push to GitHub (private repo `VENKATCHINTHAKINDI01/Project_C2-24`, branch `main`): `44c8edb` first commit · `0d48585` repo · `729ee75` docs · `3358551` data · `cce70f7` data_collection · `e05aad0` backend · `89ba0bb` progress; 256 files, no secrets/env/venv staged; checks before commit: `make check` 1109 passed, eval 0/1126 disclosures | Continue from the after-gap-fixes known gaps; commit each task as one logical change |
 
 ## 8a. Gap report (CLAUDE.md §14), 22 Oct 2026
 
