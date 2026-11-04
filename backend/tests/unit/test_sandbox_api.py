@@ -15,7 +15,7 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
-from app.agents.tools import STATUS_UNCONFIRMED
+from app.agents.tools import CURRENT_UNCONFIRMED, STATUS_UNCONFIRMED
 from app.config import get_settings
 from app.eoffice_mock.models import BANNER
 from app.identifiers.canonical import InvalidCanonicalIdError, lookup_keys
@@ -145,7 +145,13 @@ def test_tp10_reference_respects_status_coverage(client: TestClient) -> None:
     r = client.post(
         "/assist/reference", json={"text": "G.O.Ms.No.88/2022 para 2(v)"}, headers=_h("U01")
     ).json()
-    assert r["found"] and r["message"] == STATUS_UNCONFIRMED  # Estt.I SO can't see all of Finance
+    assert r["found"] and r["status"] == "superseded"  # 31/2025 is visible to the Estt.I SO
+    assert r["by"] == "AP-FIN01-GOMS-31-2025" and r["current_version"] is None
+    assert r["message"] == CURRENT_UNCONFIRMED  # can't see all of Finance: no "current" claim
+    in_force = client.post(
+        "/assist/reference", json={"text": "G.O.Ms.No.31/2025"}, headers=_h("U01")
+    ).json()
+    assert in_force["status"] is None and in_force["message"] == STATUS_UNCONFIRMED
     sec = client.post(
         "/assist/reference",
         json={"text": "G.O.Ms.No.14, Urban Services (Works) Department, Dt.18-03-2021"},

@@ -16,6 +16,7 @@ Format: `- YYYY-MM-DD · fact / rule · (source or plan §)`
 <!-- exact commands to run tests, lint, eval harness, local services -->
 
 ## Conventions
+- 2026-11-04 · Status answers: facts the officer's records establish (superseded / repealed by a visible order, expired) may be stated without full coverage; "in force" and "current version" need `covers_status_domain` (STATUS_UNCONFIRMED / CURRENT_UNCONFIRMED otherwise). Keep `test_outcome_is_identical_with_or_without_a_hidden_successor` green
 - 2026-11-04 · Telugu reference markers go through `resolver.TELUGU_MARKERS` (fixed table, longest first); add new markers there with a test — never translate free text. "శాఖ" means a department is named, so an unmapped Telugu department leaves the reference unresolved
 - 2026-11-04 · Action windows: `windows_from_text(cid, text)` → `ActionWindow(source=cid#para-2.i, action, start, end, evidence)`; ingestion keeps them in `stores.windows`; pass `windows=` to `presend_check`. Only in-force, visible orders count; inside any window → no flag
 - 2026-11-04 · ADR-0011: `extract_metadata(..., source_department=)` fills the department only when the text names none (`department_source`); the pipeline holds text/tag disagreements as DEPARTMENT_MISMATCH. `valid_until` is read only from an order's own subject

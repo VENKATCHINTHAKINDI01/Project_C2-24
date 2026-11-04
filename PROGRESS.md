@@ -123,6 +123,7 @@ Legend: ✅ done · 🟡 in progress · ⬜ not started · ⛔ blocked
 | 2 Nov 2026 | ADR-0008 (provisional): officer roles + reporting hierarchy for FIN01/GAD01/ESE01 in `data/ontology/roles.yaml`, grounded in official sources + corpus evidence | Graph, file movement and access scopes need it now; confirm later |
 | 22 Oct 2026 | ADR-0006 (Proposed): public G.O. corpus alongside synthetic data; collection code in `data_collection/`, corpus outside the repo | No department data will arrive; start real collection when GCP access arrives |
 | 22 Oct 2026 | ADR-0007 (Proposed): memo/gazette ID forms; ID collisions → review; printed date used only when corroborated | Real records showed cases the base ID format and archive dates don't cover |
+| 4 Nov 2026 | Status-coverage refinement: what the officer's own records establish may be stated without full coverage (superseded / repealed by a visible order, expired on its own end date); "in force" and "which version is current" still need full coverage (CURRENT_UNCONFIRMED otherwise). Pre-send type A stays as is | Owner, answering the TP10/TP11 question; hidden records still change nothing in any answer |
 | 4 Nov 2026 | ADR-0012: P8 API first; Vite + React + TS screens; simulated sign-in header (sandbox only); sandbox.yaml demo thresholds labelled uncalibrated; connector `documents()` added | Owner chose API first and the Vite stack |
 | 4 Nov 2026 | Conflict types B, D, G wait for GCP: no deterministic pre-check or mocked judgment before Gemini is available | Owner choice; plan §6.2 has Gemini make these judgments from the authorised evidence |
 | 4 Nov 2026 | ADR-0011: ingestion may fill the department from the source system's tag only when the text names none; `department_source` recorded; text/tag disagreement → review (DEPARTMENT_MISMATCH) | Owner: the tag is recorded metadata, not a guess; department feeds compute_scope |
@@ -201,6 +202,8 @@ Legend: ✅ done · 🟡 in progress · ⬜ not started · ⛔ blocked
 
 | 4 Nov 2026 | P8 slice 1: sandbox + assist API in FastAPI (simulated sign-in, file pages, TP10/TP11/TP15, drafts only, audit); HTTP leakage sweep 0; ADR-0012; 1124 → 1138 tests | Owner: TP10 vs TP11 status-coverage question. Next: React screens (slice 2) |
 
+| 4 Nov 2026 | Sandbox API committed and pushed as `92ae228` (Mac: 1138 passed, curl checks OK). Owner refinement: status lookup states supersession by a visible order without claiming the current version; 1138 → 1139 tests | Next: P8 slice 2, the React screens |
+
 ## 8a. Gap report (CLAUDE.md §14), 22 Oct 2026
 
 | Phase / milestone | Status | Evidence |
@@ -222,6 +225,16 @@ Runtime facts: Python 3.13.9 (uv, `backend/.venv`), Node 24.5, uv 0.9.28, Docker
 
 Format per CLAUDE.md §12. Status: `NOT_STARTED` · `IN_PROGRESS` · `BLOCKED` · `DONE`. Newest first.
 
+### 2026-11-04 · P5 / P8 · Status lookup states visible supersession (owner refinement)
+- **Status:** DONE
+- **Plan section:** §5.4, §6.1, §11.5 (touchpoint 10); owner rules 3 Nov and 4 Nov 2026
+- **Files changed:** `backend/app/agents/tools.py` (`check_document_status`: superseded / repealed / expired from visible records is reported with `by`, without `current_version`, message `CURRENT_UNCONFIRMED`; in force without coverage → `STATUS_UNCONFIRMED` as before), `backend/app/agents/routes.py` (`by` in the reference response), `backend/tests/unit/test_agent_tools_and_memory.py`, `backend/tests/unit/test_sandbox_api.py`, `PROGRESS.md`, `docs/LEARNINGS.md`
+- **Tests/commands run:** Linux Python 3.13 venv: ruff ✅ · mypy strict (101 files) ✅ · `pytest -q` → 1139 passed ✅
+- **Acceptance evidence:** U01 and U06 asking about G.O.Ms.88/2022 → superseded by G.O.Ms.31/2025, no "current version" claimed; U01 asking about 31/2025 itself (in force, no full Finance coverage) → generic message, as before; the hidden-successor test still gives identical answers for every officer and document; HTTP leakage sweep still 0; TP10 and TP11 now agree for 88/2022
+- **Security / temporal / citation implications:** only facts from visible records are stated; a hidden later order can't change any answer, so nothing about restricted records leaks
+- **Blocker / decision needed:** none
+- **Exact next action:** P8 slice 2 — `frontend/eoffice/` Vite + React + TS screens (owner has Node v24.5.0)
+
 ### 2026-11-04 · P8 / M9 · Sandbox + assist API (slice 1 of the mock e-Office sandbox)
 - **Status:** DONE (API); screens are slice 2
 - **Plan section:** §11.1–§11.5 (touchpoints 10, 11, 15; drafts out; access mapping), §10.4 audit; CLAUDE.md §2.4, §4; ADR-0012
@@ -231,7 +244,7 @@ Format per CLAUDE.md §12. Status: `NOT_STARTED` · `IN_PROGRESS` · `BLOCKED` �
 - **Finding (sweep):** a file page shows a note's own text, which may quote another file's number (D20 cites the Vigilance file). That is the authorised document as written, not a disclosure by the system; the sweep checks what the page itself names. Kept visible here so the owner can decide otherwise
 - **Open question for the owner:** TP10 (status lookup) applies the status-coverage rule and returns the generic message for G.O.Ms.88/2022 to the Estt.I SO, while TP11 (pre-send) flags the same order as superseded (type A) from the records the officer can see. Should type A in the pre-send also defer to the status-coverage rule, or is "superseded by an order you can see" acceptable there?
 - **Security / temporal / citation implications:** grants are re-read from the connector on every call; core routes never import the sandbox; the sign-in header exists only when the sandbox is enabled (off by default on GCP)
-- **Blocker / decision needed:** the TP10/TP11 question above
+- **Blocker / decision needed:** TP10/TP11 question answered by the owner the same day (see the next entry)
 - **Exact next action:** slice 2 — scaffold `frontend/eoffice/` (Vite + React + TS): banner, sign-in picker, file list, file inner page with the Assist panel (pre-send, search, local reference, Insert as Yellow Note)
 
 ### 2026-11-04 · P1 / M2 · Telugu order headers (D16)

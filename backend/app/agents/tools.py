@@ -9,6 +9,10 @@ decision, 3 Nov 2026): a status or "current version" is reported ONLY when the o
 covers every record that could change it (`Scope.covers_status_domain`, policy
 `status_coverage`). Otherwise the generic STATUS_UNCONFIRMED message is returned — decided from
 the scope alone, so it appears whether or not a hidden superseding order exists.
+Refinement (owner, 4 Nov 2026): what the officer's own records establish may be stated even
+without full coverage — "superseded / repealed by an order you can see", "expired on its own end
+date" — but never which version is current (CURRENT_UNCONFIRMED). Only "in force" / "current"
+claims wait for full coverage. Hidden records still change nothing in the answer.
 """
 
 from __future__ import annotations
@@ -51,6 +55,12 @@ STATUS_UNCONFIRMED = (
 )
 
 
+CURRENT_UNCONFIRMED = (
+    "I can't confirm which version is current from the records available to you. "
+    "Please check with the section."
+)
+
+
 class _Frozen(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
@@ -86,6 +96,7 @@ class ToolResult(_Frozen):
     available: bool  # False is identical for "absent" and "not permitted"
     documents: tuple[DocRef, ...] = ()
     status: str | None = None
+    by: str | None = None  # the visible order that superseded / repealed it
     current_version: str | None = None
     precedence: Precedence | None = None
     ladder_level: str | None = None
@@ -221,21 +232,32 @@ def check_document_status(ctx: ToolContext, canonical_id: str) -> ToolResult:
     doc = _visible(ctx, canonical_id)
     if doc is None or canonical_id not in ctx.instruments:
         return ToolResult(tool="check_document_status", available=False)
+    inst, rels = _visible_facts(ctx, {canonical_id})
+    st = status_as_of(canonical_id, ctx.as_of, inst, rels)
     if not _status_covered(ctx, doc):
+        if st.status in (Status.SUPERSEDED, Status.REPEALED, Status.EXPIRED):
+            return ToolResult(  # established by visible records; "current" is not claimed
+                tool="check_document_status",
+                available=True,
+                documents=(_ref(doc),),
+                status=st.status.value,
+                by=st.by,
+                message=CURRENT_UNCONFIRMED,
+                ladder_level="L0+L3",
+            )
         return ToolResult(
             tool="check_document_status",
             available=True,
             status_unconfirmed=(_ref(doc),),
             message=STATUS_UNCONFIRMED,
         )
-    inst, rels = _visible_facts(ctx, {canonical_id})
-    st = status_as_of(canonical_id, ctx.as_of, inst, rels)
     current = applicable_version(canonical_id, ctx.as_of, inst, rels)
     return ToolResult(
         tool="check_document_status",
         available=True,
         documents=(_ref(doc),),
         status=st.status.value,
+        by=st.by,
         current_version=current if st.status is not Status.IN_FORCE else canonical_id,
         ladder_level="L0+L3",
     )

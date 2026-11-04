@@ -7,7 +7,14 @@ from typing import Any
 
 import pytest
 
-from app.agents.tools import STATUS_UNCONFIRMED, ToolContext, ToolError, ToolName, call_tool
+from app.agents.tools import (
+    CURRENT_UNCONFIRMED,
+    STATUS_UNCONFIRMED,
+    ToolContext,
+    ToolError,
+    ToolName,
+    call_tool,
+)
 from app.auth.models import StatusCoverage
 from app.auth.store import AccessTuple, Relation
 from app.config import REPO_ROOT, load_hierarchy
@@ -167,10 +174,18 @@ def test_policy_default_is_the_strict_coverage_rule() -> None:
 def test_strict_rule_reports_status_only_with_full_department_coverage() -> None:
     sec = _call("U06", "check_document_status", {"canonical_ids": [CID["D12"]]})
     assert sec.status == "superseded" and sec.current_version == CID["D14"]  # Secretary, own dept
-    for uid, did in (("U01", "D03"), ("U01", "D14"), ("U06", "D03"), ("U05", "D14")):
+    for uid, did in (("U01", "D14"), ("U05", "D14")):  # in force: needs full coverage
         res = _call(uid, "check_document_status", {"canonical_ids": [CID[did]]})
         assert res.status is None and res.current_version is None, (uid, did)
         assert res.message == STATUS_UNCONFIRMED and _docs_unconfirmed(res) == {did}
+
+
+def test_superseded_by_a_visible_order_is_stated_without_claiming_current() -> None:
+    """Owner refinement, 4 Nov 2026: visible supersession may be stated; "current" may not."""
+    for uid in ("U01", "U06"):
+        res = _call(uid, "check_document_status", {"canonical_ids": [CID["D03"]]})
+        assert res.status == "superseded" and res.by == CID["D04"], uid
+        assert res.current_version is None and res.message == CURRENT_UNCONFIRMED
 
 
 def _docs_unconfirmed(res) -> set[str]:  # type: ignore[no-untyped-def]

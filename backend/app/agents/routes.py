@@ -186,6 +186,7 @@ def build_assist_router(
             "found": res.available,
             "documents": [d.model_dump() for d in docs_out(run, res)],
             "status": res.status,
+            "by": res.by,
             "current_version": res.current_version,
             "message": res.message,
         }
