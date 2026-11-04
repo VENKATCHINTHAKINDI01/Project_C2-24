@@ -2,7 +2,7 @@ import { renderToString } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { createApi } from "./api";
 import { App } from "./App";
-import { AssistPanel, LinkCard, SoFarCard } from "./components/AssistPanel";
+import { AssistPanel, BriefCard, LinkCard, SoFarCard } from "./components/AssistPanel";
 import { BANNER_TEXT } from "./components/Banner";
 import { NoticesPanel, ReceiptAssistCard } from "./components/Receipts";
 import { outcomeLabel, yellowNoteFrom } from "./presend";
@@ -101,6 +101,31 @@ describe("screens", () => {
     );
     expect(html).toContain("AP-FIN01-GOMS-31-2025 supersedes AP-FIN01-GOMS-88-2022");
     expect(html).toContain("Open files that rely on AP-FIN01-GOMS-88-2022: USD01-12/19/2026-ESTT.I");
+  });
+
+  it("the approval brief shows the proposal, what it relies on, flags and precedents", () => {
+    const html = text(
+      <BriefCard b={{
+        request_id: "r", calibrated: false, mock_rules: true, computer_no: "2894562",
+        file_no: "USD01-12/19/2026-ESTT.I", subject: "Transfer", draft_id: "AP-USD01-NOTE-USD0112-19-2026",
+        proposal: { action: "transfer", post_level: "staff", amount_rupees: null, proposed_authority: "Deputy Secretary",
+          proposal_date: "2026-09-22", evidence: { proposed_authority: "the Deputy Secretary may kindly approve" }, not_stated: [] },
+        chain: ["Assistant Section Officer (Estt.I)"],
+        put_up: { post: "Assistant Section Officer (Estt.I)", signed_at: "2026-09-22T12:10:00", source: "x" },
+        governing: [
+          { cited: "AP-FIN01-GOMS-88-2022", found: true, status: "superseded", by: "AP-FIN01-GOMS-31-2025", current_version: null, message: "I can't confirm which version is current…" },
+          { cited: "AP-FIN01-GOMS-104-2026", found: false, status: null, by: null, current_version: null, message: "Not found in the records available to you." },
+        ],
+        presend: { ...REPORT },
+        precedents: [{ file_no: "USD01-12/58/2025-ESTT.I", documents: [{ canonical_id: "n", doc_type: "Noting", subject: "Sri K. Venkata Ramana", issue_date: null, file_no: null }] }],
+        movement: [],
+      }} />,
+    );
+    expect(html).toContain("approval sought from Deputy Secretary");
+    expect(html).toContain("AP-FIN01-GOMS-88-2022: superseded by AP-FIN01-GOMS-31-2025");
+    expect(html).toContain("AP-FIN01-GOMS-104-2026: not found");
+    expect(html).toContain("C · Procedure / authority (uncertain)");
+    expect(html).toContain("Put up by Assistant Section Officer (Estt.I) on 2026-09-22");
   });
 
   it("a review-needed outcome never reads as clear", () => {

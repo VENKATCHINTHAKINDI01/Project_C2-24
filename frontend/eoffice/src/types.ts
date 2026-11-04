@@ -107,6 +107,25 @@ export interface ReceiptReview extends AssistMeta {
   message: string | null;
 }
 
+export interface GoverningOrder {
+  cited: string; found: boolean; status: string | null; by: string | null;
+  current_version: string | null; message: string | null;
+}
+
+export interface Brief extends AssistMeta {
+  computer_no: string; file_no: string; subject: string; draft_id: string | null;
+  proposal: {
+    action: string | null; post_level: string | null; amount_rupees: number | null;
+    proposed_authority: string | null; proposal_date: string | null;
+    evidence: Record<string, string>; not_stated: string[];
+  };
+  chain: string[]; put_up: { post: string | null; signed_at: string | null; source: string } | null;
+  governing: GoverningOrder[];
+  presend: PresendReport | null;
+  precedents: { file_no: string; documents: DocOut[] }[];
+  movement: string[];
+}
+
 export interface DraftReceipt {
   request_id: string; draft_id: string; kind: string; computer_no: string; status: string;
 }

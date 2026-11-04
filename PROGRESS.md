@@ -22,7 +22,7 @@ Legend: ✅ done · 🟡 in progress · ⬜ not started · ⛔ blocked
 | P5 | Agents + noting + memory + HITL | 🟡 | Typed AgentState + intent templates done (no LangGraph/Gemini yet) |
 | P6 | Verification, audit, tracking | ⬜ | |
 | P7 | Evaluation & security harness | 🟡 | Harness on the reference stack: retrieval metrics, A–G conflict P/R, leakage matrix (8 paths, 0 disclosures), 6 of 17 touchpoints; baseline report 4 Nov 2026. RAGAS/faithfulness, answer status, OCR accuracy need GCP |
-| P8 | Integration, UI, demo hardening | 🟡 | Slices 1–2 done: sandbox + assist API, and Vite + React + TS screens (sign-in, file list, file inner page with C2-24 Assist, advance search) — TP2, TP3, TP4, TP8, TP9, TP10, TP11, TP15 usable in the browser; remaining core touchpoints next (ADR-0012) |
+| P8 | Integration, UI, demo hardening | 🟡 | Slices 1–2 done: sandbox + assist API, and Vite + React + TS screens (sign-in, file list, file inner page with C2-24 Assist, advance search) — TP2, TP3, TP4, TP8, TP9, TP10, TP11, TP13, TP15 usable in the browser; remaining core touchpoints next (ADR-0012) |
 | P9 | Buffer, dry-run, stretch | ⬜ | |
 
 ## 2. Milestones
@@ -216,6 +216,8 @@ Legend: ✅ done · 🟡 in progress · ⬜ not started · ⛔ blocked
 
 | 4 Nov 2026 | TP4 received letters: connector events → runtime sync → reconciliation → per-officer open-file notices; sandbox replay (`C2_SANDBOX_REPLAY=tp04`) with "Letter arrives"; eval TP04 PASS (12 touchpoints); 1154 → 1155 backend tests, 12 frontend tests | Next: TP13 senior brief |
 
+| 4 Nov 2026 | TP2–TP4 committed as `b8e41a8`. TP13 approval brief (proposal, orders relied on, flags, precedents, movement — all from scoped parts); eval TP13 PASS (13 touchpoints); 1155 → 1156 backend tests, 13 frontend tests | Next: deterministic parts of TP6/TP7/TP14 |
+
 ## 8a. Gap report (CLAUDE.md §14), 22 Oct 2026
 
 | Phase / milestone | Status | Evidence |
@@ -236,6 +238,15 @@ Runtime facts: Python 3.13.9 (uv, `backend/.venv`), Node 24.5, uv 0.9.28, Docker
 ## 9. Task ledger
 
 Format per CLAUDE.md §12. Status: `NOT_STARTED` · `IN_PROGRESS` · `BLOCKED` · `DONE`. Newest first.
+
+### 2026-11-04 · P8 / M9 · Touchpoint 13: approval brief for a senior
+- **Status:** DONE (deterministic parts); the written brief and types B/D wait for Gemini
+- **Plan section:** §11.5 touchpoint 13, §6, §8, status-coverage rule
+- **Files changed:** new `backend/app/agents/brief.py` (`approval_brief`: proposal facts from the draft, note chain, each cited order through the status tool, pre-send flags, Link-file precedents, movement trail), `backend/app/agents/routes.py` (`POST /assist/brief`, via `open_file`), `backend/tests/unit/test_sandbox_api.py` (TP13 per-officer test; sweep covers the brief), `evaluation/harness/suites.py` (TP13 scenario; shared `_tool_ctx`), new `evaluation/reports/2026-11-04-approval-brief.{md,json}`, frontend `types.ts`, `api.ts`, `components/AssistPanel.tsx` (`BriefCard`, "Approval brief"), `styles.css`, `render.test.tsx`, `PROGRESS.md`, `docs/LEARNINGS.md`
+- **Tests/commands run:** backend: ruff ✅ · mypy strict (108 files) ✅ · `pytest -q` → 1156 passed ✅ · `run_eval.py --label approval-brief --compare …received-letters.json` → exit 0. Frontend: `tsc` ✅ · Vitest 13 passed ✅ · build ✅. Browser: the Secretary opens the 2026 transfer file → Approval brief: proposal (transfer · staff post · approval sought from the Deputy Secretary, with the note's words), put up by ASO (Estt.I) on 22-09-2026, 88/2022 superseded by 31/2025 (current version not claimed), 104/2026 not found, flags A/E/F/C, precedents including the CONFIDENTIAL 2025 case; no console errors
+- **Acceptance evidence:** TP13 PASS on the eval stack — every required document named, flags A/C/E/F; D26 (evidence only for type B) reported as waiting for Gemini, not counted; **touchpoints passed 12 → 13**; other metrics unchanged; leakage 0 / 1142; HTTP sweep covers the brief for every officer and file → 0. The Estt.I SO's brief on the same file does not list the CONFIDENTIAL 2025 case; the Works SO gets 404
+- **Blocker / decision needed:** none
+- **Exact next action:** remaining core touchpoints need drafting (TP6 Yellow Note, TP7 referencing, TP14 DFA) — build their deterministic parts (cited points, reference targets, "Read the following" list) and leave the prose to Gemini; or pause P8 and pick up owner items
 
 ### 2026-11-04 · P8 / M9 · Touchpoint 4: received letters (order arrives → open-file notices)
 - **Status:** DONE

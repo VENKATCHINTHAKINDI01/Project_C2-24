@@ -1,7 +1,7 @@
 // Thin client for the sandbox + assist API. Sign-in is SIMULATED with a header (sandbox only,
 // ADR-0012). Errors keep the server's neutral wording; nothing is retried with less scope.
 import type {
-  DraftReceipt, FilePage, FileSoFar, LinkSuggestions, Notices, ReceiptReview, ReceiptRow, FileRow, Me, PresendReport, Profile, ReferenceResult, SearchResult,
+  Brief, DraftReceipt, FilePage, FileSoFar, LinkSuggestions, Notices, ReceiptReview, ReceiptRow, FileRow, Me, PresendReport, Profile, ReferenceResult, SearchResult,
 } from "./types";
 
 export const SANDBOX_USER_HEADER = "X-Sandbox-User";
@@ -55,6 +55,7 @@ export function createApi(userId: string | null, fetchFn: Fetch = (i, init) => f
     notices: () => call<Notices>("/assist/notices"),
     letterArrives: (computerNo: string) =>
       call<{ event_id: string; kind: string }>(`/sandbox/receipts/${encodeURIComponent(computerNo)}/arrive`, {}),
+    brief: (computerNo: string) => call<Brief>("/assist/brief", { computer_no: computerNo }),
     search: (query: string) => call<SearchResult>("/assist/search", { query }),
     reference: (text: string) => call<ReferenceResult>("/assist/reference", { text }),
     insertYellowNote: (computerNo: string, body: string, citations: string[], requestId: string) =>

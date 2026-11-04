@@ -91,6 +91,10 @@ pre { white-space: pre-wrap; font: inherit; margin: 0; }
 .notices { margin-bottom: 16px; }
 .notices h3 { margin: 0 0 8px; }
 
+.brief h4 { margin: 4px 0; }
+.brief .card { margin-bottom: 6px; }
+.brief .card p { font-size: .92rem; }
+
 @media (max-width: 1000px) {
   .panes { grid-template-columns: 1fr; }
   .corr, .assist { border-left: 0; border-top: 1px solid var(--line); }

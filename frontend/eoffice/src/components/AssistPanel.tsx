@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { Api } from "../api";
 import { FLAG_NAMES, outcomeLabel, yellowNoteFrom } from "../presend";
-import type { FileSoFar, LinkSuggestions, PresendReport, ReferenceResult } from "../types";
+import type { Brief, FileSoFar, LinkSuggestions, PresendReport, ReferenceResult } from "../types";
 
 /** C2-24 Assist for the open file (plan §11.5 touchpoints 10, 11). Drafts only. */
 export function AssistPanel({ api, computerNo, report, onReport, onInserted }: {
@@ -15,6 +15,7 @@ export function AssistPanel({ api, computerNo, report, onReport, onInserted }: {
   const [inserted, setInserted] = useState<string | null>(null);
   const [soFar, setSoFar] = useState<FileSoFar | null>(null);
   const [links, setLinks] = useState<LinkSuggestions | null>(null);
+  const [brief, setBrief] = useState<Brief | null>(null);
   const [linked, setLinked] = useState<Record<string, string>>({});
 
   const run = async <T,>(f: () => Promise<T>, then: (x: T) => void) => {
@@ -34,6 +35,7 @@ export function AssistPanel({ api, computerNo, report, onReport, onInserted }: {
     <aside className="assist">
       <h3>✦ C2-24 Assist — this file</h3>
       <div className="chips">
+        <button disabled={busy} onClick={() => void run(() => api.brief(computerNo), setBrief)}>Approval brief</button>
         <button disabled={busy} onClick={() => void run(() => api.fileSoFar(computerNo), setSoFar)}>File so far</button>
         <button disabled={busy} onClick={() => void run(() => api.linkSuggestions(computerNo), setLinks)}>Link file</button>
         <button disabled={busy} onClick={() => void run(() => api.presend(computerNo), onReport)}>Pre-send check</button>
@@ -49,6 +51,7 @@ export function AssistPanel({ api, computerNo, report, onReport, onInserted }: {
       {ref && <ReferenceCard r={ref} />}
 
       {error && <p className="error">{error}</p>}
+      {brief && <BriefCard b={brief} />}
       {soFar && <SoFarCard s={soFar} />}
       {links && (
         <LinkCard
@@ -93,6 +96,52 @@ export function AssistPanel({ api, computerNo, report, onReport, onInserted }: {
       )}
       <p className="footnote">Drafts only. Nothing is saved, signed or sent without the officer.</p>
     </aside>
+  );
+}
+
+const fmtRs = (n: number) => `Rs.${(n / 1e7).toFixed(2)} crore`;
+
+/** Touchpoint 13: approval brief for a senior — built from the file's own records; every item
+ *  is something the officer can open. No model-written text. */
+export function BriefCard({ b }: { b: Brief }) {
+  const p = b.proposal;
+  const flags = b.presend?.flags ?? [];
+  return (
+    <section className="brief">
+      <h4>Approval brief — {b.file_no}</h4>
+      <div className="card">
+        <p><strong>Proposal:</strong> {p.action ?? "not stated"}
+          {p.post_level ? ` · ${p.post_level} post` : ""}
+          {p.amount_rupees != null ? ` · ${fmtRs(p.amount_rupees)}` : ""}
+          {p.proposed_authority ? ` · approval sought from ${p.proposed_authority}` : ""}
+        </p>
+        {p.evidence.proposed_authority && <p className="src">“{p.evidence.proposed_authority}”</p>}
+        {p.not_stated.length > 0 && <p className="muted">Not stated clearly in the note: {p.not_stated.join(", ")}</p>}
+        {b.put_up && <p className="muted">Put up by {b.put_up.post ?? "—"}{b.put_up.signed_at ? ` on ${b.put_up.signed_at.slice(0, 10)}` : ""}</p>}
+      </div>
+      <div className="card">
+        <p><strong>Orders the note relies on</strong></p>
+        {b.governing.length === 0 && <p className="muted">The note cites no order.</p>}
+        {b.governing.map((g) => (
+          <p key={g.cited}>{g.cited}: {g.status ? g.status.replace(/_/g, " ") : g.found ? "status not confirmed" : "not found"}
+            {g.by ? ` by ${g.by}` : ""}{g.message ? <span className="muted"> — {g.message}</span> : null}</p>
+        ))}
+      </div>
+      <div className="card">
+        <p><strong>Flags</strong> {flags.length === 0 && <span className="muted">none from the records</span>}</p>
+        {flags.map((f, i) => (
+          <p key={i}>{f.type} · {FLAG_NAMES[f.type]}{f.certain ? "" : " (uncertain)"} — <span className="muted">{f.cited}</span></p>
+        ))}
+      </div>
+      <div className="card">
+        <p><strong>Precedent files</strong></p>
+        {b.precedents.length === 0 && <p className="muted">None in your records.</p>}
+        {b.precedents.map((x) => (
+          <p key={x.file_no}>{x.file_no} <span className="muted">— {x.documents[0]?.subject}</span></p>
+        ))}
+      </div>
+      {b.movement.length > 0 && <p className="muted">Movement so far: {b.movement.join(" → ")}</p>}
+    </section>
   );
 }
 

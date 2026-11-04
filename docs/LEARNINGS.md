@@ -18,6 +18,7 @@ Format: `- YYYY-MM-DD · fact / rule · (source or plan §)`
 <!-- exact commands to run tests, lint, eval harness, local services -->
 
 ## Conventions
+- 2026-11-04 · Eval scenarios whose expected docs include evidence only for types not built yet (B, D, G) report those docs as "waiting_for_gemini" instead of failing — derived from conflicts.json, never hand-listed
 - 2026-11-04 · Cited-order checks go through `conflict.citations.review_citations` (pre-send and receipts). Match cited IDs to stored ones ONLY against the officer's visible records, or a flag can name a hidden document's ID
 - 2026-11-04 · Every assist endpoint that takes a Computer No. goes through `open_file` in `agents/routes.py`: connector reach AND `check()` on the file's classification/location; never call `connector.file_context` alone
 - 2026-11-04 · Status answers: facts the officer's records establish (superseded / repealed by a visible order, expired) may be stated without full coverage; "in force" and "current version" need `covers_status_domain` (STATUS_UNCONFIRMED / CURRENT_UNCONFIRMED otherwise). Keep `test_outcome_is_identical_with_or_without_a_hidden_successor` green

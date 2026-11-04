@@ -267,6 +267,25 @@ def test_receipt_inbox_follows_reach(client: TestClient) -> None:
     assert client.get("/sandbox/receipts/9100010", headers=_h("U03")).status_code == 404
 
 
+def test_tp13_approval_brief_follows_each_officers_access(client: TestClient) -> None:
+    sec = client.post("/assist/brief", json={"computer_no": "2894562"}, headers=_h("U06")).json()
+    assert {f["type"] for f in sec["presend"]["flags"]} == {"A", "C", "E", "F"}
+    assert sec["proposal"]["action"] == "transfer"
+    assert sec["proposal"]["proposed_authority"] == "Deputy Secretary"
+    assert sec["put_up"]["post"] == "Assistant Section Officer (Estt.I)"
+    g88 = next(g for g in sec["governing"] if g["cited"] == "AP-FIN01-GOMS-88-2022")
+    assert g88["status"] == "superseded" and g88["by"] == "AP-FIN01-GOMS-31-2025"
+    assert g88["current_version"] is None  # never "current" without full coverage
+    g104 = next(g for g in sec["governing"] if not g["found"])
+    assert "records available to you" in g104["message"]
+    sec_files = {p["file_no"] for p in sec["precedents"]}
+    assert "USD01-12/58/2025-ESTT.I" in sec_files  # the CONFIDENTIAL 2025 case: Secretary may see
+    so = client.post("/assist/brief", json={"computer_no": "2894562"}, headers=_h("U01")).json()
+    assert "USD01-12/58/2025-ESTT.I" not in {p["file_no"] for p in so["precedents"]}
+    hidden = client.post("/assist/brief", json={"computer_no": "2894562"}, headers=_h("U03"))
+    assert hidden.status_code == 404
+
+
 def test_drafts_only_and_audited_without_text(client: TestClient) -> None:
     body = "1. Draft: the request may be kept pending until the next general transfers."
     r = client.post(
@@ -343,6 +362,11 @@ def test_zero_disclosures_through_the_api(client: TestClient) -> None:
             check(uid, f"file so far {cno}", fsf)
             r = client.post("/assist/link-suggestions", json={"computer_no": cno}, headers=_h(uid))
             check(uid, f"link suggestions {cno}", r.json())
+            r = client.post("/assist/brief", json={"computer_no": cno}, headers=_h(uid))
+            brief = r.json()
+            for ev in (brief.get("proposal") or {}).get("evidence", {}):
+                brief["proposal"]["evidence"][ev] = ""  # the draft's own words, as on the page
+            check(uid, f"brief {cno}", brief)
             p = client.get(f"/sandbox/files/{cno}", headers=_h(uid)).json()
             # Note text is the authorised document itself, shown as written (it may quote a file
             # number the officer cannot open — e.g. D20 cites the Vigilance file). Check what the

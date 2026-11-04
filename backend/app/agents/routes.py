@@ -17,6 +17,7 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.agents.brief import approval_brief
 from app.agents.intents import IntentSlots
 from app.agents.receipts import review_receipt
 from app.agents.runtime import AssistRuntime
@@ -444,6 +445,86 @@ def build_assist_router(
             "message": None
             if doc
             else "The letter on this receipt was not found in the records available to you.",
+            **meta(run),
+        }
+
+    @r.post("/brief")
+    def brief(body: FileIn, o: Annotated[Officer, Depends(officer)]) -> dict[str, Any]:
+        """Touchpoint 13 — approval brief for a senior opening the file."""
+        run = rt(o, "assist.brief")
+        fctx = open_file(o, run, body.computer_no, "assist.brief")
+        store = run.store_for(o.ctx)
+        docs = list(run.stores.index._docs)  # noqa: SLF001 — reference store
+        b = approval_brief(
+            ctx=run.tool_context(o.ctx.user_id, store),
+            file_no=fctx.file_no,
+            subject=fctx.subject,
+            movement=fctx.movement_trail,
+            documents=docs,
+            text_of=lambda c: run.texts.get(c, ""),
+            tags_of={d.canonical_id: d.tags for d in docs},
+            rules=run.rules,
+            windows=run.windows(),
+            departments=run.departments,
+        )
+        f = b.facts.facts if b.facts else None
+        audit.record(
+            o.request_id,
+            o.ctx.user_id,
+            "assist.brief",
+            "ok" if b.draft_id else "no_answer",
+            ids=(body.computer_no, *([b.draft_id] if b.draft_id else [])),
+        )
+        return {
+            "request_id": o.request_id,
+            "computer_no": body.computer_no,
+            "file_no": fctx.file_no,
+            "subject": fctx.subject,
+            "draft_id": b.draft_id,
+            "proposal": {
+                "action": f.action.value if f else None,
+                "post_level": f.post_level.value if f and f.post_level else None,
+                "amount_rupees": f.amount_rupees if f else None,
+                "proposed_authority": run.rules.label(f.proposed_authority)
+                if f and f.proposed_authority
+                else None,
+                "proposal_date": f.proposal_date.isoformat() if f else None,
+                "evidence": b.facts.evidence if b.facts else {},
+                "not_stated": list(b.facts.missing) if b.facts else [],
+            },
+            "chain": list(b.chain.chain),
+            "put_up": (
+                {
+                    "post": b.chain.notes[0].post,
+                    "signed_at": b.chain.notes[0].signed_at.isoformat()
+                    if b.chain.notes[0].signed_at
+                    else None,
+                    "source": b.chain.notes[0].source,
+                }
+                if b.chain.notes
+                else None
+            ),
+            "governing": [
+                {
+                    "cited": g.cited,
+                    "found": g.found,
+                    "status": g.status.status if g.status else None,
+                    "by": g.status.by if g.status else None,
+                    "current_version": g.status.current_version if g.status else None,
+                    "message": (g.status.message if g.status else None)
+                    or (None if g.found else "Not found in the records available to you."),
+                }
+                for g in b.governing
+            ],
+            "presend": _report(b.presend) if b.presend else None,
+            "precedents": [
+                {
+                    "file_no": p.file_no,
+                    "documents": [d.model_dump(mode="json") for d in p.documents],
+                }
+                for p in b.precedents
+            ],
+            "movement": list(b.movement),
             **meta(run),
         }
 

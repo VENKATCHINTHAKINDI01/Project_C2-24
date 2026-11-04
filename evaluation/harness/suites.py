@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from app.agents.brief import approval_brief
 from app.agents.intents import RELATED, Intent, IntentSlots, build_request
 from app.agents.receipts import review_receipt
 from app.agents.tools import ToolContext
@@ -423,6 +424,79 @@ class Harness:
 
     # ---- suite 4 · touchpoint scenarios -----------------------------------------------------
 
+    def _tool_ctx(self, user: str, as_of: str) -> ToolContext:
+        return ToolContext(
+            user_id=user,
+            as_of=dt.date.fromisoformat(as_of),
+            index=self.s.stores.index,
+            l2=self.s.l2,
+            graph=self.s.stores.graph,
+            cfg=self.s.cfg,
+            store=self.store(),
+            policy=POLICY,
+            classification=CLASSES,
+            hierarchy=load_hierarchy(ONTOLOGY / "hierarchy.yaml"),
+            instruments=self.s.stores.instruments,
+            relations=tuple(self.s.stores.relations),
+        )
+
+    def _brief(self, sc: dict[str, Any], c_rows: dict[str, Any]) -> dict[str, Any]:
+        """TP13: the brief names the expected documents and the deterministic flags of the draft.
+        Documents that are evidence ONLY for types not built yet (B, D, G — Gemini) are reported,
+        not required."""
+        user, exp = sc["user"], sc["expected"]
+        f = next(
+            x for x in _load_seed()["files"] if x["computer_no"] == sc["context"]["computer_no"]
+        )
+        docs = self.s.documents()
+        b = approval_brief(
+            ctx=self._tool_ctx(user, sc["as_of"]),
+            file_no=f["file_no"],
+            subject=f["subject"],
+            movement=(),
+            documents=docs,
+            text_of=lambda c: self.s.text_of.get(c, ""),
+            tags_of={d.canonical_id: d.tags for d in docs},
+            rules=self.rules,
+            windows=[w for ws in self.s.stores.windows.values() for w in ws],
+            departments=self.s.departments,
+        )
+
+        def did(c: str) -> str:
+            return self.s.doc_of.get(c.split("#")[0], c)
+
+        named = {did(b.draft_id)} if b.draft_id else set()
+        for g in b.governing:
+            named.add(did(g.cited))
+            if g.status and g.status.by:
+                named.add(did(g.status.by))
+        if b.presend:
+            named |= {did(e) for fl in b.presend.flags for e in fl.evidence_ids}
+        named |= {did(d.canonical_id) for p in b.precedents for d in p.documents}
+        draft = did(b.draft_id) if b.draft_id else ""
+        later_only = {
+            e
+            for c in self.conflicts
+            if c["in"] == draft and c["type"] not in IMPLEMENTED_TYPES
+            for e in c["evidence"]
+        } - {
+            e
+            for c in self.conflicts
+            if c["in"] == draft and c["type"] in IMPLEMENTED_TYPES
+            for e in c["evidence"]
+        }
+        want = set(exp["docs"])
+        required = want - later_only
+        flags = {fl.type.value for fl in b.presend.flags} if b.presend else set()
+        det = {c["type"] for c in self.conflicts if c["in"] == draft} & set(IMPLEMENTED_TYPES)
+        return {
+            "run": True,
+            "pass": required <= named and not set(exp["forbidden_docs"]) & named and det <= flags,
+            "missing_required": sorted(required - named),
+            "waiting_for_gemini": sorted((want - named) & later_only),
+            "flags": sorted(flags),
+        }
+
     def _received_letter(self, sc: dict[str, Any]) -> dict[str, Any]:
         """TP04 replay: the scenario's held-back records, then the order arrives. The notice must
         list exactly the expected open files for the officer and none of the forbidden ones."""
@@ -655,6 +729,8 @@ class Harness:
                 row |= self._receipt(sc)
             elif sc["touchpoint"] == 4:
                 row |= self._received_letter(sc)
+            elif sc["touchpoint"] == 13:
+                row |= self._brief(sc, c_rows)
             elif sid == "TP20":
                 pairs = [qid for group in exp["pairs"] for qid in group]
                 rows_ = [q_rows[q] for q in pairs]
