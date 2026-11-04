@@ -142,3 +142,11 @@ def test_text_and_source_disagree_goes_to_review() -> None:
     assert res.status is IngestStatus.HELD
     assert ReviewKind.DEPARTMENT_MISMATCH in {i.kind for i in res.review_items}
     assert len(stores.index) == 0
+
+
+def test_read_list_date_broken_after_its_hyphen() -> None:
+    """G.O.Rt.1184/2025's PDF wraps "Dt.27-" / "03-2024": the cited circular keeps its date tag."""
+    path = CORPUS / IDX["D08"]["file"]
+    meta = extract_metadata(extract_native(path.read_bytes(), detect_file(path)).native_text, DEPTS)
+    ids = [r.canonical_id for r in meta.references]
+    assert "AP-FIN01-CIRMEMO-FIN01HROPDPPOUTS-7-2024-D20240327" in ids

@@ -1,7 +1,7 @@
 // Thin client for the sandbox + assist API. Sign-in is SIMULATED with a header (sandbox only,
 // ADR-0012). Errors keep the server's neutral wording; nothing is retried with less scope.
 import type {
-  DraftReceipt, FilePage, FileSoFar, LinkSuggestions, FileRow, Me, PresendReport, Profile, ReferenceResult, SearchResult,
+  DraftReceipt, FilePage, FileSoFar, LinkSuggestions, Notices, ReceiptReview, ReceiptRow, FileRow, Me, PresendReport, Profile, ReferenceResult, SearchResult,
 } from "./types";
 
 export const SANDBOX_USER_HEADER = "X-Sandbox-User";
@@ -47,6 +47,14 @@ export function createApi(userId: string | null, fetchFn: Fetch = (i, init) => f
         computer_no: computerNo, kind: "suggested_reference",
         body: `Link file ${fileNo} as a read-only reference (precedent).`, citations, request_id: requestId,
       }),
+    receipts: () => call<{ banner: string; receipts: ReceiptRow[] }>("/sandbox/receipts"),
+    receipt: (computerNo: string) =>
+      call<{ banner: string; receipt: ReceiptRow }>(`/sandbox/receipts/${encodeURIComponent(computerNo)}`),
+    receiptAssist: (computerNo: string, asOf?: string) =>
+      call<ReceiptReview>("/assist/receipt", asOf ? { computer_no: computerNo, as_of: asOf } : { computer_no: computerNo }),
+    notices: () => call<Notices>("/assist/notices"),
+    letterArrives: (computerNo: string) =>
+      call<{ event_id: string; kind: string }>(`/sandbox/receipts/${encodeURIComponent(computerNo)}/arrive`, {}),
     search: (query: string) => call<SearchResult>("/assist/search", { query }),
     reference: (text: string) => call<ReferenceResult>("/assist/reference", { text }),
     insertYellowNote: (computerNo: string, body: string, citations: string[], requestId: string) =>

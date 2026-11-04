@@ -23,7 +23,7 @@ from app.config import (
     load_hierarchy,
     load_runtime_config,
 )
-from app.connectors.eoffice import ConnectorError
+from app.connectors.eoffice import ConnectorError, EOfficeConnector
 from app.retrieval.graph_expansion import NotCalibratedError
 from app.retrieval.ladder import LadderConfig
 
@@ -36,6 +36,11 @@ def _sandbox_ladder(settings: Settings) -> LadderConfig:
     return LadderConfig(
         l2_top_k=r["l2_top_k"], l2_min_score=r["l2_rerank_min_score"], l3_max_hops=r["l3_max_hops"]
     )
+
+
+def _sync(run: AssistRuntime | None, connector: EOfficeConnector) -> None:
+    if run is not None:
+        run.sync(connector)
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -69,7 +74,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     from app.eoffice_mock.routes import build_sandbox_router
 
     seed = load_seed(settings.sandbox_seed_path)
-    adapter = adapter_from_seed(seed, artefacts=artefacts_from_corpus(settings.sandbox_corpus_dir))
+    sandbox_cfg = yaml.safe_load(settings.sandbox_config_path.read_text(encoding="utf-8"))
+    holdback = (
+        sandbox_cfg.get("replays", {})[settings.sandbox_replay] if settings.sandbox_replay else []
+    )
+    adapter = adapter_from_seed(
+        seed, artefacts=artefacts_from_corpus(settings.sandbox_corpus_dir), holdback=holdback
+    )
     app.state.adapter = adapter
 
     def identify(request: Request) -> str | None:
@@ -97,6 +108,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             calibrated=calibrated,
             as_of=seed.as_of,
             received_at=dt.datetime.combine(seed.as_of, dt.time(9), tzinfo=dt.UTC),
+            open_files=adapter.open_files(),
         )
 
     app.state.assist_runtime = assist_runtime
@@ -110,7 +122,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return response
 
     app.include_router(
-        build_sandbox_router(adapter=adapter, classification=classification, identify=identify)
+        build_sandbox_router(
+            adapter=adapter,
+            classification=classification,
+            identify=identify,
+            on_event=lambda: _sync(assist_runtime(), adapter),
+        )
     )
     app.include_router(
         build_assist_router(

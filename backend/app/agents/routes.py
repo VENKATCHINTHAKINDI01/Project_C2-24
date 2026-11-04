@@ -18,11 +18,13 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.agents.intents import IntentSlots
+from app.agents.receipts import review_receipt
 from app.agents.runtime import AssistRuntime
 from app.agents.tools import ToolName, ToolResult, call_tool
 from app.audit.log import AuditLog
 from app.auth.models import DocumentAccessTags
 from app.auth.policy import check
+from app.conflict.deterministic import ConflictFlag
 from app.conflict.presend import PreSendReport, presend_check
 from app.connectors.eoffice import (
     ConnectorError,
@@ -36,6 +38,7 @@ from app.ingestion.metadata import extract_metadata
 from app.noting.chain import file_so_far
 from app.precedent.links import suggest_links
 from app.retrieval.references import LookupStatus, lookup_reference
+from app.updates.reconcile import notices_for
 
 NOT_SIGNED_IN = "Not signed in."
 NOT_AVAILABLE = "File not available."
@@ -62,6 +65,11 @@ class PresendIn(_In):
 
 class FileIn(_In):
     computer_no: str = Field(pattern=r"^\d{4,12}$")
+
+
+class ReceiptIn(_In):
+    computer_no: str = Field(pattern=r"^\d{4,12}$")
+    as_of: dt.date | None = None  # replay a past day in the sandbox; default: today's as-of date
 
 
 class DraftIn(_In):
@@ -375,6 +383,118 @@ def build_assist_router(
             **meta(run),
         }
 
+    @r.post("/receipt")
+    def receipt(body: ReceiptIn, o: Annotated[Officer, Depends(officer)]) -> dict[str, Any]:
+        """Touchpoints 2 and 3 — receipt summary, validity of what it relies on, where to put it."""
+        run = rt(o, "assist.receipt")
+        try:
+            rctx = connector.receipt_context(body.computer_no, o.ctx.user_id)
+        except ConnectorError:
+            audit.record(o.request_id, o.ctx.user_id, "assist.receipt", "not_available")
+            raise HTTPException(status_code=404, detail="Receipt not available.") from None
+        store = run.store_for(o.ctx)
+        rv = review_receipt(
+            rctx,
+            user_id=o.ctx.user_id,
+            as_of=body.as_of or run.as_of,
+            departments=run.departments,
+            index=run.stores.index,
+            documents=lambda: list(run.stores.index._docs),  # noqa: SLF001 — reference store
+            graph=run.stores.graph,
+            instruments=run.stores.instruments,
+            relations=list(run.stores.relations),
+            text_of=lambda c: run.texts.get(c, ""),
+            store=store,
+            policy=run.policy,
+            classification=run.classification,
+        )
+        doc = rv.document
+        audit.record(
+            o.request_id,
+            o.ctx.user_id,
+            "assist.receipt",
+            "ok" if doc else "no_answer",
+            ids=(body.computer_no, *([doc.canonical_id] if doc else []), *rv.cited),
+        )
+        return {
+            "request_id": o.request_id,
+            "computer_no": body.computer_no,
+            "as_of": (body.as_of or run.as_of).isoformat(),
+            "document": DocOut(
+                canonical_id=doc.canonical_id,
+                doc_type=doc.doc_type,
+                subject=doc.subject,
+                issue_date=doc.issue_date,
+                file_no=doc.tags.file_no,
+            ).model_dump(mode="json")
+            if doc
+            else None,
+            "summary": list(rv.summary),
+            "cited": list(rv.cited),
+            "flags": [
+                {**f, "about": a}
+                for f, a in zip(_report_flags(rv.flags), rv.flag_about, strict=True)
+            ],
+            "status_unconfirmed": list(rv.status_unconfirmed),
+            "put_in": {
+                "suggestion": rv.suggestion,
+                "files": list(rv.put_in),
+                "related_files": list(rv.related_files),
+            },
+            "message": None
+            if doc
+            else "The letter on this receipt was not found in the records available to you.",
+            **meta(run),
+        }
+
+    @r.get("/notices")
+    def notices(o: Annotated[Officer, Depends(officer)]) -> dict[str, Any]:
+        """Touchpoint 4 — an incoming order changed an earlier one; these OPEN files of yours rely
+        on the old order. Filtered per officer (plan §5.4); explicit supersession is applied
+        directly, inferred ones wait in the review queue (plan §7.3)."""
+        run = rt(o, "assist.notices")
+        run.sync(connector)
+        store = run.store_for(o.ctx)
+        mine = notices_for(
+            o.ctx.user_id,
+            run.stores.notices,
+            store=store,
+            policy=run.policy,
+            classification=run.classification,
+        )
+
+        def ref(cid: str) -> dict[str, Any]:
+            d = run.doc(cid)
+            return {
+                "canonical_id": cid,
+                "doc_type": d.doc_type if d else None,
+                "subject": d.subject if d else None,
+                "issue_date": d.issue_date.isoformat() if d and d.issue_date else None,
+            }
+
+        audit.record(
+            o.request_id,
+            o.ctx.user_id,
+            "assist.notices",
+            "ok" if mine else "no_answer",
+            ids=tuple(x for n in mine for x in (n.new_doc, n.changed_doc)),
+        )
+        return {
+            "request_id": o.request_id,
+            "notices": [
+                {
+                    "new": ref(n.new_doc),
+                    "changed": ref(n.changed_doc),
+                    "change": n.change.value,
+                    "files": [
+                        {"file_no": a.file_no, "citing_doc": a.citing_doc} for a in n.affected
+                    ],
+                }
+                for n in mine
+            ],
+            **meta(run),
+        }
+
     @r.post("/draft")
     def draft(body: DraftIn, o: Annotated[Officer, Depends(officer)]) -> dict[str, Any]:
         """Insert as Yellow Note / Create DFA draft / Suggest reference — a DRAFT, on click."""
@@ -407,21 +527,25 @@ def build_assist_router(
     return r
 
 
+def _report_flags(flags: tuple[ConflictFlag, ...]) -> list[dict[str, Any]]:
+    return [
+        {
+            "type": f.type.value,
+            "cited": f.cited,
+            "evidence_ids": list(f.evidence_ids),
+            "explanation": f.explanation,
+            "certain": f.certain,
+            "review_state": f.review_state,
+        }
+        for f in flags
+    ]
+
+
 def _report(rep: PreSendReport) -> dict[str, Any]:
     return {
         "note_id": rep.note_id,
         "outcome": rep.outcome.value,
-        "flags": [
-            {
-                "type": f.type.value,
-                "cited": f.cited,
-                "evidence_ids": list(f.evidence_ids),
-                "explanation": f.explanation,
-                "certain": f.certain,
-                "review_state": f.review_state,
-            }
-            for f in rep.flags
-        ],
+        "flags": _report_flags(rep.flags),
         "status_unconfirmed": list(rep.status_unconfirmed),
         "fact_gaps": list(rep.fact_gaps),
         "authority_message": rep.authority.message if rep.authority else None,

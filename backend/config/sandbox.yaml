@@ -3,6 +3,11 @@
 # AND the connector is the mock adapter; every assist response then says "calibrated": false.
 version: "2026-11-04-sandbox"
 calibrated: false
+# Replays: letters held back at startup so their arrival can be shown live (C2_SANDBOX_REPLAY=<name>).
+# Corpus file names only. "tp04": G.O.Ms.31/2025 arrives after the records that depend on it.
+replays:
+  tp04:
+    - D04_FIN01-GOMS-31-2025.pdf
 retrieval:
   l2_top_k: 10
   l2_rerank_min_score: 1.0

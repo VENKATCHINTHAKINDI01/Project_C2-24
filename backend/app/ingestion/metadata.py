@@ -215,7 +215,9 @@ def _read_list(text: str) -> list[tuple[int, str]]:
                 items.append((int(lm.group(1)), lm.group(2).strip()))
             elif items and line.strip():
                 n, prev = items[-1]
-                items[-1] = (n, f"{prev} {line.strip()}")
+                # a date broken after its hyphen ("Dt.27-" / "03-2024") joins without a space
+                sep = "" if re.search(r"\d-$", prev) and re.match(r"\d", line.strip()) else " "
+                items[-1] = (n, f"{prev}{sep}{line.strip()}")
         return items
     ref = re.search(r"^\s*Ref\s*:\s*(?P<r>.+?)(?=\n\s*(?:\*|1\.)|\n\n)", text, re.S | re.M)
     return [(1, re.sub(r"\s+", " ", ref.group("r")).strip())] if ref else []

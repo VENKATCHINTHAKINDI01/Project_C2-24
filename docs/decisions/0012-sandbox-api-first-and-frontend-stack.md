@@ -18,6 +18,10 @@ P8 builds the mock e-Office sandbox and the touchpoints. It needs a backend surf
 
 **Update (4 Nov 2026, security):** `npm audit` found 5 advisories (2 critical) in the dev/test tools vite 5.4.11 and vitest 2.1.8 (dev-server request forgery and `server.fs.deny` bypasses, an esbuild dev-server issue, tinypool / @vitest/mocker code-execution gadgets). They run only during development; the static build ships none of them. Bumped to the oldest releases outside every advisory range that are at least two weeks old: **vite 6.4.5** (21 Oct 2026) and **vitest 4.1.12** (15 Oct 2026); `overrides` pins every copy of vite to 6.4.5 (npm otherwise pulls a second vite for vitest and crashes resolving its optional peers). `npm audit` → 0 vulnerabilities. React, plugin-react and TypeScript unchanged.
 
+**Update (4 Nov 2026, touchpoints 2–3):** the connector gains `receipt_context(computer_no, user_id) → ReceiptContext` (diary metadata only; unknown and unreachable receipts are indistinguishable). Additive; the mock derives a receipt's department from its dealing section.
+
+**Update (4 Nov 2026, touchpoint 4):** the connector gains `open_files()` (e-File numbers of open files, for reconciliation notices). Sandbox replays: `backend/config/sandbox.yaml` names letters held back at startup (`C2_SANDBOX_REPLAY=tp04`); the mock adapter withholds them from `documents()` until "Letter arrives", then raises `ORDER_RECEIVED`. The core only consumes events (`AssistRuntime.sync`) — it never knows about replays.
+
 ## Alternatives considered
 | Option | Why not |
 |---|---|

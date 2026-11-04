@@ -13,7 +13,7 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Depends, HTTPException, Request
 
 from app.config import Classification
-from app.connectors.eoffice import ConnectorError
+from app.connectors.eoffice import ConnectorError, ReceiptContext
 from app.eoffice_mock.adapter import MockEOfficeAdapter
 from app.eoffice_mock.models import BANNER, EFile, SandboxProfile
 
@@ -26,6 +26,7 @@ def build_sandbox_router(
     adapter: MockEOfficeAdapter,
     classification: Classification,
     identify: Callable[[Request], str | None],
+    on_event: Callable[[], None] = lambda: None,
 ) -> APIRouter:
     r = APIRouter(prefix="/sandbox", tags=["sandbox"])
     rank = {lv.name: lv.rank for lv in classification.levels}
@@ -130,5 +131,48 @@ def build_sandbox_router(
             ],
             "movements": [m.model_dump(mode="json") for m in adapter.movements(computer_no)],
         }
+
+    def receipt_row(rc: ReceiptContext) -> dict[str, Any]:
+        return {
+            "computer_no": rc.computer_no,
+            "receipt_no": rc.receipt_no,
+            "diary_date": rc.diary_date.isoformat(),
+            "sender": rc.sender,
+            "letter_ref": rc.letter_ref,
+            "letter_date": rc.letter_date.isoformat() if rc.letter_date else None,
+            "main_category": rc.main_category,
+            "subject": rc.subject,
+            "dealing_section": rc.dealing_section,
+            "put_in_file": rc.put_in_file,
+            "letter_pending": adapter.letter_pending(rc.computer_no),  # sandbox replay only
+        }
+
+    @r.get("/receipts")
+    def receipts(p: Annotated[SandboxProfile, Depends(me)]) -> dict[str, Any]:
+        """Receipt inbox: receipts of the officer's section (or department / global scope)."""
+        return {
+            "banner": BANNER,
+            "receipts": [receipt_row(x) for x in adapter.receipts_for(p.user_id)],
+        }
+
+    @r.get("/receipts/{computer_no}")
+    def receipt_page(computer_no: str, p: Annotated[SandboxProfile, Depends(me)]) -> dict[str, Any]:
+        try:
+            rc = adapter.receipt_context(computer_no, p.user_id)
+        except ConnectorError:
+            raise HTTPException(status_code=404, detail="Receipt not available.") from None
+        return {"banner": BANNER, "receipt": receipt_row(rc)}
+
+    @r.post("/receipts/{computer_no}/arrive")
+    def letter_arrives(
+        computer_no: str, p: Annotated[SandboxProfile, Depends(me)]
+    ) -> dict[str, Any]:
+        """Sandbox replay: the held-back letter arrives and is handed to ingestion."""
+        try:
+            ev = adapter.letter_arrives(computer_no, p.user_id)
+        except ConnectorError:
+            raise HTTPException(status_code=404, detail="Receipt not available.") from None
+        on_event()  # composition root: the core picks up the event (ingestion → reconciliation)
+        return {"banner": BANNER, "event_id": ev.event_id, "kind": ev.kind.value}
 
     return r

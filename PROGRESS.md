@@ -22,7 +22,7 @@ Legend: ✅ done · 🟡 in progress · ⬜ not started · ⛔ blocked
 | P5 | Agents + noting + memory + HITL | 🟡 | Typed AgentState + intent templates done (no LangGraph/Gemini yet) |
 | P6 | Verification, audit, tracking | ⬜ | |
 | P7 | Evaluation & security harness | 🟡 | Harness on the reference stack: retrieval metrics, A–G conflict P/R, leakage matrix (8 paths, 0 disclosures), 6 of 17 touchpoints; baseline report 4 Nov 2026. RAGAS/faithfulness, answer status, OCR accuracy need GCP |
-| P8 | Integration, UI, demo hardening | 🟡 | Slices 1–2 done: sandbox + assist API, and Vite + React + TS screens (sign-in, file list, file inner page with C2-24 Assist, advance search) — TP8, TP9, TP10, TP11, TP15 usable in the browser; remaining core touchpoints next (ADR-0012) |
+| P8 | Integration, UI, demo hardening | 🟡 | Slices 1–2 done: sandbox + assist API, and Vite + React + TS screens (sign-in, file list, file inner page with C2-24 Assist, advance search) — TP2, TP3, TP4, TP8, TP9, TP10, TP11, TP15 usable in the browser; remaining core touchpoints next (ADR-0012) |
 | P9 | Buffer, dry-run, stretch | ⬜ | |
 
 ## 2. Milestones
@@ -212,6 +212,10 @@ Legend: ✅ done · 🟡 in progress · ⬜ not started · ⛔ blocked
 
 | 4 Nov 2026 | Screens + TP8 committed as `4febd3d`. Frontend dev tools bumped for npm audit findings: vite 6.4.5, vitest 4.1.12 → 0 vulnerabilities; checks and browser flows re-run | Next: TP2/TP3 |
 
+| 4 Nov 2026 | TP9 + dev-tool upgrade committed as `1d77433`. TP2/TP3: receipt inbox, two-line summary, validity flags (order + what it cites), put-in-a-file never forced; shared citation review; wrapped-date extraction fix; eval 11 touchpoints pass; 1150 → 1154 backend tests, 11 frontend tests | Next: TP4 received letters |
+
+| 4 Nov 2026 | TP4 received letters: connector events → runtime sync → reconciliation → per-officer open-file notices; sandbox replay (`C2_SANDBOX_REPLAY=tp04`) with "Letter arrives"; eval TP04 PASS (12 touchpoints); 1154 → 1155 backend tests, 12 frontend tests | Next: TP13 senior brief |
+
 ## 8a. Gap report (CLAUDE.md §14), 22 Oct 2026
 
 | Phase / milestone | Status | Evidence |
@@ -232,6 +236,27 @@ Runtime facts: Python 3.13.9 (uv, `backend/.venv`), Node 24.5, uv 0.9.28, Docker
 ## 9. Task ledger
 
 Format per CLAUDE.md §12. Status: `NOT_STARTED` · `IN_PROGRESS` · `BLOCKED` · `DONE`. Newest first.
+
+### 2026-11-04 · P8 / M9 · Touchpoint 4: received letters (order arrives → open-file notices)
+- **Status:** DONE
+- **Plan section:** §11.3 ("Events in"), §11.5 touchpoint 4, §7.2–§7.3 (reconciliation; explicit supersession applied directly), §5.4 (notices per officer); ADR-0012 update
+- **Files changed:** `backend/app/connectors/eoffice.py` (`open_files()`), `backend/app/eoffice_mock/adapter.py` (replay holdback, `letter_pending`, `letter_arrives` → `ORDER_RECEIVED`), `backend/app/eoffice_mock/routes.py` (`POST /sandbox/receipts/{no}/arrive`, `letter_pending`), `backend/app/agents/runtime.py` (ingestion refactored into `_ingest`; `open_files` passed to reconciliation; `sync(connector)` ingests new events; L2 re-indexed), `backend/app/agents/routes.py` (`GET /assist/notices`), `backend/app/config.py` (`sandbox_replay`), `backend/app/main.py` (replay wiring; sandbox event → `runtime.sync`), `backend/config/sandbox.yaml` (`replays.tp04`), new `backend/tests/unit/test_sandbox_replay.py`, `backend/tests/unit/test_sandbox_api.py` (sweep covers notices), `evaluation/harness/{stack,suites}.py` (holdback + arrivals; TP04 scenario), new `evaluation/reports/2026-11-04-received-letters.{md,json}`, frontend `types.ts`, `api.ts`, `components/Receipts.tsx` (notices panel; "Letter arrives (sandbox replay)"), `styles.css`, `render.test.tsx`, `docs/decisions/0012-…md`, `PROGRESS.md`, `docs/LEARNINGS.md`
+- **Tests/commands run:** backend: ruff ✅ · mypy strict (107 files) ✅ · `pytest -q` → 1155 passed ✅ · `run_eval.py --label received-letters --compare …receipts.json` → exit 0. Frontend: `tsc` ✅ · Vitest 12 passed ✅ · build ✅. Browser (`C2_SANDBOX_REPLAY=tp04`): U02 → inbox shows no updates → receipt 2/2025/ESTT.I → "Letter arrives" → notice "G.O.Ms.31/2025 supersedes G.O.Ms.88/2022 · open file USD01-12/19/2026-ESTT.I" → inbox shows it → U03 sees no updates; no console errors
+- **Acceptance evidence:** TP04 PASS on the eval stack (replay of the scenario's held-back records; notice lists exactly Computer No. 2894562, not the Vigilance file; 88/2022 flips to superseded); **touchpoints passed 11 → 12**; other metrics unchanged; leakage 0 / 1142; HTTP sweep covers notices for every officer → 0. Replay test: nothing before arrival; Works officer cannot trigger the arrival (404); after arrival U01/U02 see the notice, U03/U07 see nothing; status lookup now says superseded by 31/2025; a letter arrives only once
+- **Security / temporal:** notices pass through `notices_for` (both orders and each affected file re-checked per officer); explicit supersession is applied directly, inferred ones would wait in the review queue (plan §7.3); ingestion on arrival invalidates cached answers touching the changed order
+- **Blocker / decision needed:** none
+- **Exact next action:** TP13 senior brief (approval brief: proposal, governing rule, precedent, flags, movement) — deterministic parts from what exists (file so far + pre-send + link suggestions)
+
+### 2026-11-04 · P8 / M9 · Touchpoints 2–3: receipt inbox and Put in a file
+- **Status:** DONE
+- **Plan section:** §11.2 (Receipt), §11.5 touchpoints 2 and 3, §6.4 (types A/E/F), status-coverage rule; ADR-0012 update
+- **Files changed:** new `backend/app/agents/receipts.py` (`review_receipt`), new `backend/app/conflict/citations.py` (`review_citations`, shared with the pre-send check), `backend/app/conflict/presend.py` (uses it; cited IDs still matched only against visible records), `backend/app/agents/routes.py` (`POST /assist/receipt`), `backend/app/connectors/eoffice.py` (`ReceiptContext`, `receipt_context`), `backend/app/eoffice_mock/{adapter,routes}.py` (receipts, inbox, `/sandbox/receipts[/{no}]`), `backend/app/ingestion/metadata.py` (a date broken after its hyphen joins without a space), `backend/app/updates/reconcile.py` (`norm_subject` public), tests `test_sandbox_api.py` (TP02, TP03, inbox, sweep covers receipts), `test_baseline_gap_fixes.py` (wrapped date), `evaluation/harness/suites.py` (TP02-a, TP02-b, TP03), new `evaluation/reports/2026-11-04-receipts.{md,json}`, frontend `types.ts`, `api.ts`, `App.tsx`, `components/{TopBar,Receipts}.tsx`, `styles.css`, `render.test.tsx`, `docs/decisions/0012-…md`, `PROGRESS.md`, `docs/LEARNINGS.md`
+- **Tests/commands run:** backend: ruff ✅ · mypy strict (106 files) ✅ · `pytest -q` → 1154 passed ✅ · `run_eval.py --label receipts --compare …link-file.json` → exit 0. Frontend: `tsc` ✅ · Vitest 11 passed ✅ · build ✅. Browser: U01 → Receipt inbox (10 receipts) → G.O.Rt.1184 receipt → F on the order itself and F on the 2024 circular it cites → memo receipt as of 21-05-2025 → no validity flag, "open a new file", 2629410's file listed as related only; no console errors
+- **Acceptance evidence:** TP02-a, TP02-b and TP03 PASS on the eval stack (docs, flags exactly as the answer keys; TP03 never forces a match and lists the named file as related); **touchpoints passed 8 → 11**; all other metrics unchanged; leakage 0 / 1142; HTTP sweep now also covers every receipt and receipt page for every officer → 0
+- **Bugs found and fixed on the way:** (1) G.O.Rt.1184's PDF wraps a cited date ("Dt.27-" / "03-2024") so the circular lost its date tag — fixed at extraction with a regression test; (2) a receipt's letter reference without a year ("G.O.Rt.No.1184") now uses the diarised letter date — recorded metadata, not a guess; (3) the shared flag wording said "the proposal is dated" — receipts now say "as of"
+- **Security:** receipts follow e-Office reach (section / department / global scope); unknown and unreachable receipts give the same 404; the citation review's ID matching stays limited to visible records (checked while extracting it)
+- **Blocker / decision needed:** none
+- **Exact next action:** TP4 — received letters: an incoming order that supersedes an existing one, the open files citing the old order (reconciliation + notices already exist), queued for confirmation
 
 ### 2026-11-04 · P8 · Frontend dev-tool security update (vite 6.4.5, vitest 4.1.12)
 - **Status:** DONE

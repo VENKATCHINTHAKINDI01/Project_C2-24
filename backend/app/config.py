@@ -35,6 +35,7 @@ class Settings(BaseSettings):
     sandbox_seed_path: Path = REPO_ROOT / "data" / "synthetic" / "mock_v1" / "eoffice" / "seed.json"
     sandbox_corpus_dir: Path = REPO_ROOT / "data" / "synthetic" / "mock_v1"
     sandbox_config_path: Path = REPO_ROOT / "backend" / "config" / "sandbox.yaml"
+    sandbox_replay: str | None = None  # name of a replay in sandbox.yaml (e.g. "tp04")
 
     @property
     def sandbox_enabled(self) -> bool:

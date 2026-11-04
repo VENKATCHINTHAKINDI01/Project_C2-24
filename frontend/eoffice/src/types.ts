@@ -83,6 +83,30 @@ export interface LinkSuggestions extends AssistMeta {
   computer_no: string; suggestions: LinkSuggestion[]; message: string | null;
 }
 
+export interface ReceiptRow {
+  computer_no: string; receipt_no: string; diary_date: string; sender: string;
+  letter_ref: string | null; letter_date: string | null; main_category: string; subject: string;
+  dealing_section: string; put_in_file: string | null; letter_pending: boolean;
+}
+
+export interface NoticeDoc { canonical_id: string; doc_type: string | null; subject: string | null; issue_date: string | null }
+
+export interface Notice {
+  new: NoticeDoc; changed: NoticeDoc; change: "SUPERSEDES" | "REPEALS" | "AMENDS";
+  files: { file_no: string; citing_doc: string }[];
+}
+
+export interface Notices extends AssistMeta { notices: Notice[] }
+
+export interface ReceiptFlag extends Flag { about: "this order" | "cited order" }
+
+export interface ReceiptReview extends AssistMeta {
+  computer_no: string; as_of: string; document: DocOut | null; summary: string[]; cited: string[];
+  flags: ReceiptFlag[]; status_unconfirmed: string[];
+  put_in: { suggestion: "existing_file" | "new_file" | "no_assistance"; files: string[]; related_files: string[] };
+  message: string | null;
+}
+
 export interface DraftReceipt {
   request_id: string; draft_id: string; kind: string; computer_no: string; status: string;
 }

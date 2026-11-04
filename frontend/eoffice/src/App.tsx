@@ -3,6 +3,7 @@ import { createApi } from "./api";
 import { Banner } from "./components/Banner";
 import { FileList } from "./components/FileList";
 import { FilePageView } from "./components/FilePageView";
+import { ReceiptInbox, ReceiptView } from "./components/Receipts";
 import { SearchPage } from "./components/SearchPage";
 import { SignIn } from "./components/SignIn";
 import { TopBar, type View } from "./components/TopBar";
@@ -23,6 +24,8 @@ export function App() {
           {view.kind === "files" && <FileList api={api} open={(c) => setView({ kind: "file", computerNo: c })} />}
           {view.kind === "file" && <FilePageView key={view.computerNo} api={api} computerNo={view.computerNo} />}
           {view.kind === "search" && <SearchPage api={api} />}
+          {view.kind === "receipts" && <ReceiptInbox api={api} open={(c) => setView({ kind: "receipt", computerNo: c })} />}
+          {view.kind === "receipt" && <ReceiptView key={view.computerNo} api={api} computerNo={view.computerNo} />}
         </>
       )}
     </div>

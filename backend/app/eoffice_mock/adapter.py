@@ -17,8 +17,10 @@ from app.connectors.eoffice import (
     DraftReceipt,
     DraftRequest,
     EOfficeEvent,
+    EventKind,
     FileContext,
     OfficerContext,
+    ReceiptContext,
     SearchScope,
     SourceArtefact,
 )
@@ -28,9 +30,11 @@ from app.eoffice_mock.models import (
     Draft,
     DraftStatus,
     EFile,
+    FileState,
     Movement,
     Note,
     NoteVersion,
+    Receipt,
     SandboxProfile,
     Seed,
 )
@@ -52,6 +56,8 @@ class MockEOfficeAdapter:
         notes: Iterable[Note] = (),
         correspondence: Iterable[Correspondence] = (),
         artefacts: Iterable[SourceArtefact] = (),
+        receipts: Iterable[Receipt] = (),
+        holdback: Iterable[str] = (),
     ) -> None:
         self._profiles = {p.user_id: p for p in profiles}
         self._files = {f.computer_no: f for f in files}
@@ -64,6 +70,11 @@ class MockEOfficeAdapter:
         self._notes = sorted(notes, key=lambda n: (n.computer_no, n.note_no))
         self._correspondence = sorted(correspondence, key=lambda c: (c.computer_no, c.page_from))
         self._artefacts = list(artefacts)
+        self._receipts = {r.computer_no: r for r in receipts}
+        # Replay (sandbox demo): letters held back from the initial load until they "arrive".
+        held = set(holdback)
+        self._pending = {a.filename: a for a in self._artefacts if a.filename in held}
+        self._artefacts = [a for a in self._artefacts if a.filename not in held]
 
     def _clock(self) -> dt.datetime:
         return self._now or dt.datetime.now(dt.UTC)
@@ -136,11 +147,87 @@ class MockEOfficeAdapter:
             later_references=tuple(f.later_references),
         )
 
+    def _receipt_department(self, r: Receipt) -> str | None:
+        """The department of the receipt's dealing section (from the files it deals with)."""
+        return next(
+            (f.department for f in self._files.values() if f.dealing_section == r.dealing_section),
+            None,
+        )
+
+    def _receipt_reachable(self, p: SandboxProfile, r: Receipt) -> bool:
+        dept = self._receipt_department(r)
+        s = p.search_scopes
+        if dept is None:
+            return False
+        if SearchScope.GLOBAL in s or (SearchScope.DEPARTMENT in s and dept == p.department):
+            return True
+        return (
+            bool(s & {SearchScope.SECTION, SearchScope.SECTION_HIERARCHY})
+            and dept == p.department
+            and r.dealing_section == p.section
+        )
+
+    def receipt_context(self, computer_no: str, user_id: str) -> ReceiptContext:
+        p = self._profile(user_id)
+        r = self._receipts.get(computer_no)
+        dept = self._receipt_department(r) if r else None
+        if r is None or dept is None or not self._receipt_reachable(p, r):
+            raise ConnectorError("receipt not available")
+        return ReceiptContext(
+            computer_no=r.computer_no,
+            receipt_no=r.receipt_no,
+            diary_date=r.diary_date,
+            sender=r.sender,
+            letter_ref=r.letter_ref,
+            letter_date=r.letter_date,
+            main_category=r.main_category,
+            subject=r.subject,
+            department=dept,
+            dealing_section=r.dealing_section,
+            put_in_file=r.put_in_file,
+        )
+
+    def receipts_for(self, user_id: str) -> list[ReceiptContext]:
+        """Receipt inbox (sandbox screen)."""
+        out = []
+        for cno in sorted(self._receipts):
+            try:
+                out.append(self.receipt_context(cno, user_id))
+            except ConnectorError:
+                continue
+        return out
+
     def events_since(self, after: dt.datetime) -> list[EOfficeEvent]:
         return [e for e in self._events if e.occurred_at > after]
 
     def documents(self) -> list[SourceArtefact]:
         return list(self._artefacts)
+
+    def open_files(self) -> frozenset[str]:
+        return frozenset(f.file_no for f in self._files.values() if f.state is FileState.OPEN)
+
+    def letter_pending(self, computer_no: str) -> bool:
+        r = self._receipts.get(computer_no)
+        return r is not None and Path(r.source_uri).name in self._pending
+
+    def letter_arrives(self, computer_no: str, user_id: str) -> EOfficeEvent:
+        """Sandbox replay: the held-back letter of a receipt arrives — it joins `documents()`
+        and an ORDER_RECEIVED event is raised for ingestion (plan §11.3 'Events in')."""
+        rc = self.receipt_context(computer_no, user_id)  # same reach as the receipt
+        r = self._receipts[rc.computer_no]
+        art = self._pending.pop(Path(r.source_uri).name, None)
+        if art is None:
+            raise ConnectorError("nothing pending for this receipt")
+        self._artefacts.append(art)
+        ev = EOfficeEvent(
+            event_id=f"MOCK-EVENT-{next(self._seq):05d}",
+            kind=EventKind.ORDER_RECEIVED,
+            occurred_at=self._clock(),
+            object_id=r.computer_no,
+            source_uri=art.source_uri,
+        )
+        self._events.append(ev)
+        return ev
 
     # ---- sandbox screens (e-Office side; not part of the connector contract) ----------------
 
@@ -211,6 +298,7 @@ def adapter_from_seed(
     seed: Seed,
     now: dt.datetime | None = None,
     artefacts: Iterable[SourceArtefact] = (),
+    holdback: Iterable[str] = (),
 ) -> MockEOfficeAdapter:
     return MockEOfficeAdapter(
         seed.profiles,
@@ -221,4 +309,6 @@ def adapter_from_seed(
         notes=seed.notes,
         correspondence=seed.correspondence,
         artefacts=artefacts,
+        receipts=seed.receipts,
+        holdback=holdback,
     )

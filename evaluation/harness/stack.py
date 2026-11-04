@@ -24,7 +24,13 @@ from app.config import REPO_ROOT, load_hierarchy
 from app.identifiers.resolver import DepartmentTable, load_departments
 from app.ingestion.detect import detect_file
 from app.ingestion.extract import extract_native
-from app.ingestion.pipeline import IngestionStores, IngestStatus, SourceDocument, ingest
+from app.ingestion.pipeline import (
+    IngestionStores,
+    IngestResult,
+    IngestStatus,
+    SourceDocument,
+    ingest,
+)
 from app.retrieval.ladder import InMemoryKeywordIndex, LadderConfig
 from app.retrieval.scoped import IndexedDocument
 from tests.unit.mock_access import CORPUS, rows
@@ -45,6 +51,7 @@ class Stack:
     held: dict[str, str] = field(default_factory=dict)  # doc id → why the file itself was held
     transcribed: tuple[str, ...] = ()  # doc ids indexed from the hand transcription
     not_indexed: tuple[str, ...] = ()  # doc ids missing even after the stand-in
+    arrived: dict[str, IngestResult] = field(default_factory=dict)  # replay arrivals
 
     def tags(self, cid: str) -> DocumentAccessTags | None:
         node = self.stores.graph.node(cid)
@@ -70,7 +77,15 @@ def _source(row: dict[str, str], uri: str, filename: str) -> SourceDocument:
     )
 
 
-def build_stack(cfg: LadderConfig, corpus: Path = CORPUS) -> Stack:
+def build_stack(
+    cfg: LadderConfig,
+    corpus: Path = CORPUS,
+    holdback: frozenset[str] = frozenset(),
+    open_files: frozenset[str] = frozenset(),
+    arrivals: tuple[str, ...] = (),
+) -> Stack:
+    """Replays (e.g. TP04): `holdback` doc ids are left out; `arrivals` are then ingested last,
+    in order, and their results kept in `Stack.arrived`. `open_files` feeds reconciliation."""
     stores = IngestionStores()
     depts = load_departments(ONTOLOGY / "departments.yaml")
     hier = load_hierarchy(ONTOLOGY / "hierarchy.yaml")
@@ -79,19 +94,30 @@ def build_stack(cfg: LadderConfig, corpus: Path = CORPUS) -> Stack:
     held: dict[str, str] = {}
     transcribed: list[str] = []
     missing: list[str] = []
+    arrived: dict[str, IngestResult] = {}
+    last: list[IngestResult] = []
 
     def run(src: SourceDocument, data: bytes) -> str | None:
         res = ingest(
-            src, data, stores=stores, departments=depts, hierarchy=hier, confidence_threshold=None
+            src,
+            data,
+            stores=stores,
+            departments=depts,
+            hierarchy=hier,
+            confidence_threshold=None,
+            open_files=open_files,
         )
+        last[:] = [res]
         if res.status is IngestStatus.INDEXED and res.canonical_id:
             return res.canonical_id
         if res.status is IngestStatus.HELD:
             held[src.tags.doc_id] = "; ".join(i.kind.value for i in res.review_items) or "held"
         return None
 
-    for row in rows("documents_index.csv"):
-        did = row["id"]
+    index_rows = {r["id"]: r for r in rows("documents_index.csv")}
+    order = [d for d in index_rows if d not in holdback] + [d for d in arrivals if d in holdback]
+    for did in order:
+        row = index_rows[did]
         path = corpus / row["file"]
         data = path.read_bytes()
         cid = run(_source(row, f"mock://{row['file']}", path.name), data)
@@ -110,6 +136,8 @@ def build_stack(cfg: LadderConfig, corpus: Path = CORPUS) -> Stack:
                 missing.append(did)
                 continue
         cid_of[did] = cid
+        if did in arrivals and last:
+            arrived[did] = last[0]
 
     docs = list(stores.index._docs)  # noqa: SLF001
     l2 = InMemoryKeywordIndex((d, text_of.get(d.canonical_id, "")) for d in docs)
@@ -124,4 +152,5 @@ def build_stack(cfg: LadderConfig, corpus: Path = CORPUS) -> Stack:
         held=held,
         transcribed=tuple(transcribed),
         not_indexed=tuple(missing),
+        arrived=arrived,
     )

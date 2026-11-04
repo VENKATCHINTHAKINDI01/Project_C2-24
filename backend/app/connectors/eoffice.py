@@ -51,6 +51,23 @@ class FileContext(_Frozen):
     later_references: tuple[str, ...] = ()
 
 
+class ReceiptContext(_Frozen):
+    """A diarised receipt (DAK), metadata only (plan §11.2 'Receipt'). The letter itself reaches
+    C2-24 through ingestion; `letter_ref` is the reference the clerk diarised."""
+
+    computer_no: str
+    receipt_no: str
+    diary_date: dt.date
+    sender: str
+    letter_ref: str | None
+    letter_date: dt.date | None
+    main_category: str
+    subject: str
+    department: str
+    dealing_section: str
+    put_in_file: str | None = None  # file Computer No. once put in a file
+
+
 class EventKind(StrEnum):
     RECEIPT_DIARISED = "receipt_diarised"
     NOTE_CONFIRMED = "note_confirmed"
@@ -132,7 +149,17 @@ class EOfficeConnector(Protocol):
         the two cases are indistinguishable to the caller (no existence leak, plan §5.4)."""
         ...
 
+    def receipt_context(self, computer_no: str, user_id: str) -> ReceiptContext:
+        """Raises ConnectorError if the receipt is unknown OR outside the officer's reach — the
+        two cases are indistinguishable (plan §5.4)."""
+        ...
+
     def events_since(self, after: dt.datetime) -> list[EOfficeEvent]: ...
+
+    def open_files(self) -> frozenset[str]:
+        """e-File numbers of files that are open (not closed) — reconciliation notifies only
+        these (plan §7.2, touchpoint 4)."""
+        ...
 
     def documents(self) -> list[SourceArtefact]:
         """Initial load: every document the e-Office holds, for ingestion (real adapter:

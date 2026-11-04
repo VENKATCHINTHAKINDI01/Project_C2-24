@@ -28,6 +28,7 @@ GOLDEN = json.loads((CORPUS / "ground_truth" / "golden_questions.json").read_tex
 SEED = json.loads((CORPUS / "eoffice" / "seed.json").read_text("utf-8"))
 USERS = [p["user_id"] for p in SEED["profiles"] if p["login"]]
 COMPUTER_NOS = [f["computer_no"] for f in SEED["files"]]
+RECEIPT_NOS = [r["computer_no"] for r in SEED["receipts"]]
 ID_RX = re.compile(r"AP-[A-Z]{2,6}\d{2}-[A-Z]+-[A-Z0-9-]+")
 
 
@@ -231,6 +232,41 @@ def test_tp09_link_file_suggests_only_precedents_in_scope(client: TestClient) ->
     assert hidden.status_code == 404
 
 
+def test_tp02_receipt_summary_and_validity(client: TestClient) -> None:
+    memo = client.post(
+        "/assist/receipt", json={"computer_no": "9100010", "as_of": "2025-05-21"}, headers=_h("U01")
+    ).json()
+    assert memo["document"]["doc_type"] == "Clarification" and len(memo["summary"]) == 2
+    assert memo["cited"] == ["AP-FIN01-GOMS-31-2025"] and memo["flags"] == []  # in force: no flag
+    go = client.post("/assist/receipt", json={"computer_no": "9100008"}, headers=_h("U01")).json()
+    flags = {(f["type"], f["about"]) for f in go["flags"]}
+    assert flags == {("F", "this order"), ("F", "cited order")}  # 1184/2025 and the 2024 circular
+    assert all("the proposal is dated" not in f["explanation"] for f in go["flags"])
+    hidden = client.post("/assist/receipt", json={"computer_no": "9100008"}, headers=_h("U03"))
+    unknown = client.post("/assist/receipt", json={"computer_no": "9999999"}, headers=_h("U03"))
+    assert (hidden.status_code, hidden.json()) == (unknown.status_code, unknown.json())
+    assert hidden.status_code == 404
+
+
+def test_tp03_put_in_a_file_never_forces_a_match(client: TestClient) -> None:
+    r = client.post(
+        "/assist/receipt", json={"computer_no": "9100010", "as_of": "2025-05-21"}, headers=_h("U01")
+    ).json()["put_in"]
+    assert r["suggestion"] == "new_file" and r["files"] == []  # a general clarification
+    assert "USD01-12/44/2025-ESTT.I" in r["related_files"]  # related only (cites G.O.Ms.31/2025)
+
+
+def test_receipt_inbox_follows_reach(client: TestClient) -> None:
+    def inbox(uid: str) -> list[str]:
+        rows = client.get("/sandbox/receipts", headers=_h(uid)).json()["receipts"]
+        return [x["computer_no"] for x in rows]
+
+    assert "9100010" in inbox("U01") and inbox("U03") == []
+    page = client.get("/sandbox/receipts/9100010", headers=_h("U01")).json()
+    assert page["banner"] == BANNER and page["receipt"]["receipt_no"] == "3/2025/ESTT.I"
+    assert client.get("/sandbox/receipts/9100010", headers=_h("U03")).status_code == 404
+
+
 def test_drafts_only_and_audited_without_text(client: TestClient) -> None:
     body = "1. Draft: the request may be kept pending until the next general transfers."
     r = client.post(
@@ -291,6 +327,12 @@ def test_zero_disclosures_through_the_api(client: TestClient) -> None:
         for ref in refs:
             r = client.post("/assist/reference", json={"text": ref}, headers=_h(uid))
             check(uid, f"reference {ref}", r.json())
+        check(uid, "notices", client.get("/assist/notices", headers=_h(uid)).json())
+        for rno in RECEIPT_NOS:
+            r = client.post("/assist/receipt", json={"computer_no": rno}, headers=_h(uid))
+            check(uid, f"receipt {rno}", r.json())
+            p = client.get(f"/sandbox/receipts/{rno}", headers=_h(uid))
+            check(uid, f"receipt page {rno}", p.json())
         for cno in COMPUTER_NOS:
             r = client.post("/assist/presend", json={"computer_no": cno}, headers=_h(uid))
             check(uid, f"presend {cno}", r.json())

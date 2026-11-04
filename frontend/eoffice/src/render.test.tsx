@@ -4,6 +4,7 @@ import { createApi } from "./api";
 import { App } from "./App";
 import { AssistPanel, LinkCard, SoFarCard } from "./components/AssistPanel";
 import { BANNER_TEXT } from "./components/Banner";
+import { NoticesPanel, ReceiptAssistCard } from "./components/Receipts";
 import { outcomeLabel, yellowNoteFrom } from "./presend";
 import type { PresendReport } from "./types";
 
@@ -71,6 +72,35 @@ describe("screens", () => {
     expect(html).toContain("USD01-WRKS0/52/2024-WORKS");
     expect(html).toContain("Emergency restoration of culvert");
     expect(html).toContain("Suggest link");
+  });
+
+  it("receipt assist shows the summary, which order each flag is about, and never forces a file", () => {
+    const html = text(
+      <ReceiptAssistCard r={{
+        request_id: "r", calibrated: false, mock_rules: true, computer_no: "9100008", as_of: "2026-10-02",
+        document: { canonical_id: "AP-FIN01-GORT-1184-2025", doc_type: "Government Order", subject: "Continuation…", issue_date: "2025-03-21", file_no: null },
+        summary: ["Government Order from Finance, dated 21-03-2025: Continuation…", "Cites: AP-FIN01-GOMS-40-2020 (28-04-2020)."],
+        cited: ["AP-FIN01-GOMS-40-2020"], status_unconfirmed: ["AP-FIN01-GOMS-40-2020"], message: null,
+        flags: [{ type: "F", about: "this order", cited: "AP-FIN01-GORT-1184-2025", evidence_ids: [], explanation: "Potential conflict — validity ended on 31-03-2026. Review recommended.", certain: true, review_state: "needs_review" }],
+        put_in: { suggestion: "new_file", files: [], related_files: ["USD01-14/6/2026-ESTT.I"] },
+      }} />,
+    );
+    expect(html).toContain("F · Temporal mismatch — this order");
+    expect(html).toContain("open a new file");
+    expect(html).toContain("Related (for reference only, not the file to put this in)");
+  });
+
+  it("a notice names the change and only the open files that rely on the old order", () => {
+    const html = text(
+      <NoticesPanel n={{ request_id: "r", calibrated: false, mock_rules: true, notices: [{
+        change: "SUPERSEDES",
+        new: { canonical_id: "AP-FIN01-GOMS-31-2025", doc_type: "Government Order", subject: "General Transfers 2025", issue_date: "2025-05-12" },
+        changed: { canonical_id: "AP-FIN01-GOMS-88-2022", doc_type: "Government Order", subject: "General Transfers 2022", issue_date: "2022-06-03" },
+        files: [{ file_no: "USD01-12/19/2026-ESTT.I", citing_doc: "AP-USD01-NOTE-USD0112-19-2026" }],
+      }] }} />,
+    );
+    expect(html).toContain("AP-FIN01-GOMS-31-2025 supersedes AP-FIN01-GOMS-88-2022");
+    expect(html).toContain("Open files that rely on AP-FIN01-GOMS-88-2022: USD01-12/19/2026-ESTT.I");
   });
 
   it("a review-needed outcome never reads as clear", () => {

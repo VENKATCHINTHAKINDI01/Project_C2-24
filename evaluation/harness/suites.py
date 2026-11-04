@@ -12,11 +12,13 @@ from pathlib import Path
 from typing import Any
 
 from app.agents.intents import RELATED, Intent, IntentSlots, build_request
+from app.agents.receipts import review_receipt
 from app.agents.tools import ToolContext
 from app.auth.store import InMemoryAuthzStore
 from app.config import load_hierarchy
 from app.conflict.presend import PreSendReport, presend_check
 from app.conflict.procedural import AuthorityRules, load_authority_rules
+from app.connectors.eoffice import ReceiptContext
 from app.graph.repository import Direction
 from app.identifiers.canonical import InvalidCanonicalIdError, lookup_keys
 from app.ingestion.metadata import extract_metadata
@@ -26,8 +28,10 @@ from app.retrieval.evidence import CandidateSpan, build_package
 from app.retrieval.ladder import LadderRequest, LadderResult, ladder_label, run_ladder
 from app.retrieval.references import LookupStatus, lookup_reference
 from app.retrieval.scoped import L1Criteria
+from app.temporal.engine import status_as_of
+from app.updates.reconcile import notices_for
 from evaluation.harness import metrics as m
-from evaluation.harness.stack import ONTOLOGY, Stack
+from evaluation.harness.stack import ONTOLOGY, Stack, build_stack
 from tests.unit.mock_access import CLASSES, CORPUS, MATRIX, POLICY, USER_IDS, new_store, rows
 
 GT = CORPUS / "ground_truth"
@@ -419,6 +423,114 @@ class Harness:
 
     # ---- suite 4 · touchpoint scenarios -----------------------------------------------------
 
+    def _received_letter(self, sc: dict[str, Any]) -> dict[str, Any]:
+        """TP04 replay: the scenario's held-back records, then the order arrives. The notice must
+        list exactly the expected open files for the officer and none of the forbidden ones."""
+        user, exp, setup = sc["user"], sc["expected"], sc["setup"]
+        seed = _load_seed()
+        rec = next(r for r in seed["receipts"] if r["computer_no"] == setup["event"]["receipt"])
+        name = Path(rec["source_uri"]).name
+        did = next(r["id"] for r in rows("documents_index.csv") if Path(r["file"]).name == name)
+        open_files = frozenset(f["file_no"] for f in seed["files"] if f["state"] == "open")
+        replay = build_stack(
+            self.s.cfg,
+            holdback=frozenset(setup["holdback"]),
+            open_files=open_files,
+            arrivals=(did,),
+        )
+        res = replay.arrived.get(did)
+        mine = notices_for(
+            user,
+            list(res.notices) if res else [],
+            store=self.store(),
+            policy=POLICY,
+            classification=CLASSES,
+        )
+        cno_of = {f["file_no"]: f["computer_no"] for f in seed["files"]}
+        files = {cno_of.get(a.file_no, a.file_no) for n in mine for a in n.affected}
+        changed = {(n.change.value, replay.doc_of.get(n.changed_doc, n.changed_doc)) for n in mine}
+        want_flags = {("SUPERSEDES", f["cited"]) for f in exp["flags"] if f["type"] == "A"}
+        as_of = dt.date.fromisoformat(sc["as_of"])
+        flipped = all(
+            status_as_of(
+                replay.cid_of[c], as_of, replay.stores.instruments, replay.stores.relations
+            ).status.value
+            == "superseded"
+            for _, c in want_flags
+            if c in replay.cid_of
+        )
+        return {
+            "run": True,
+            "pass": files == set(exp["files"])
+            and not files & set(exp["forbidden_files"])
+            and want_flags <= changed
+            and flipped,
+            "files": sorted(files),
+            "changes": sorted(changed),
+        }
+
+    def _receipt(self, sc: dict[str, Any]) -> dict[str, Any]:
+        """TP02 (summary + validity flags) and TP03 (put in a file), as of the scenario's date."""
+        user, exp = sc["user"], sc["expected"]
+        seed = _load_seed()
+        rec = next(r for r in seed["receipts"] if r["computer_no"] == sc["context"]["receipt"])
+        dept = next(
+            f["department"] for f in seed["files"] if f["dealing_section"] == rec["dealing_section"]
+        )
+        rctx = ReceiptContext(
+            computer_no=rec["computer_no"],
+            receipt_no=rec["receipt_no"],
+            diary_date=dt.date.fromisoformat(rec["diary_date"]),
+            sender=rec["sender"],
+            letter_ref=rec["letter_ref"],
+            letter_date=dt.date.fromisoformat(rec["letter_date"]) if rec["letter_date"] else None,
+            main_category=rec["main_category"],
+            subject=rec["subject"],
+            department=dept,
+            dealing_section=rec["dealing_section"],
+        )
+        rv = review_receipt(
+            rctx,
+            user_id=user,
+            as_of=dt.date.fromisoformat(sc["as_of"]),
+            departments=self.s.departments,
+            index=self.s.stores.index,
+            documents=self.s.documents,
+            graph=self.s.stores.graph,
+            instruments=self.s.stores.instruments,
+            relations=list(self.s.stores.relations),
+            text_of=lambda c: self.s.text_of.get(c, ""),
+            store=self.store(),
+            policy=POLICY,
+            classification=CLASSES,
+        )
+
+        def did(c: str) -> str:
+            return self.s.doc_of.get(c, c)
+
+        got_docs = {did(rv.document.canonical_id)} if rv.document else set()
+        got_docs |= {did(c) for c in rv.cited}
+        got_flags = sorted((f.type.value, did(f.cited)) for f in rv.flags)
+        want_flags = sorted(
+            (f["type"], f["cited"]) for f in exp["flags"] if isinstance(exp["flags"], list)
+        )
+        want, forbid = set(exp["docs"]), set(exp["forbidden_docs"])
+        ok = want <= got_docs and not forbid & got_docs and got_flags == want_flags
+        if sc["touchpoint"] == 3:  # never force a match; the answer key's file is related only
+            cno_of = {f["file_no"]: f["computer_no"] for f in seed["files"]}
+            related = {cno_of.get(f, f) for f in rv.related_files}
+            put_in = {cno_of.get(f, f) for f in rv.put_in}
+            named = set(re.findall(r"File (\d{7})", exp["answer_key"]))
+            ok = ok and rv.suggestion == "new_file" and not put_in and named <= related
+        return {
+            "run": True,
+            "pass": ok,
+            "docs": sorted(got_docs),
+            "flags": got_flags,
+            "expected_flags": want_flags,
+            "suggestion": rv.suggestion,
+        }
+
     def _link_file(self, sc: dict[str, Any]) -> dict[str, Any]:
         """TP09: precedent files to link, within the officer's scope, never the open file."""
         user, exp = sc["user"], sc["expected"]
@@ -539,6 +651,10 @@ class Harness:
                 row |= self._file_so_far(sc)
             elif sc["touchpoint"] == 9:
                 row |= self._link_file(sc)
+            elif sc["touchpoint"] in (2, 3):
+                row |= self._receipt(sc)
+            elif sc["touchpoint"] == 4:
+                row |= self._received_letter(sc)
             elif sid == "TP20":
                 pairs = [qid for group in exp["pairs"] for qid in group]
                 rows_ = [q_rows[q] for q in pairs]

@@ -84,6 +84,13 @@ pre { white-space: pre-wrap; font: inherit; margin: 0; }
 .links h4 { margin: 4px 0; }
 .links .card { margin-bottom: 6px; }
 
+.panes.receipt { grid-template-columns: minmax(0, 1.4fr) minmax(320px, 1fr); }
+.grid.kv th { width: 140px; }
+.assist .row label { align-self: center; }
+
+.notices { margin-bottom: 16px; }
+.notices h3 { margin: 0 0 8px; }
+
 @media (max-width: 1000px) {
   .panes { grid-template-columns: 1fr; }
   .corr, .assist { border-left: 0; border-top: 1px solid var(--line); }

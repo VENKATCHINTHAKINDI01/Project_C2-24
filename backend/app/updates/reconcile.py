@@ -66,7 +66,7 @@ class ReconcileOutcome(_Frozen):
     notices: tuple[OpenFileNotice, ...] = ()
 
 
-def _norm_subject(subject: str) -> str:
+def norm_subject(subject: str) -> str:
     s = subject.lower()
     s = re.sub(r"\d{1,2}[-./]\d{1,2}[-./]\d{2,4}", " ", s)
     s = re.sub(r"\d+", " ", s)
@@ -153,7 +153,7 @@ def _infer_supersession(
 ) -> list[ReviewItem]:
     if meta.doc_type.value not in ORDER_TYPES or not meta.subject or meta.issue_date is None:
         return []
-    key = _norm_subject(meta.subject)
+    key = norm_subject(meta.subject)
     items: list[ReviewItem] = []
     for other in list(stores.index._docs):  # noqa: SLF001 — reference store; a metadata query on GCP
         if (
@@ -164,7 +164,7 @@ def _infer_supersession(
             continue
         if (other.doc_type, other.tags.department) != (meta.doc_type.value, tags.department):
             continue
-        if _norm_subject(other.subject) != key or _explicitly_linked(
+        if norm_subject(other.subject) != key or _explicitly_linked(
             stores, cid, other.canonical_id
         ):
             continue

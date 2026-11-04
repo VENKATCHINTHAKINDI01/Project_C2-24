@@ -24,7 +24,8 @@ from app.auth.models import AccessPolicy, DocumentAccessTags, StatusCoverage
 from app.auth.policy import ScopeError, check, scope_for
 from app.auth.store import AuthzStore
 from app.config import Classification
-from app.conflict.deterministic import Citation, ConflictFlag, check_citations
+from app.conflict.citations import review_citations
+from app.conflict.deterministic import Citation, ConflictFlag
 from app.conflict.facts import FactsResult, extract_proposal_facts
 from app.conflict.procedural import (
     AuthorityOutcome,
@@ -35,7 +36,7 @@ from app.conflict.procedural import (
 from app.conflict.windows import check_action_window
 from app.identifiers.canonical import InvalidCanonicalIdError, lookup_keys
 from app.ingestion.metadata import DocumentMetadata
-from app.temporal.engine import Instrument, Status, TemporalRelation, status_as_of
+from app.temporal.engine import Instrument, TemporalRelation
 from app.temporal.windows import ActionWindow
 
 
@@ -103,32 +104,32 @@ def presend_check(
             facts=None,
         )
 
-    def visible(cid: str) -> bool:
-        t = tags_of.get(cid)
-        return t is not None and check(user_id, t, store, policy, classification).allowed
-
-    known = {cid: inst for cid, inst in instruments.items() if visible(cid)}
-    rels = [r for r in relations if r.source in known and r.target in known]
-    cites = _citations(meta, known)
-    flags = check_citations(cites, action_date, known, rels)  # A, E, F
-
-    flagged = {f.cited for f in flags}
+    visible_ids = {
+        cid
+        for cid in instruments
+        if (t := tags_of.get(cid)) is not None
+        and check(user_id, t, store, policy, classification).allowed
+    }
+    cites = _citations(meta, dict.fromkeys(visible_ids))  # match IDs only against visible records
+    review = review_citations(
+        cites,
+        action_date,
+        user_id=user_id,
+        scope=scope,
+        instruments=instruments,
+        relations=relations,
+        tags_of=tags_of,
+        store=store,
+        policy=policy,
+        classification=classification,
+    )
+    flags, unconfirmed = review.flags, review.unconfirmed
+    known, rels = review.known, review.relations
 
     def ceiling_for(tags: DocumentAccessTags) -> str:
         if policy.status_coverage is StatusCoverage.UP_TO_DOCUMENT:
             return tags.classification
         return max(classification.levels, key=lambda lv: lv.rank).name
-
-    unconfirmed = []
-    for c in cites:
-        if c.canonical_id is None or c.canonical_id not in known or c.canonical_id in flagged:
-            continue
-        st = status_as_of(c.canonical_id, action_date, known, rels)
-        tags = tags_of[c.canonical_id]
-        if st.status is Status.IN_FORCE and not scope.covers_status_domain(
-            tags.department, ceiling_for(tags)
-        ):
-            unconfirmed.append(c.canonical_id)  # never assume "in force" from a partial record set
 
     facts = extract_proposal_facts(text, meta, rules, note_id)
     authority = None
