@@ -5,6 +5,7 @@ Facts, conventions and gotchas discovered while building. Read every session. Ad
 Format: `- YYYY-MM-DD · fact / rule · (source or plan §)`
 
 ## Commands
+- 2026-11-04 · Sandbox API: `make run` then e.g. `curl -s -H 'X-Sandbox-User: U01' localhost:8080/sandbox/files` or `curl -s -X POST -H 'X-Sandbox-User: U01' -H 'Content-Type: application/json' -d '{"computer_no":"2894562"}' localhost:8080/assist/presend`. The first assist call builds the runtime (~2 s ingestion)
 - 2026-11-04 · `make eval` (from repo root) runs the evaluation harness → `evaluation/reports/<date>-baseline.{md,json}`; exits 1 on any disclosure. Without uv: from `backend/`, `python ../evaluation/run_eval.py` (`--no-write` prints only). Lint/format now cover `../evaluation` with `--config pyproject.toml`
 - 2026-11-03 · `pypdf` is now a core dependency: run `make setup` (uv sync) on the Mac before `make check`. Lock regenerated with uv 0.9.28 (same as the Mac) — a newer uv rewrites unrelated lock lines
 - 2026-11-02 · Without the Mac venv, the same checks run in any Python 3.13 venv: `pip install fastapi uvicorn pydantic pydantic-settings pyyaml pytest httpx ruff mypy types-PyYAML`, then from `backend/`: `ruff check . && ruff format --check . && mypy && pytest -q` (379 passed, 2 Nov 2026)
@@ -76,6 +77,8 @@ Format: `- YYYY-MM-DD · fact / rule · (source or plan §)`
 - 2026-10-10 · Real G.O.s cite earlier orders in a "Read the following" list; supersession usually refers to list positions ("reference 2nd read above"), so resolve the list first
 
 ## Gotchas
+- 2026-11-04 · FastAPI route modules that define dependencies inside a factory must NOT use `from __future__ import annotations`: `Annotated[X, Depends(local_fn)]` becomes a string FastAPI can't resolve, and the parameter silently turns into a query field (422)
+- 2026-11-04 · `TestClient.app_state` is Starlette's own attribute — don't assign to it in tests
 - 2026-11-04 · L1 subject filters match terms in the subject's own language: a Telugu-only subject (D16) is invisible to English terms. Cross-language needs bilingual abstracts or multilingual embeddings (GCP)
 - 2026-11-04 · Unit tests built on `documents_index.csv` dates can pass while the real pipeline misses the same fact (D29 type F: ingestion has no validity-end date). Check behaviour on the pipeline stack via `make eval`, not only unit tests
 - 2026-11-04 · (fixed same day) subjects were empty for abstracts without a rule line and for reports/statements; base-number references missed dated memo IDs

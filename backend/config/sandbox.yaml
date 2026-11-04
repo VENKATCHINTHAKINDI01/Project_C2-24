@@ -1,0 +1,9 @@
+# SANDBOX ONLY — mock e-Office demo (plan §11). These are the evaluation harness's TEST values
+# (evaluation/slots_v1.json), NOT calibrated thresholds. Used only while runtime.yaml is uncalibrated
+# AND the connector is the mock adapter; every assist response then says "calibrated": false.
+version: "2026-11-04-sandbox"
+calibrated: false
+retrieval:
+  l2_top_k: 10
+  l2_rerank_min_score: 1.0
+  l3_max_hops: 2

@@ -22,7 +22,7 @@ Legend: ✅ done · 🟡 in progress · ⬜ not started · ⛔ blocked
 | P5 | Agents + noting + memory + HITL | 🟡 | Typed AgentState + intent templates done (no LangGraph/Gemini yet) |
 | P6 | Verification, audit, tracking | ⬜ | |
 | P7 | Evaluation & security harness | 🟡 | Harness on the reference stack: retrieval metrics, A–G conflict P/R, leakage matrix (8 paths, 0 disclosures), 6 of 17 touchpoints; baseline report 4 Nov 2026. RAGAS/faithfulness, answer status, OCR accuracy need GCP |
-| P8 | Integration, UI, demo hardening | ⬜ | Includes mock e-Office sandbox + 20 touchpoints (plan §11) |
+| P8 | Integration, UI, demo hardening | 🟡 | Slice 1 done: sandbox + assist API (TP10, TP11, TP15 over HTTP, drafts only, audit, leakage sweep 0); next: Vite + React + TS screens (ADR-0012) |
 | P9 | Buffer, dry-run, stretch | ⬜ | |
 
 ## 2. Milestones
@@ -123,6 +123,7 @@ Legend: ✅ done · 🟡 in progress · ⬜ not started · ⛔ blocked
 | 2 Nov 2026 | ADR-0008 (provisional): officer roles + reporting hierarchy for FIN01/GAD01/ESE01 in `data/ontology/roles.yaml`, grounded in official sources + corpus evidence | Graph, file movement and access scopes need it now; confirm later |
 | 22 Oct 2026 | ADR-0006 (Proposed): public G.O. corpus alongside synthetic data; collection code in `data_collection/`, corpus outside the repo | No department data will arrive; start real collection when GCP access arrives |
 | 22 Oct 2026 | ADR-0007 (Proposed): memo/gazette ID forms; ID collisions → review; printed date used only when corroborated | Real records showed cases the base ID format and archive dates don't cover |
+| 4 Nov 2026 | ADR-0012: P8 API first; Vite + React + TS screens; simulated sign-in header (sandbox only); sandbox.yaml demo thresholds labelled uncalibrated; connector `documents()` added | Owner chose API first and the Vite stack |
 | 4 Nov 2026 | Conflict types B, D, G wait for GCP: no deterministic pre-check or mocked judgment before Gemini is available | Owner choice; plan §6.2 has Gemini make these judgments from the authorised evidence |
 | 4 Nov 2026 | ADR-0011: ingestion may fill the department from the source system's tag only when the text names none; `department_source` recorded; text/tag disagreement → review (DEPARTMENT_MISMATCH) | Owner: the tag is recorded metadata, not a guess; department feeds compute_scope |
 | 4 Nov 2026 | ADR-0010 conditions: mock rules are testing only; three outcomes (conflict / no conflict in a verified complete rule set / review needed); unverified → uncertain flags with caveat; a mock file cannot claim verified coverage | Owner: "no matching rule" must not look like approval when the rule was simply not collected |
@@ -198,6 +199,8 @@ Legend: ✅ done · 🟡 in progress · ⬜ not started · ⛔ blocked
 
 | 4 Nov 2026 | Telugu order headers: D16 resolves (Rc.No., date tag, subject, reference to G.O.Ms.27/2024); all 29 corpus documents indexed; leakage 0 / 1142; Q06/Q19 unchanged (Telugu-only subject; keyword stand-in) — needs multilingual retrieval on GCP; 1119 → 1124 tests | Next: owner pending items, or start the sandbox screens (P8) |
 
+| 4 Nov 2026 | P8 slice 1: sandbox + assist API in FastAPI (simulated sign-in, file pages, TP10/TP11/TP15, drafts only, audit); HTTP leakage sweep 0; ADR-0012; 1124 → 1138 tests | Owner: TP10 vs TP11 status-coverage question. Next: React screens (slice 2) |
+
 ## 8a. Gap report (CLAUDE.md §14), 22 Oct 2026
 
 | Phase / milestone | Status | Evidence |
@@ -218,6 +221,18 @@ Runtime facts: Python 3.13.9 (uv, `backend/.venv`), Node 24.5, uv 0.9.28, Docker
 ## 9. Task ledger
 
 Format per CLAUDE.md §12. Status: `NOT_STARTED` · `IN_PROGRESS` · `BLOCKED` · `DONE`. Newest first.
+
+### 2026-11-04 · P8 / M9 · Sandbox + assist API (slice 1 of the mock e-Office sandbox)
+- **Status:** DONE (API); screens are slice 2
+- **Plan section:** §11.1–§11.5 (touchpoints 10, 11, 15; drafts out; access mapping), §10.4 audit; CLAUDE.md §2.4, §4; ADR-0012
+- **Files changed:** new `backend/app/agents/{runtime,routes}.py`, new `backend/app/audit/log.py`, new `backend/app/eoffice_mock/{routes,corpus}.py`, `backend/app/eoffice_mock/adapter.py` (notes, correspondence, artefacts; sign-in-able profiles; reachable files), `backend/app/connectors/eoffice.py` (`SourceArtefact`, `documents()`), `backend/app/config.py` (sandbox settings), `backend/app/main.py` (composition root, banner header, lazy runtime), new `backend/config/sandbox.yaml`, new `backend/tests/unit/test_sandbox_api.py`, `backend/tests/unit/test_eoffice_connector.py` (main.py allowed as composition root), new `docs/decisions/0012-…md`, `PROGRESS.md`, `docs/LEARNINGS.md`
+- **Tests/commands run:** Linux Python 3.13 venv, from `backend/`: `ruff check . ../evaluation` ✅ · `ruff format` ✅ · `mypy` strict (101 files) ✅ · `pytest -q` → 1138 passed ✅ · eval `--no-write --compare …telugu-headers.json` → identical metrics, 0 disclosures
+- **Acceptance evidence:** routes `/sandbox/{profiles,me,files,files/{computer_no}}` and `/assist/{search,reference,presend,draft}`. No / unknown / staff-post sign-in → 401 "Not signed in." everywhere. File lists follow e-Office reach plus clearance (U01: no CONFIDENTIAL Estt.I or Vigilance files; U04 gets its two assigned files; SECRET report file only for the Secretary); unknown and unavailable files return the same 404. TP15: U03 "that 2023 drain case" → `USD01-WRKS0/18/2023-WORKS`, no Vigilance file; U05 never sees the SECRET report. TP10: U01 citing G.O.Ms.88/2022 → generic status-unconfirmed message (owner rule); Secretary citing G.O.Ms.14/2021 → superseded, current `AP-USD01-GOMS-27-2024`. TP11 over HTTP on file 2894562 → A, E, F, C with C uncertain (mock rules) and `calibrated: false`. Insert as Yellow Note → a draft, shown on the file page; another section's officer → 404. Audit holds IDs and outcomes only — no question or note text. Lowering U02's clearance takes effect on the next call. **Leakage sweep over HTTP: 8 officers × 24 golden questions + every corpus reference + pre-send and file page on all 13 files → 0 disclosures**
+- **Finding (sweep):** a file page shows a note's own text, which may quote another file's number (D20 cites the Vigilance file). That is the authorised document as written, not a disclosure by the system; the sweep checks what the page itself names. Kept visible here so the owner can decide otherwise
+- **Open question for the owner:** TP10 (status lookup) applies the status-coverage rule and returns the generic message for G.O.Ms.88/2022 to the Estt.I SO, while TP11 (pre-send) flags the same order as superseded (type A) from the records the officer can see. Should type A in the pre-send also defer to the status-coverage rule, or is "superseded by an order you can see" acceptable there?
+- **Security / temporal / citation implications:** grants are re-read from the connector on every call; core routes never import the sandbox; the sign-in header exists only when the sandbox is enabled (off by default on GCP)
+- **Blocker / decision needed:** the TP10/TP11 question above
+- **Exact next action:** slice 2 — scaffold `frontend/eoffice/` (Vite + React + TS): banner, sign-in picker, file list, file inner page with the Assist panel (pre-send, search, local reference, Insert as Yellow Note)
 
 ### 2026-11-04 · P1 / M2 · Telugu order headers (D16)
 - **Status:** DONE

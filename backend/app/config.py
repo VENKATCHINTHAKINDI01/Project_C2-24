@@ -29,6 +29,16 @@ class Settings(BaseSettings):
     gcp_region: str | None = None
     ontology_dir: Path = REPO_ROOT / "data" / "ontology"
     runtime_config_path: Path = REPO_ROOT / "backend" / "config" / "runtime.yaml"
+    # Mock e-Office sandbox (plan §11): SYNTHETIC data, simulated sign-in. Never on in GCP unless
+    # explicitly enabled for a demo.
+    sandbox: bool | None = None  # None → on for local, off for gcp
+    sandbox_seed_path: Path = REPO_ROOT / "data" / "synthetic" / "mock_v1" / "eoffice" / "seed.json"
+    sandbox_corpus_dir: Path = REPO_ROOT / "data" / "synthetic" / "mock_v1"
+    sandbox_config_path: Path = REPO_ROOT / "backend" / "config" / "sandbox.yaml"
+
+    @property
+    def sandbox_enabled(self) -> bool:
+        return self.sandbox if self.sandbox is not None else self.env is Environment.LOCAL
 
     @model_validator(mode="after")
     def _gcp_requires_project(self) -> Settings:

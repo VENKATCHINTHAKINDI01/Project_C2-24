@@ -183,6 +183,8 @@ def test_core_modules_never_import_the_mock_sandbox() -> None:
     offenders = [
         str(p.relative_to(app_dir))
         for p in app_dir.rglob("*.py")
-        if "eoffice_mock" not in p.parts and pattern.search(p.read_text(encoding="utf-8"))
+        if "eoffice_mock" not in p.parts
+        and p.name != "main.py"  # the composition root wires the adapter in; nothing else may
+        and pattern.search(p.read_text(encoding="utf-8"))
     ]
     assert offenders == []

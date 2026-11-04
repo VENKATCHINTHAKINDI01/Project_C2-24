@@ -20,13 +20,16 @@ from app.connectors.eoffice import (
     FileContext,
     OfficerContext,
     SearchScope,
+    SourceArtefact,
 )
 from app.eoffice_mock.models import (
     BANNER,
+    Correspondence,
     Draft,
     DraftStatus,
     EFile,
     Movement,
+    Note,
     NoteVersion,
     SandboxProfile,
     Seed,
@@ -46,6 +49,9 @@ class MockEOfficeAdapter:
         events: Iterable[EOfficeEvent] = (),
         assignments: dict[str, frozenset[str]] | None = None,
         now: dt.datetime | None = None,
+        notes: Iterable[Note] = (),
+        correspondence: Iterable[Correspondence] = (),
+        artefacts: Iterable[SourceArtefact] = (),
     ) -> None:
         self._profiles = {p.user_id: p for p in profiles}
         self._files = {f.computer_no: f for f in files}
@@ -55,6 +61,9 @@ class MockEOfficeAdapter:
         self._now = now
         self._seq = itertools.count(1)
         self.drafts: dict[str, Draft] = {}
+        self._notes = sorted(notes, key=lambda n: (n.computer_no, n.note_no))
+        self._correspondence = sorted(correspondence, key=lambda c: (c.computer_no, c.page_from))
+        self._artefacts = list(artefacts)
 
     def _clock(self) -> dt.datetime:
         return self._now or dt.datetime.now(dt.UTC)
@@ -130,6 +139,42 @@ class MockEOfficeAdapter:
     def events_since(self, after: dt.datetime) -> list[EOfficeEvent]:
         return [e for e in self._events if e.occurred_at > after]
 
+    def documents(self) -> list[SourceArtefact]:
+        return list(self._artefacts)
+
+    # ---- sandbox screens (e-Office side; not part of the connector contract) ----------------
+
+    def profiles(self) -> list[SandboxProfile]:
+        """Officers who can sign in to the sandbox (posts without a login are excluded)."""
+        return [p for p in self._profiles.values() if p.login]
+
+    def profile(self, user_id: str) -> SandboxProfile:
+        p = self._profile(user_id)
+        if not p.login:
+            raise ConnectorError("unknown officer")
+        return p
+
+    def reachable_files(self, user_id: str) -> list[EFile]:
+        p = self.profile(user_id)
+        return [f for f in self._files.values() if self._reachable(p, f)]
+
+    def open_file(self, computer_no: str, user_id: str) -> EFile:
+        """Same reach as `file_context`; unknown and unreachable are indistinguishable."""
+        p = self.profile(user_id)
+        f = self._files.get(computer_no)
+        if f is None or not self._reachable(p, f):
+            raise ConnectorError("file not available")
+        return f
+
+    def notes(self, computer_no: str) -> list[Note]:
+        return [n for n in self._notes if n.computer_no == computer_no]
+
+    def correspondence(self, computer_no: str) -> list[Correspondence]:
+        return [c for c in self._correspondence if c.computer_no == computer_no]
+
+    def movements(self, computer_no: str) -> list[Movement]:
+        return [m for m in self._movements if m.computer_no == computer_no]
+
     def create_draft(self, request: DraftRequest) -> DraftReceipt:
         if not request.officer_clicked:
             raise ConnectorError("drafts are created only on the officer's click")
@@ -162,11 +207,18 @@ def load_seed(path: Path) -> Seed:
     return seed
 
 
-def adapter_from_seed(seed: Seed, now: dt.datetime | None = None) -> MockEOfficeAdapter:
+def adapter_from_seed(
+    seed: Seed,
+    now: dt.datetime | None = None,
+    artefacts: Iterable[SourceArtefact] = (),
+) -> MockEOfficeAdapter:
     return MockEOfficeAdapter(
         seed.profiles,
         seed.files,
         seed.movements,
         assignments={u: frozenset(f) for u, f in seed.assignments.items()},
         now=now,
+        notes=seed.notes,
+        correspondence=seed.correspondence,
+        artefacts=artefacts,
     )

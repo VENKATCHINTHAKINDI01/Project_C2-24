@@ -99,6 +99,19 @@ class DraftReceipt(_Frozen):
     status: str = "draft"  # the connector never returns anything but a draft
 
 
+class SourceArtefact(_Frozen):
+    """A document the e-Office holds, with the access tags the e-Office records for it (plan §11.3
+    'Events in'). Handed to the normal ingestion pipeline; the tags are source-system metadata."""
+
+    source_uri: str
+    filename: str
+    department: str
+    section: str
+    classification: str
+    file_no: str | None = None
+    data: bytes = Field(repr=False)
+
+
 class ConnectorError(Exception):
     """Neutral failure. Callers deny / show a neutral message; never fall back to unscoped data."""
 
@@ -120,6 +133,11 @@ class EOfficeConnector(Protocol):
         ...
 
     def events_since(self, after: dt.datetime) -> list[EOfficeEvent]: ...
+
+    def documents(self) -> list[SourceArtefact]:
+        """Initial load: every document the e-Office holds, for ingestion (real adapter:
+        authorised export). Later changes arrive as events."""
+        ...
 
     def create_draft(self, request: DraftRequest) -> DraftReceipt:
         """Write back a DRAFT only. Never confirms a Green Note, signs, sends or closes."""
