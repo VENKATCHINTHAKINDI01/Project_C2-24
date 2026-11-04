@@ -1,0 +1,15 @@
+# Versioned runtime settings (plan §14.2). Change → bump `version` and run the regression harness (CLAUDE.md §9.5).
+# `null` = not yet calibrated. Code must treat an uncalibrated value as "not configured", never guess a default.
+version: "2026-10-22-initial"
+
+ingestion:
+  extraction_confidence_min: null   # confidence gate (plan §4.2) — calibrate in P1 on the synthetic scans
+
+retrieval:
+  l2_top_k: null                    # capped top-K for Vertex AI Search (plan §3.2) — calibrate in P3
+  l2_rerank_min_score: null         # evidence threshold for early exit — calibrate in P3
+  l3_max_hops: null                 # graph expansion depth — set in P3/P4
+
+cache:
+  answer_ttl_seconds: null          # Layer 2 authorised answers, "short TTL" (plan §10.2) — set in P3
+  artifact_ttl_seconds: null        # Layer 1 user-agnostic artifacts — set in P3
