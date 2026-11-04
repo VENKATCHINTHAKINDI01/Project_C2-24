@@ -1,0 +1,9 @@
+user_id,label,designation,role_rank,department,section,clearance,assigned_files
+U01,Officer A — Section Officer,Section Officer (Estt.I),1,USD01,ESTT.I,RESTRICTED,
+U02,Officer B — Assistant Secretary,Assistant Secretary (Estt.),2,USD01,ESTT.I,CONFIDENTIAL,
+U03,Officer C — Section Officer,Section Officer (Works),1,USD01,WORKS,RESTRICTED,
+U04,Officer D — Section Officer,Section Officer (Vigilance),1,USD01,VIG,CONFIDENTIAL,USD01-31/4/2025-VIG;USD01-12/58/2025-ESTT.I
+U05,Officer E — Deputy Secretary,Deputy Secretary,3,USD01,ALL,CONFIDENTIAL,
+U06,Officer F — Secretary,Secretary to Government,5,USD01,ALL,SECRET,
+U07,Officer G — Section Officer,Section Officer (HR.I),1,FIN01,HR.I,RESTRICTED,
+U08,Officer H — Assistant Secretary,Assistant Secretary (Ser.A),2,GAD01,SER.A,CONFIDENTIAL,

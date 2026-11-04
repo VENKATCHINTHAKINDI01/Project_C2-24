@@ -1,0 +1,20 @@
+# Access policy parameters (plan §5.1, §11.4; ADR-0009). MOCK — [To confirm] with the department.
+# A document at `public_classification` is visible to everyone. Otherwise ALL of:
+#   same department; clearance >= classification; and one of
+#   - department-wide: role_rank >= department_wide_min_role_rank AND a search scope in department_wide_scopes
+#     (rank and e-Office search privilege must BOTH allow it — owner decision, 3 Nov 2026);
+#   - same section AND a search scope in section_scopes;
+#   - the file is assigned to the officer, or (if handled_files_grant_access) has passed through them.
+# post_hierarchy / individual scopes give file-level reach only until the reporting tree is confirmed (ADR-0008).
+version: "2026-11-03-mock"
+status: mock
+public_classification: UNCLASSIFIED
+department_wide_min_role_rank: 3        # Deputy Secretary or above — [To confirm]
+department_wide_scopes: [global, department]
+section_scopes: [global, department, section_hierarchy, section]
+handled_files_grant_access: true        # e-Office: an officer can see files that moved through them
+# Owner decision (3 Nov 2026): report an order's current status ONLY when the officer's scope covers
+# every record that could change it; otherwise "I can't confirm this order's current status from the
+# records available to you. Please check with the section." Decided from the scope, never from which
+# records exist. full_department = strict default; up_to_document = [To confirm] with real data.
+status_coverage: full_department

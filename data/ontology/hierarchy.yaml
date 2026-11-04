@@ -1,0 +1,14 @@
+# AP administrative instrument hierarchy (plan §4.5).
+# WORKING ASSUMPTION — [To confirm] with the department (CLAUDE.md §5.9). Lower level = higher authority.
+version: "2026-10-13-draft"
+status: draft
+levels:
+  - {level: 1, instrument: CONSTITUTION, label: "Constitution"}
+  - {level: 2, instrument: ACT, label: "Central / State Act"}
+  - {level: 3, instrument: RULES, label: "Statutory Rules"}
+  - {level: 4, instrument: GO_MS, label: "G.O. (Ms)"}
+  - {level: 5, instrument: GO_RT, label: "G.O. (Rt)"}
+  - {level: 6, instrument: STANDING_ORDER, label: "Standing Order"}
+  - {level: 7, instrument: CIRCULAR_MEMO, label: "Circular / Memo"}
+  - {level: 8, instrument: OFFICE_ORDER, label: "Office Order / Office Memorandum"}
+  - {level: 9, instrument: DECISION_NOTING, label: "Decision / Noting"}

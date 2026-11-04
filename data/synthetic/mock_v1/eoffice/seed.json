@@ -1,0 +1,1644 @@
+{
+ "synthetic": true,
+ "banner": "Mock e-Office sandbox — not NIC e-Office · synthetic data",
+ "corpus": "mock_v1",
+ "as_of": "2026-10-02",
+ "sources": [
+  "NIC eFile 7.0 User Manual (Ver.7.0): receipt Computer No. + Receipt No. 'sequence no./creation year/dealing_section_name'; E/P nature; Non-SFS file heads; Green/Yellow notes; movement history",
+  "mock_v1 manifest.json, users.csv and note headers (synthetic corpus)",
+  "Assumed (synthetic): receipt diary date = order date; receipt dealing section ESTT.I; receipt Computer Nos from 9100001; search scope by rank (plan §11.4); movement = file sent to the next note's author (none across note-number gaps); files without notes have no creator; a file is closed only when all its documents are decided"
+ ],
+ "profiles": [
+  {
+   "user_id": "U01",
+   "name": "Officer A — Section Officer",
+   "post": "Section Officer (Estt.I)",
+   "role_rank": 1,
+   "department": "USD01",
+   "section": "ESTT.I",
+   "clearance": "RESTRICTED",
+   "search_scopes": [
+    "section"
+   ],
+   "login": true
+  },
+  {
+   "user_id": "U02",
+   "name": "Officer B — Assistant Secretary",
+   "post": "Assistant Secretary (Estt.)",
+   "role_rank": 2,
+   "department": "USD01",
+   "section": "ESTT.I",
+   "clearance": "CONFIDENTIAL",
+   "search_scopes": [
+    "section"
+   ],
+   "login": true
+  },
+  {
+   "user_id": "U03",
+   "name": "Officer C — Section Officer",
+   "post": "Section Officer (Works)",
+   "role_rank": 1,
+   "department": "USD01",
+   "section": "WORKS",
+   "clearance": "RESTRICTED",
+   "search_scopes": [
+    "section"
+   ],
+   "login": true
+  },
+  {
+   "user_id": "U04",
+   "name": "Officer D — Section Officer",
+   "post": "Section Officer (Vigilance)",
+   "role_rank": 1,
+   "department": "USD01",
+   "section": "VIG",
+   "clearance": "CONFIDENTIAL",
+   "search_scopes": [
+    "section"
+   ],
+   "login": true
+  },
+  {
+   "user_id": "U05",
+   "name": "Officer E — Deputy Secretary",
+   "post": "Deputy Secretary",
+   "role_rank": 3,
+   "department": "USD01",
+   "section": null,
+   "clearance": "CONFIDENTIAL",
+   "search_scopes": [
+    "department"
+   ],
+   "login": true
+  },
+  {
+   "user_id": "U06",
+   "name": "Officer F — Secretary",
+   "post": "Secretary to Government",
+   "role_rank": 5,
+   "department": "USD01",
+   "section": null,
+   "clearance": "SECRET",
+   "search_scopes": [
+    "department"
+   ],
+   "login": true
+  },
+  {
+   "user_id": "U07",
+   "name": "Officer G — Section Officer",
+   "post": "Section Officer (HR.I)",
+   "role_rank": 1,
+   "department": "FIN01",
+   "section": "HR.I",
+   "clearance": "RESTRICTED",
+   "search_scopes": [
+    "section"
+   ],
+   "login": true
+  },
+  {
+   "user_id": "U08",
+   "name": "Officer H — Assistant Secretary",
+   "post": "Assistant Secretary (Ser.A)",
+   "role_rank": 2,
+   "department": "GAD01",
+   "section": "SER.A",
+   "clearance": "CONFIDENTIAL",
+   "search_scopes": [
+    "section"
+   ],
+   "login": true
+  },
+  {
+   "user_id": "POST-ASSISTANT-SECTION-OFFICER-ESTT-I",
+   "name": "Assistant Section Officer (Estt.I)",
+   "post": "Assistant Section Officer (Estt.I)",
+   "role_rank": 0,
+   "department": "USD01",
+   "section": "ESTT.I",
+   "clearance": "RESTRICTED",
+   "search_scopes": [
+    "individual"
+   ],
+   "login": false
+  },
+  {
+   "user_id": "POST-ASSISTANT-SECTION-OFFICER-WORKS",
+   "name": "Assistant Section Officer (Works)",
+   "post": "Assistant Section Officer (Works)",
+   "role_rank": 0,
+   "department": "USD01",
+   "section": "WORKS",
+   "clearance": "RESTRICTED",
+   "search_scopes": [
+    "individual"
+   ],
+   "login": false
+  }
+ ],
+ "assignments": {
+  "U04": [
+   "USD01-12/58/2025-ESTT.I",
+   "USD01-31/4/2025-VIG"
+  ]
+ },
+ "files": [
+  {
+   "computer_no": "1311050",
+   "file_no": "USD01-12/1/2020-ESTT.I",
+   "nature": "E",
+   "file_head": "USD01-12",
+   "subject": "Establishment – Processing of requests for transfer of staff – Procedure to be followed – Standing Order – Issued.",
+   "description": "",
+   "department": "USD01",
+   "dealing_section": "ESTT.I",
+   "category": "Establishment",
+   "classification": "RESTRICTED",
+   "state": "open",
+   "created_by": null,
+   "created_on": "2020-01-02",
+   "previous_references": [],
+   "later_references": [],
+   "linked_files": []
+  },
+  {
+   "computer_no": "1771342",
+   "file_no": "USD01-12/31/2022-ESTT.I",
+   "nature": "E",
+   "file_head": "USD01-12",
+   "subject": "Establishment – Smt. A. Lakshmi Prasanna, Senior Assistant, Regional Office, Guntur – Request for transfer to Regional Office, Vijayawada on spouse grounds – Reg.",
+   "description": "",
+   "department": "USD01",
+   "dealing_section": "ESTT.I",
+   "category": "Establishment",
+   "classification": "RESTRICTED",
+   "state": "closed",
+   "created_by": "POST-ASSISTANT-SECTION-OFFICER-ESTT-I",
+   "created_on": "2022-06-13",
+   "previous_references": [],
+   "later_references": [],
+   "linked_files": []
+  },
+  {
+   "computer_no": "2003377",
+   "file_no": "USD01-WRKS0/18/2023-WORKS",
+   "nature": "E",
+   "file_head": "USD01-WRKS0",
+   "subject": "Works – Emergency restoration of collapsed drain at Gandhi Nagar, Seetharampuram Municipal Corporation – Administrative sanction for Rs.1.20 crore by the Commissioner – Reg.",
+   "description": "",
+   "department": "USD01",
+   "dealing_section": "WORKS",
+   "category": "Works",
+   "classification": "RESTRICTED",
+   "state": "closed",
+   "created_by": "POST-ASSISTANT-SECTION-OFFICER-WORKS",
+   "created_on": "2023-07-31",
+   "previous_references": [],
+   "later_references": [],
+   "linked_files": []
+  },
+  {
+   "computer_no": "2041966",
+   "file_no": "USD01-12/77/2023-ESTT.I",
+   "nature": "E",
+   "file_head": "USD01-12",
+   "subject": "Establishment – Sri M. Ravi Teja, Junior Assistant, Regional Office, Ongole – Request for transfer to Regional Office, Nellore on spouse grounds – Reg.",
+   "description": "",
+   "department": "USD01",
+   "dealing_section": "ESTT.I",
+   "category": "Establishment",
+   "classification": "RESTRICTED",
+   "state": "closed",
+   "created_by": "POST-ASSISTANT-SECTION-OFFICER-ESTT-I",
+   "created_on": "2023-08-24",
+   "previous_references": [],
+   "later_references": [],
+   "linked_files": []
+  },
+  {
+   "computer_no": "2447780",
+   "file_no": "USD01-WRKS0/52/2024-WORKS",
+   "nature": "E",
+   "file_head": "USD01-WRKS0",
+   "subject": "Works – Emergency restoration of culvert and approach road at Ward No.6, Seetharampuram Municipal Corporation – Estimated cost Rs.1.40 crore – Administrative sanction by Government – Reg.",
+   "description": "",
+   "department": "USD01",
+   "dealing_section": "WORKS",
+   "category": "Works",
+   "classification": "RESTRICTED",
+   "state": "closed",
+   "created_by": "POST-ASSISTANT-SECTION-OFFICER-WORKS",
+   "created_on": "2024-10-15",
+   "previous_references": [],
+   "later_references": [],
+   "linked_files": []
+  },
+  {
+   "computer_no": "2601155",
+   "file_no": "USD01-31/4/2025-VIG",
+   "nature": "E",
+   "file_head": "USD01-31",
+   "subject": "Vigilance – Complaint regarding irregularities in evaluation of tenders for drain works, 2024 – Preliminary enquiry against Sri K. Venkata Ramana, Superintendent – Reg.",
+   "description": "",
+   "department": "USD01",
+   "dealing_section": "VIG",
+   "category": "Vigilance",
+   "classification": "CONFIDENTIAL",
+   "state": "open",
+   "created_by": "U04",
+   "created_on": "2025-04-09",
+   "previous_references": [],
+   "later_references": [],
+   "linked_files": []
+  },
+  {
+   "computer_no": "2620051",
+   "file_no": "USD01-12/3/2025-ESTT.I",
+   "nature": "E",
+   "file_head": "USD01-12",
+   "subject": "Statement of cadre strength and transfers effected during General Transfers 2025 – Urban Services Department and Regional Offices.",
+   "description": "",
+   "department": "USD01",
+   "dealing_section": "ESTT.I",
+   "category": "Establishment",
+   "classification": "RESTRICTED",
+   "state": "open",
+   "created_by": null,
+   "created_on": "2025-05-31",
+   "previous_references": [],
+   "later_references": [],
+   "linked_files": []
+  },
+  {
+   "computer_no": "2629410",
+   "file_no": "USD01-12/44/2025-ESTT.I",
+   "nature": "E",
+   "file_head": "USD01-12",
+   "subject": "Establishment – Smt. P. Sandhya Rani, Senior Assistant, Regional Office, Kakinada – Request for transfer to Regional Office, Rajahmundry on spouse grounds – Reg.",
+   "description": "",
+   "department": "USD01",
+   "dealing_section": "ESTT.I",
+   "category": "Establishment",
+   "classification": "RESTRICTED",
+   "state": "closed",
+   "created_by": "POST-ASSISTANT-SECTION-OFFICER-ESTT-I",
+   "created_on": "2025-05-19",
+   "previous_references": [],
+   "later_references": [],
+   "linked_files": []
+  },
+  {
+   "computer_no": "2633187",
+   "file_no": "USD01-12/58/2025-ESTT.I",
+   "nature": "E",
+   "file_head": "USD01-12",
+   "subject": "Establishment – Sri K. Venkata Ramana, Superintendent, Regional Office, Tirupati – Request for transfer to Regional Office, Kurnool on spouse grounds – Reg.",
+   "description": "",
+   "department": "USD01",
+   "dealing_section": "ESTT.I",
+   "category": "Establishment",
+   "classification": "CONFIDENTIAL",
+   "state": "closed",
+   "created_by": "POST-ASSISTANT-SECTION-OFFICER-ESTT-I",
+   "created_on": "2025-05-26",
+   "previous_references": [],
+   "later_references": [],
+   "linked_files": []
+  },
+  {
+   "computer_no": "2671408",
+   "file_no": "USD01-31/9/2025-VIG",
+   "nature": "E",
+   "file_head": "USD01-31",
+   "subject": "Report of the Vigilance & Enforcement wing on suspected cartelisation in drain works contracts in three Urban Local Bodies, 2023–25.",
+   "description": "",
+   "department": "USD01",
+   "dealing_section": "VIG",
+   "category": "Vigilance",
+   "classification": "SECRET",
+   "state": "open",
+   "created_by": null,
+   "created_on": "2025-08-14",
+   "previous_references": [],
+   "later_references": [],
+   "linked_files": []
+  },
+  {
+   "computer_no": "2881930",
+   "file_no": "USD01-14/6/2026-ESTT.I",
+   "nature": "E",
+   "file_head": "USD01-14",
+   "subject": "Establishment – Continuation of 14 outsourced Data Entry Operators in the Department and Regional Offices for 2026-27 – Reg.",
+   "description": "",
+   "department": "USD01",
+   "dealing_section": "ESTT.I",
+   "category": "Establishment",
+   "classification": "RESTRICTED",
+   "state": "open",
+   "created_by": "POST-ASSISTANT-SECTION-OFFICER-ESTT-I",
+   "created_on": "2026-08-12",
+   "previous_references": [],
+   "later_references": [],
+   "linked_files": []
+  },
+  {
+   "computer_no": "2894562",
+   "file_no": "USD01-12/19/2026-ESTT.I",
+   "nature": "E",
+   "file_head": "USD01-12",
+   "subject": "Establishment – Sri Ch. Naveen Kumar, Senior Assistant, Regional Office, Eluru – Request for transfer to Regional Office, Vijayawada on spouse grounds – Reg.",
+   "description": "",
+   "department": "USD01",
+   "dealing_section": "ESTT.I",
+   "category": "Establishment",
+   "classification": "RESTRICTED",
+   "state": "open",
+   "created_by": "POST-ASSISTANT-SECTION-OFFICER-ESTT-I",
+   "created_on": "2026-09-22",
+   "previous_references": [],
+   "later_references": [],
+   "linked_files": []
+  },
+  {
+   "computer_no": "2899017",
+   "file_no": "USD01-WRKS0/30/2026-WORKS",
+   "nature": "E",
+   "file_head": "USD01-WRKS0",
+   "subject": "Works – Emergency restoration of storm water drain at Ward No.21, Seetharampuram Municipal Corporation – Administrative sanction for Rs.1.30 crore by the Commissioner – Reg.",
+   "description": "",
+   "department": "USD01",
+   "dealing_section": "WORKS",
+   "category": "Works",
+   "classification": "RESTRICTED",
+   "state": "open",
+   "created_by": "POST-ASSISTANT-SECTION-OFFICER-WORKS",
+   "created_on": "2026-09-24",
+   "previous_references": [],
+   "later_references": [],
+   "linked_files": []
+  }
+ ],
+ "notes": [
+  {
+   "note_id": "1771342-N1",
+   "computer_no": "1771342",
+   "note_no": 1,
+   "paragraph_from": 1,
+   "state": "green",
+   "author": "POST-ASSISTANT-SECTION-OFFICER-ESTT-I",
+   "author_post": "Assistant Section Officer (Estt.I)",
+   "text_source": "native",
+   "source_uri": "mock_v1/documents/03_Urban_Services/Estt/D17_USD01-NOTE-USD0112-31-2022.pdf",
+   "versions": [
+    {
+     "version": 1,
+     "text": "1. The representation of Smt. A. Lakshmi Prasanna, Senior Assistant, Regional Office, Guntur, is placed at PUC (Flag A). She has requested transfer to Regional Office, Vijayawada on spouse grounds, as her husband is working as Junior Assistant in the Commercial Taxes Department at Vijayawada.\n2. The request has been received during the period of relaxation of the ban on transfers (08-06-2022 to 30-06-2022) prescribed in G.O.Ms.No.88, Finance (HR.I-Plg. & Policy) Department, Dt.03-06-2022 (Flag B).\n3. As verified, (a) she has completed 3 years 4 months at Guntur; (b) 9 transfers have been effected in the Senior Assistant category against a cadre strength of 112, i.e. 8.0%, within the 20% ceiling; (c) the Vigilance section has reported that no enquiry is pending against her; and (d) one clear vacancy of Senior Assistant exists at Vijayawada.\n4. Para 2(v) of the G.O. at Flag B provides that spouse cases shall be given preference subject to availability of vacancy. The request satisfies the conditions.\n5. If approved, draft transfer orders are put up for approval (DFA).",
+     "saved_at": "2022-06-13T11:42:00+05:30",
+     "saved_by": "POST-ASSISTANT-SECTION-OFFICER-ESTT-I"
+    }
+   ],
+   "confirmed_at": "2022-06-13T11:42:00+05:30",
+   "created_by_assistant": false
+  },
+  {
+   "note_id": "1771342-N2",
+   "computer_no": "1771342",
+   "note_no": 2,
+   "paragraph_from": 6,
+   "state": "green",
+   "author": "U01",
+   "author_post": "Section Officer (Estt.I)",
+   "text_source": "native",
+   "source_uri": "mock_v1/documents/03_Urban_Services/Estt/D17_USD01-NOTE-USD0112-31-2022.pdf",
+   "versions": [
+    {
+     "version": 1,
+     "text": "6. Submitted. May approve.",
+     "saved_at": "2022-06-13T16:10:00+05:30",
+     "saved_by": "U01"
+    }
+   ],
+   "confirmed_at": "2022-06-13T16:10:00+05:30",
+   "created_by_assistant": false
+  },
+  {
+   "note_id": "1771342-N3",
+   "computer_no": "1771342",
+   "note_no": 3,
+   "paragraph_from": 7,
+   "state": "green",
+   "author": "U02",
+   "author_post": "Assistant Secretary (Estt.)",
+   "text_source": "native",
+   "source_uri": "mock_v1/documents/03_Urban_Services/Estt/D17_USD01-NOTE-USD0112-31-2022.pdf",
+   "versions": [
+    {
+     "version": 1,
+     "text": "7. Submitted to DS.",
+     "saved_at": "2022-06-14T10:25:00+05:30",
+     "saved_by": "U02"
+    }
+   ],
+   "confirmed_at": "2022-06-14T10:25:00+05:30",
+   "created_by_assistant": false
+  },
+  {
+   "note_id": "1771342-N4",
+   "computer_no": "1771342",
+   "note_no": 4,
+   "paragraph_from": 8,
+   "state": "green",
+   "author": "U05",
+   "author_post": "Deputy Secretary",
+   "text_source": "native",
+   "source_uri": "mock_v1/documents/03_Urban_Services/Estt/D17_USD01-NOTE-USD0112-31-2022.pdf",
+   "versions": [
+    {
+     "version": 1,
+     "text": "8. Recommended for approval. Submitted to Secretary.",
+     "saved_at": "2022-06-15T12:05:00+05:30",
+     "saved_by": "U05"
+    }
+   ],
+   "confirmed_at": "2022-06-15T12:05:00+05:30",
+   "created_by_assistant": false
+  },
+  {
+   "note_id": "1771342-N5",
+   "computer_no": "1771342",
+   "note_no": 5,
+   "paragraph_from": 9,
+   "state": "green",
+   "author": "U06",
+   "author_post": "Secretary to Government",
+   "text_source": "native",
+   "source_uri": "mock_v1/documents/03_Urban_Services/Estt/D17_USD01-NOTE-USD0112-31-2022.pdf",
+   "versions": [
+    {
+     "version": 1,
+     "text": "9. Approved. Issue orders.",
+     "saved_at": "2022-06-20T17:30:00+05:30",
+     "saved_by": "U06"
+    }
+   ],
+   "confirmed_at": "2022-06-20T17:30:00+05:30",
+   "created_by_assistant": false
+  },
+  {
+   "note_id": "2041966-N1",
+   "computer_no": "2041966",
+   "note_no": 1,
+   "paragraph_from": 1,
+   "state": "green",
+   "author": "POST-ASSISTANT-SECTION-OFFICER-ESTT-I",
+   "author_post": "Assistant Section Officer (Estt.I)",
+   "text_source": "native",
+   "source_uri": "mock_v1/documents/03_Urban_Services/Estt/D18_USD01-NOTE-USD0112-77-2023.pdf",
+   "versions": [
+    {
+     "version": 1,
+     "text": "1. Sri M. Ravi Teja, Junior Assistant, Regional Office, Ongole, has requested transfer to Regional Office, Nellore on spouse grounds (PUC at Flag A). His wife is working as a teacher in a Zilla Parishad High School near Nellore.\n2. The request has been received on 21-08-2023, outside the period of relaxation of the ban on transfers (08-06-2022 to 30-06-2022) under G.O.Ms.No.88, Finance (HR.I-Plg. & Policy) Department, Dt.03-06-2022. No orders relaxing the ban for 2023 have been issued by the Finance Department.\n3. As per para (e) of Standing Order No.2/2020 of this Department (Flag B), requests received outside the period of relaxation shall be kept pending for consideration during the next general transfers.\n4. It is therefore proposed that the individual may be informed that his request will be considered during the next general transfers.",
+     "saved_at": "2023-08-24T15:15:00+05:30",
+     "saved_by": "POST-ASSISTANT-SECTION-OFFICER-ESTT-I"
+    }
+   ],
+   "confirmed_at": "2023-08-24T15:15:00+05:30",
+   "created_by_assistant": false
+  },
+  {
+   "note_id": "2041966-N2",
+   "computer_no": "2041966",
+   "note_no": 2,
+   "paragraph_from": 5,
+   "state": "green",
+   "author": "U01",
+   "author_post": "Section Officer (Estt.I)",
+   "text_source": "native",
+   "source_uri": "mock_v1/documents/03_Urban_Services/Estt/D18_USD01-NOTE-USD0112-77-2023.pdf",
+   "versions": [
+    {
+     "version": 1,
+     "text": "5. Submitted.",
+     "saved_at": "2023-08-25T11:00:00+05:30",
+     "saved_by": "U01"
+    }
+   ],
+   "confirmed_at": "2023-08-25T11:00:00+05:30",
+   "created_by_assistant": false
+  },
+  {
+   "note_id": "2041966-N3",
+   "computer_no": "2041966",
+   "note_no": 3,
+   "paragraph_from": 6,
+   "state": "green",
+   "author": "U02",
+   "author_post": "Assistant Secretary (Estt.)",
+   "text_source": "native",
+   "source_uri": "mock_v1/documents/03_Urban_Services/Estt/D18_USD01-NOTE-USD0112-77-2023.pdf",
+   "versions": [
+    {
+     "version": 1,
+     "text": "6. Submitted to DS.",
+     "saved_at": "2023-08-28T12:40:00+05:30",
+     "saved_by": "U02"
+    }
+   ],
+   "confirmed_at": "2023-08-28T12:40:00+05:30",
+   "created_by_assistant": false
+  },
+  {
+   "note_id": "2041966-N4",
+   "computer_no": "2041966",
+   "note_no": 4,
+   "paragraph_from": 7,
+   "state": "green",
+   "author": "U05",
+   "author_post": "Deputy Secretary",
+   "text_source": "native",
+   "source_uri": "mock_v1/documents/03_Urban_Services/Estt/D18_USD01-NOTE-USD0112-77-2023.pdf",
+   "versions": [
+    {
+     "version": 1,
+     "text": "7. The ban is in force. Submitted for orders.",
+     "saved_at": "2023-08-30T10:10:00+05:30",
+     "saved_by": "U05"
+    }
+   ],
+   "confirmed_at": "2023-08-30T10:10:00+05:30",
+   "created_by_assistant": false
+  },
+  {
+   "note_id": "2041966-N5",
+   "computer_no": "2041966",
+   "note_no": 5,
+   "paragraph_from": 8,
+   "state": "green",
+   "author": "U06",
+   "author_post": "Secretary to Government",
+   "text_source": "native",
+   "source_uri": "mock_v1/documents/03_Urban_Services/Estt/D18_USD01-NOTE-USD0112-77-2023.pdf",
+   "versions": [
+    {
+     "version": 1,
+     "text": "8. Not agreed at present, as the ban on transfers is in force. Inform the individual accordingly.",
+     "saved_at": "2023-09-02T18:20:00+05:30",
+     "saved_by": "U06"
+    }
+   ],
+   "confirmed_at": "2023-09-02T18:20:00+05:30",
+   "created_by_assistant": false
+  },
+  {
+   "note_id": "2629410-N1",
+   "computer_no": "2629410",
+   "note_no": 1,
+   "paragraph_from": 1,
+   "state": "green",
+   "author": "POST-ASSISTANT-SECTION-OFFICER-ESTT-I",
+   "author_post": "Assistant Section Officer (Estt.I)",
+   "text_source": "native",
+   "source_uri": "mock_v1/documents/03_Urban_Services/Estt/D19_USD01-NOTE-USD0112-44-2025.pdf",
+   "versions": [
+    {
+     "version": 1,
+     "text": "1. Smt. P. Sandhya Rani, Senior Assistant, Regional Office, Kakinada, has requested transfer to Regional Office, Rajahmundry on spouse grounds (Flag A). Her husband is a Senior Assistant in the Revenue Department at Rajahmundry.\n2. The request is within the period of relaxation (15-05-2025 to 31-05-2025) under G.O.Ms.No.31, Finance (HR.I-Plg. & Policy) Department, Dt.12-05-2025 (Flag B).\n3. As verified, (a) station period 4 years 1 month; (b) 14 transfers effected in the Senior Assistant category against a cadre strength of 120, i.e. 11.7%, within the 15% ceiling; (c) Vigilance clearance obtained — no enquiry pending; (d) one clear vacancy exists at Rajahmundry.\n4. The request is covered by para 2(v) of the G.O. at Flag B. If approved, DFA is put up.",
+     "saved_at": "2025-05-19T12:20:00+05:30",
+     "saved_by": "POST-ASSISTANT-SECTION-OFFICER-ESTT-I"
+    }
+   ],
+   "confirmed_at": "2025-05-19T12:20:00+05:30",
+   "created_by_assistant": false
+  },
+  {
+   "note_id": "2629410-N2",
+   "computer_no": "2629410",
+   "note_no": 2,
+   "paragraph_from": 5,
+   "state": "green",
+   "author": "U01",
+   "author_post": "Section Officer (Estt.I)",
+   "text_source": "native",
+   "source_uri": "mock_v1/documents/03_Urban_Services/Estt/D19_USD01-NOTE-USD0112-44-2025.pdf",
+   "versions": [
+    {
+     "version": 1,
+     "text": "5. Submitted. May approve.",
+     "saved_at": "2025-05-19T17:05:00+05:30",
+     "saved_by": "U01"
+    }
+   ],
+   "confirmed_at": "2025-05-19T17:05:00+05:30",
+   "created_by_assistant": false
+  },
+  {
+   "note_id": "2629410-N3",
+   "computer_no": "2629410",
+   "note_no": 3,
+   "paragraph_from": 6,
+   "state": "green",
+   "author": "U02",
+   "author_post": "Assistant Secretary (Estt.)",
+   "text_source": "native",
+   "source_uri": "mock_v1/documents/03_Urban_Services/Estt/D19_USD01-NOTE-USD0112-44-2025.pdf",
+   "versions": [
+    {
+     "version": 1,
+     "text": "6. Submitted to DS.",
+     "saved_at": "2025-05-21T11:30:00+05:30",
+     "saved_by": "U02"
+    }
+   ],
+   "confirmed_at": "2025-05-21T11:30:00+05:30",
+   "created_by_assistant": false
+  },
+  {
+   "note_id": "2629410-N4",
+   "computer_no": "2629410",
+   "note_no": 4,
+   "paragraph_from": 7,
+   "state": "green",
+   "author": "U05",
+   "author_post": "Deputy Secretary",
+   "text_source": "native",
+   "source_uri": "mock_v1/documents/03_Urban_Services/Estt/D19_USD01-NOTE-USD0112-44-2025.pdf",
+   "versions": [
+    {
+     "version": 1,
+     "text": "7. Recommended.",
+     "saved_at": "2025-05-23T10:45:00+05:30",
+     "saved_by": "U05"
+    }
+   ],
+   "confirmed_at": "2025-05-23T10:45:00+05:30",
+   "created_by_assistant": false
+  },
+  {
+   "note_id": "2629410-N5",
+   "computer_no": "2629410",
+   "note_no": 5,
+   "paragraph_from": 8,
+   "state": "green",
+   "author": "U06",
+   "author_post": "Secretary to Government",
+   "text_source": "native",
+   "source_uri": "mock_v1/documents/03_Urban_Services/Estt/D19_USD01-NOTE-USD0112-44-2025.pdf",
+   "versions": [
+    {
+     "version": 1,
+     "text": "8. Approved.",
+     "saved_at": "2025-05-27T19:00:00+05:30",
+     "saved_by": "U06"
+    }
+   ],
+   "confirmed_at": "2025-05-27T19:00:00+05:30",
+   "created_by_assistant": false
+  },
+  {
+   "note_id": "2633187-N1",
+   "computer_no": "2633187",
+   "note_no": 1,
+   "paragraph_from": 1,
+   "state": "green",
+   "author": "POST-ASSISTANT-SECTION-OFFICER-ESTT-I",
+   "author_post": "Assistant Section Officer (Estt.I)",
+   "text_source": "native",
+   "source_uri": "mock_v1/documents/03_Urban_Services/Estt/D20_USD01-NOTE-USD0112-58-2025.pdf",
+   "versions": [
+    {
+     "version": 1,
+     "text": "1. Sri K. Venkata Ramana, Superintendent, Regional Office, Tirupati, has requested transfer to Regional Office, Kurnool on spouse grounds (Flag A).\n2. The request is within the period of relaxation under G.O.Ms.No.31, Finance (HR.I-Plg. & Policy) Department, Dt.12-05-2025.\n3. On reference, the Vigilance section has informed (Flag B) that a preliminary enquiry is pending against the individual in file No.USD01-31/4/2025-VIG relating to the evaluation of tenders for drain works in 2024.\n4. Para 2(vii) of G.O.Ms.No.31 and Circular Memo No.GAD01-SERA0/3/2023, Dt.14-08-2023 provide that requests of employees against whom disciplinary proceedings are pending or contemplated shall not be considered until their conclusion.\n5. It is proposed that the request may not be considered at present.",
+     "saved_at": "2025-05-26T14:30:00+05:30",
+     "saved_by": "POST-ASSISTANT-SECTION-OFFICER-ESTT-I"
+    }
+   ],
+   "confirmed_at": "2025-05-26T14:30:00+05:30",
+   "created_by_assistant": false
+  },
+  {
+   "note_id": "2633187-N2",
+   "computer_no": "2633187",
+   "note_no": 2,
+   "paragraph_from": 6,
+   "state": "green",
+   "author": "U01",
+   "author_post": "Section Officer (Estt.I)",
+   "text_source": "native",
+   "source_uri": "mock_v1/documents/03_Urban_Services/Estt/D20_USD01-NOTE-USD0112-58-2025.pdf",
+   "versions": [
+    {
+     "version": 1,
+     "text": "6. Submitted.",
+     "saved_at": "2025-05-27T10:15:00+05:30",
+     "saved_by": "U01"
+    }
+   ],
+   "confirmed_at": "2025-05-27T10:15:00+05:30",
+   "created_by_assistant": false
+  },
+  {
+   "note_id": "2633187-N3",
+   "computer_no": "2633187",
+   "note_no": 3,
+   "paragraph_from": 7,
+   "state": "green",
+   "author": "U05",
+   "author_post": "Deputy Secretary",
+   "text_source": "native",
+   "source_uri": "mock_v1/documents/03_Urban_Services/Estt/D20_USD01-NOTE-USD0112-58-2025.pdf",
+   "versions": [
+    {
+     "version": 1,
+     "text": "7. Submitted.",
+     "saved_at": "2025-05-28T16:00:00+05:30",
+     "saved_by": "U05"
+    }
+   ],
+   "confirmed_at": "2025-05-28T16:00:00+05:30",
+   "created_by_assistant": false
+  },
+  {
+   "note_id": "2633187-N4",
+   "computer_no": "2633187",
+   "note_no": 4,
+   "paragraph_from": 8,
+   "state": "green",
+   "author": "U06",
+   "author_post": "Secretary to Government",
+   "text_source": "native",
+   "source_uri": "mock_v1/documents/03_Urban_Services/Estt/D20_USD01-NOTE-USD0112-58-2025.pdf",
+   "versions": [
+    {
+     "version": 1,
+     "text": "8. Not considered in view of the pending enquiry.",
+     "saved_at": "2025-05-30T18:45:00+05:30",
+     "saved_by": "U06"
+    }
+   ],
+   "confirmed_at": "2025-05-30T18:45:00+05:30",
+   "created_by_assistant": false
+  },
+  {
+   "note_id": "2601155-N1",
+   "computer_no": "2601155",
+   "note_no": 1,
+   "paragraph_from": 1,
+   "state": "green",
+   "author": "U04",
+   "author_post": "Section Officer (Vigilance)",
+   "text_source": "native",
+   "source_uri": "mock_v1/documents/03_Urban_Services/Vigilance/D21_USD01-NOTE-USD0131-4-2025.pdf",
+   "versions": [
+    {
+     "version": 1,
+     "text": "1. A complaint has been received (Flag A) alleging that the technical evaluation of three tenders for drain works in 2024 was manipulated to favour a single contractor.\n2. The complaint names Sri K. Venkata Ramana, Superintendent, who was then working in the Works section and dealt with the tender files.\n3. It is proposed that a preliminary enquiry may be ordered and the Superintending Engineer (Vigilance) may be appointed as Enquiry Officer, with a report within 60 days.",
+     "saved_at": "2025-04-09T11:05:00+05:30",
+     "saved_by": "U04"
+    }
+   ],
+   "confirmed_at": "2025-04-09T11:05:00+05:30",
+   "created_by_assistant": false
+  },
+  {
+   "note_id": "2601155-N2",
+   "computer_no": "2601155",
+   "note_no": 2,
+   "paragraph_from": 4,
+   "state": "green",
+   "author": "U05",
+   "author_post": "Deputy Secretary",
+   "text_source": "native",
+   "source_uri": "mock_v1/documents/03_Urban_Services/Vigilance/D21_USD01-NOTE-USD0131-4-2025.pdf",
+   "versions": [
+    {
+     "version": 1,
+     "text": "4. Submitted. May order preliminary enquiry.",
+     "saved_at": "2025-04-11T15:30:00+05:30",
+     "saved_by": "U05"
+    }
+   ],
+   "confirmed_at": "2025-04-11T15:30:00+05:30",
+   "created_by_assistant": false
+  },
+  {
+   "note_id": "2601155-N3",
+   "computer_no": "2601155",
+   "note_no": 3,
+   "paragraph_from": 5,
+   "state": "green",
+   "author": "U06",
+   "author_post": "Secretary to Government",
+   "text_source": "native",
+   "source_uri": "mock_v1/documents/03_Urban_Services/Vigilance/D21_USD01-NOTE-USD0131-4-2025.pdf",
+   "versions": [
+    {
+     "version": 1,
+     "text": "5. Approved. Order preliminary enquiry. Keep the file confidential.",
+     "saved_at": "2025-04-18T17:10:00+05:30",
+     "saved_by": "U06"
+    }
+   ],
+   "confirmed_at": "2025-04-18T17:10:00+05:30",
+   "created_by_assistant": false
+  },
+  {
+   "note_id": "2601155-N6",
+   "computer_no": "2601155",
+   "note_no": 6,
+   "paragraph_from": 1,
+   "state": "green",
+   "author": "U04",
+   "author_post": "Section Officer (Vigilance)",
+   "text_source": "needs_ocr",
+   "source_uri": "mock_v1/documents/03_Urban_Services/Vigilance/D22_USD01-NOTE-USD0131-4-2025-R1_scan.pdf",
+   "versions": [
+    {
+     "version": 1,
+     "text": null,
+     "saved_at": "2025-07-21T12:40:00+05:30",
+     "saved_by": "U04"
+    }
+   ],
+   "confirmed_at": "2025-07-21T12:40:00+05:30",
+   "created_by_assistant": false
+  },
+  {
+   "note_id": "2601155-N7",
+   "computer_no": "2601155",
+   "note_no": 7,
+   "paragraph_from": 3,
+   "state": "green",
+   "author": "U05",
+   "author_post": "Deputy Secretary",
+   "text_source": "needs_ocr",
+   "source_uri": "mock_v1/documents/03_Urban_Services/Vigilance/D22_USD01-NOTE-USD0131-4-2025-R1_scan.pdf",
+   "versions": [
+    {
+     "version": 1,
+     "text": null,
+     "saved_at": "2025-07-23T11:15:00+05:30",
+     "saved_by": "U05"
+    }
+   ],
+   "confirmed_at": "2025-07-23T11:15:00+05:30",
+   "created_by_assistant": false
+  },
+  {
+   "note_id": "2601155-N8",
+   "computer_no": "2601155",
+   "note_no": 8,
+   "paragraph_from": 4,
+   "state": "green",
+   "author": "U06",
+   "author_post": "Secretary to Government",
+   "text_source": "needs_ocr",
+   "source_uri": "mock_v1/documents/03_Urban_Services/Vigilance/D22_USD01-NOTE-USD0131-4-2025-R1_scan.pdf",
+   "versions": [
+    {
+     "version": 1,
+     "text": null,
+     "saved_at": "2025-07-25T18:00:00+05:30",
+     "saved_by": "U06"
+    }
+   ],
+   "confirmed_at": "2025-07-25T18:00:00+05:30",
+   "created_by_assistant": false
+  },
+  {
+   "note_id": "2003377-N1",
+   "computer_no": "2003377",
+   "note_no": 1,
+   "paragraph_from": 1,
+   "state": "green",
+   "author": "POST-ASSISTANT-SECTION-OFFICER-WORKS",
+   "author_post": "Assistant Section Officer (Works)",
+   "text_source": "native",
+   "source_uri": "mock_v1/documents/03_Urban_Services/Works/D24_USD01-NOTE-USD01WRKS0-18-2023.pdf",
+   "versions": [
+    {
+     "version": 1,
+     "text": "1. The Commissioner, Urban Services, has informed (Flag A) that he has accorded administrative sanction for Rs.1.20 crore for emergency restoration of the collapsed drain at Gandhi Nagar, Seetharampuram Municipal Corporation, in exercise of the powers under Circular Memo No.USD01-WRKS0/9/2023, Dt.11-07-2023.\n2. The sanction is within the limit of Rs.1.50 crore prescribed in the said Circular Memo. The matter is placed for information.",
+     "saved_at": "2023-07-31T10:30:00+05:30",
+     "saved_by": "POST-ASSISTANT-SECTION-OFFICER-WORKS"
+    }
+   ],
+   "confirmed_at": "2023-07-31T10:30:00+05:30",
+   "created_by_assistant": false
+  },
+  {
+   "note_id": "2003377-N2",
+   "computer_no": "2003377",
+   "note_no": 2,
+   "paragraph_from": 3,
+   "state": "green",
+   "author": "U03",
+   "author_post": "Section Officer (Works)",
+   "text_source": "native",
+   "source_uri": "mock_v1/documents/03_Urban_Services/Works/D24_USD01-NOTE-USD01WRKS0-18-2023.pdf",
+   "versions": [
+    {
+     "version": 1,
+     "text": "3. Submitted for information.",
+     "saved_at": "2023-08-01T15:00:00+05:30",
+     "saved_by": "U03"
+    }
+   ],
+   "confirmed_at": "2023-08-01T15:00:00+05:30",
+   "created_by_assistant": false
+  },
+  {
+   "note_id": "2003377-N3",
+   "computer_no": "2003377",
+   "note_no": 3,
+   "paragraph_from": 4,
+   "state": "green",
+   "author": "U05",
+   "author_post": "Deputy Secretary",
+   "text_source": "native",
+   "source_uri": "mock_v1/documents/03_Urban_Services/Works/D24_USD01-NOTE-USD01WRKS0-18-2023.pdf",
+   "versions": [
+    {
+     "version": 1,
+     "text": "4. Seen. Submitted.",
+     "saved_at": "2023-08-03T11:20:00+05:30",
+     "saved_by": "U05"
+    }
+   ],
+   "confirmed_at": "2023-08-03T11:20:00+05:30",
+   "created_by_assistant": false
+  },
+  {
+   "note_id": "2003377-N4",
+   "computer_no": "2003377",
+   "note_no": 4,
+   "paragraph_from": 5,
+   "state": "green",
+   "author": "U06",
+   "author_post": "Secretary to Government",
+   "text_source": "native",
+   "source_uri": "mock_v1/documents/03_Urban_Services/Works/D24_USD01-NOTE-USD01WRKS0-18-2023.pdf",
+   "versions": [
+    {
+     "version": 1,
+     "text": "5. Seen. Recorded.",
+     "saved_at": "2023-08-04T17:45:00+05:30",
+     "saved_by": "U06"
+    }
+   ],
+   "confirmed_at": "2023-08-04T17:45:00+05:30",
+   "created_by_assistant": false
+  },
+  {
+   "note_id": "2447780-N1",
+   "computer_no": "2447780",
+   "note_no": 1,
+   "paragraph_from": 1,
+   "state": "green",
+   "author": "POST-ASSISTANT-SECTION-OFFICER-WORKS",
+   "author_post": "Assistant Section Officer (Works)",
+   "text_source": "native",
+   "source_uri": "mock_v1/documents/03_Urban_Services/Works/D25_USD01-NOTE-USD01WRKS0-52-2024.docx",
+   "versions": [
+    {
+     "version": 1,
+     "text": "1. The Commissioner, Urban Services, has submitted proposals (Flag A) for emergency restoration of a culvert and approach road at Ward No.6, Seetharampuram Municipal Corporation, damaged in the floods of September 2024, at an estimated cost of Rs.1.40 crore.\n2. As per para 2(vi) of G.O.Ms.No.27, Urban Services (Works) Department, Dt.06-08-2024 (Flag B), works including emergency works costing above Rs.1.00 crore are to be sanctioned by the Government only. The cost is below Rs.5.00 crore and hence the concurrence of the Finance Department is not required.\n3. It is proposed that administrative sanction for Rs.1.40 crore may be accorded by the Government. DFA (G.O.Rt.) is put up.",
+     "saved_at": "2024-10-15T11:10:00+05:30",
+     "saved_by": "POST-ASSISTANT-SECTION-OFFICER-WORKS"
+    }
+   ],
+   "confirmed_at": "2024-10-15T11:10:00+05:30",
+   "created_by_assistant": false
+  },
+  {
+   "note_id": "2447780-N2",
+   "computer_no": "2447780",
+   "note_no": 2,
+   "paragraph_from": 4,
+   "state": "green",
+   "author": "U03",
+   "author_post": "Section Officer (Works)",
+   "text_source": "native",
+   "source_uri": "mock_v1/documents/03_Urban_Services/Works/D25_USD01-NOTE-USD01WRKS0-52-2024.docx",
+   "versions": [
+    {
+     "version": 1,
+     "text": "4. Submitted.",
+     "saved_at": "2024-10-15T16:40:00+05:30",
+     "saved_by": "U03"
+    }
+   ],
+   "confirmed_at": "2024-10-15T16:40:00+05:30",
+   "created_by_assistant": false
+  },
+  {
+   "note_id": "2447780-N3",
+   "computer_no": "2447780",
+   "note_no": 3,
+   "paragraph_from": 5,
+   "state": "green",
+   "author": "U05",
+   "author_post": "Deputy Secretary",
+   "text_source": "native",
+   "source_uri": "mock_v1/documents/03_Urban_Services/Works/D25_USD01-NOTE-USD01WRKS0-52-2024.docx",
+   "versions": [
+    {
+     "version": 1,
+     "text": "5. Recommended.",
+     "saved_at": "2024-10-17T12:00:00+05:30",
+     "saved_by": "U05"
+    }
+   ],
+   "confirmed_at": "2024-10-17T12:00:00+05:30",
+   "created_by_assistant": false
+  },
+  {
+   "note_id": "2447780-N4",
+   "computer_no": "2447780",
+   "note_no": 4,
+   "paragraph_from": 6,
+   "state": "green",
+   "author": "U06",
+   "author_post": "Secretary to Government",
+   "text_source": "native",
+   "source_uri": "mock_v1/documents/03_Urban_Services/Works/D25_USD01-NOTE-USD01WRKS0-52-2024.docx",
+   "versions": [
+    {
+     "version": 1,
+     "text": "6. Approved. Issue G.O.",
+     "saved_at": "2024-10-21T18:30:00+05:30",
+     "saved_by": "U06"
+    }
+   ],
+   "confirmed_at": "2024-10-21T18:30:00+05:30",
+   "created_by_assistant": false
+  },
+  {
+   "note_id": "2894562-N1",
+   "computer_no": "2894562",
+   "note_no": 1,
+   "paragraph_from": 1,
+   "state": "green",
+   "author": "POST-ASSISTANT-SECTION-OFFICER-ESTT-I",
+   "author_post": "Assistant Section Officer (Estt.I)",
+   "text_source": "native",
+   "source_uri": "mock_v1/documents/03_Urban_Services/Estt/D27_USD01-NOTE-USD0112-19-2026.docx",
+   "versions": [
+    {
+     "version": 1,
+     "text": "1. Sri Ch. Naveen Kumar, Senior Assistant, Regional Office, Eluru, has requested transfer to Regional Office, Vijayawada on spouse grounds (Flag A), as his wife is working as Junior Assistant in the School Education Department at Vijayawada. The request was received on 15-09-2026.\n2. As per para 2(v) of G.O.Ms.No.88, Finance (HR.I-Plg. & Policy) Department, Dt.03-06-2022 (Flag B), spouse cases shall be given preference subject to availability of vacancy. Further, as per G.O.Ms.No.104, Finance (HR.I) Department, Dt.02-01-2026, spouse cases may be considered at any time during the year.\n3. As verified, (a) the station period of the individual is 3 years 2 months; (b) 18 transfers have already been effected in the Senior Assistant category against a cadre strength of 120, i.e. 15%, and the present proposal would take it to 19 (15.8%); (c) one vacancy exists at Vijayawada.\n4. Though the ceiling is slightly exceeded, the request may be approved as a special case on humanitarian grounds.\n5. As the Secretary is on leave, the Deputy Secretary may kindly approve the transfer, and draft orders are put up for approval (DFA).",
+     "saved_at": "2026-09-22T12:10:00+05:30",
+     "saved_by": "POST-ASSISTANT-SECTION-OFFICER-ESTT-I"
+    }
+   ],
+   "confirmed_at": "2026-09-22T12:10:00+05:30",
+   "created_by_assistant": false
+  },
+  {
+   "note_id": "2899017-N1",
+   "computer_no": "2899017",
+   "note_no": 1,
+   "paragraph_from": 1,
+   "state": "green",
+   "author": "POST-ASSISTANT-SECTION-OFFICER-WORKS",
+   "author_post": "Assistant Section Officer (Works)",
+   "text_source": "native",
+   "source_uri": "mock_v1/documents/03_Urban_Services/Works/D28_USD01-NOTE-USD01WRKS0-30-2026.pdf",
+   "versions": [
+    {
+     "version": 1,
+     "text": "1. The Commissioner, Urban Services, has submitted (Flag A) that a storm water drain at Ward No.21, Seetharampuram Municipal Corporation was breached in the heavy rains of 18-09-2026, and has proposed to accord administrative sanction for Rs.1.30 crore for emergency restoration.\n2. As per Circular Memo No.USD01-WRKS0/9/2023, Dt.11-07-2023 (Flag B), the Commissioner may accord administrative sanction for emergency works up to Rs.1.50 crore per work. The proposed cost is within this limit.\n3. It is therefore proposed that the Commissioner may be permitted to accord the sanction, and the same may be reported to the Government in the monthly statement.",
+     "saved_at": "2026-09-24T10:50:00+05:30",
+     "saved_by": "POST-ASSISTANT-SECTION-OFFICER-WORKS"
+    }
+   ],
+   "confirmed_at": "2026-09-24T10:50:00+05:30",
+   "created_by_assistant": false
+  },
+  {
+   "note_id": "2881930-N1",
+   "computer_no": "2881930",
+   "note_no": 1,
+   "paragraph_from": 1,
+   "state": "green",
+   "author": "POST-ASSISTANT-SECTION-OFFICER-ESTT-I",
+   "author_post": "Assistant Section Officer (Estt.I)",
+   "text_source": "native",
+   "source_uri": "mock_v1/documents/03_Urban_Services/Estt/D29_USD01-NOTE-USD0114-6-2026.docx",
+   "versions": [
+    {
+     "version": 1,
+     "text": "1. Fourteen Data Entry Operators are working in the Department and its Regional Offices on outsourcing basis through the agency engaged by the Department.\n2. Government, in G.O.Rt.No.1184, Finance (HR.I) Department, Dt.21-03-2025 (Flag A), have permitted continuation of outsourcing services. Accordingly, it is proposed to continue the services of the 14 Data Entry Operators from 01-04-2026 to 31-03-2027 on the same terms.\n3. Since the continuation is on the same terms, reference to the Finance Department may not be necessary. Orders may be issued by the Department.",
+     "saved_at": "2026-08-12T15:40:00+05:30",
+     "saved_by": "POST-ASSISTANT-SECTION-OFFICER-ESTT-I"
+    }
+   ],
+   "confirmed_at": "2026-08-12T15:40:00+05:30",
+   "created_by_assistant": false
+  }
+ ],
+ "correspondence": [
+  {
+   "correspondence_id": "1311050-CD11",
+   "computer_no": "1311050",
+   "kind": "puc",
+   "page_from": 1,
+   "page_to": 1,
+   "title": "Establishment – Processing of requests for transfer of staff – Procedure to be followed – Standing Order – Issued.",
+   "canonical_id": "AP-USD01-SO-2-2020",
+   "receipt_id": null
+  },
+  {
+   "correspondence_id": "2671408-CD23",
+   "computer_no": "2671408",
+   "kind": "puc",
+   "page_from": 1,
+   "page_to": 1,
+   "title": "Report of the Vigilance & Enforcement wing on suspected cartelisation in drain works contracts in three Urban Local Bodies, 2023–25.",
+   "canonical_id": "AP-USD01-RPT-USD0131-9-2025",
+   "receipt_id": null
+  },
+  {
+   "correspondence_id": "2620051-CD26",
+   "computer_no": "2620051",
+   "kind": "puc",
+   "page_from": 1,
+   "page_to": 1,
+   "title": "Statement of cadre strength and transfers effected during General Transfers 2025 – Urban Services Department and Regional Offices.",
+   "canonical_id": "AP-USD01-ANX-USD0112-3-2025",
+   "receipt_id": null
+  }
+ ],
+ "movements": [
+  {
+   "computer_no": "1771342",
+   "seq": 1,
+   "from_user": "POST-ASSISTANT-SECTION-OFFICER-ESTT-I",
+   "to_user": "U01",
+   "sent_at": "2022-06-13T11:42:00+05:30",
+   "due_on": null,
+   "priority": "normal",
+   "remarks": "Submitted after Note #1",
+   "sent_back": false
+  },
+  {
+   "computer_no": "1771342",
+   "seq": 2,
+   "from_user": "U01",
+   "to_user": "U02",
+   "sent_at": "2022-06-13T16:10:00+05:30",
+   "due_on": null,
+   "priority": "normal",
+   "remarks": "Submitted after Note #2",
+   "sent_back": false
+  },
+  {
+   "computer_no": "1771342",
+   "seq": 3,
+   "from_user": "U02",
+   "to_user": "U05",
+   "sent_at": "2022-06-14T10:25:00+05:30",
+   "due_on": null,
+   "priority": "normal",
+   "remarks": "Submitted after Note #3",
+   "sent_back": false
+  },
+  {
+   "computer_no": "1771342",
+   "seq": 4,
+   "from_user": "U05",
+   "to_user": "U06",
+   "sent_at": "2022-06-15T12:05:00+05:30",
+   "due_on": null,
+   "priority": "normal",
+   "remarks": "Submitted after Note #4",
+   "sent_back": false
+  },
+  {
+   "computer_no": "2003377",
+   "seq": 1,
+   "from_user": "POST-ASSISTANT-SECTION-OFFICER-WORKS",
+   "to_user": "U03",
+   "sent_at": "2023-07-31T10:30:00+05:30",
+   "due_on": null,
+   "priority": "normal",
+   "remarks": "Submitted after Note #1",
+   "sent_back": false
+  },
+  {
+   "computer_no": "2003377",
+   "seq": 2,
+   "from_user": "U03",
+   "to_user": "U05",
+   "sent_at": "2023-08-01T15:00:00+05:30",
+   "due_on": null,
+   "priority": "normal",
+   "remarks": "Submitted after Note #2",
+   "sent_back": false
+  },
+  {
+   "computer_no": "2003377",
+   "seq": 3,
+   "from_user": "U05",
+   "to_user": "U06",
+   "sent_at": "2023-08-03T11:20:00+05:30",
+   "due_on": null,
+   "priority": "normal",
+   "remarks": "Submitted after Note #3",
+   "sent_back": false
+  },
+  {
+   "computer_no": "2041966",
+   "seq": 1,
+   "from_user": "POST-ASSISTANT-SECTION-OFFICER-ESTT-I",
+   "to_user": "U01",
+   "sent_at": "2023-08-24T15:15:00+05:30",
+   "due_on": null,
+   "priority": "normal",
+   "remarks": "Submitted after Note #1",
+   "sent_back": false
+  },
+  {
+   "computer_no": "2041966",
+   "seq": 2,
+   "from_user": "U01",
+   "to_user": "U02",
+   "sent_at": "2023-08-25T11:00:00+05:30",
+   "due_on": null,
+   "priority": "normal",
+   "remarks": "Submitted after Note #2",
+   "sent_back": false
+  },
+  {
+   "computer_no": "2041966",
+   "seq": 3,
+   "from_user": "U02",
+   "to_user": "U05",
+   "sent_at": "2023-08-28T12:40:00+05:30",
+   "due_on": null,
+   "priority": "normal",
+   "remarks": "Submitted after Note #3",
+   "sent_back": false
+  },
+  {
+   "computer_no": "2041966",
+   "seq": 4,
+   "from_user": "U05",
+   "to_user": "U06",
+   "sent_at": "2023-08-30T10:10:00+05:30",
+   "due_on": null,
+   "priority": "normal",
+   "remarks": "Submitted after Note #4",
+   "sent_back": false
+  },
+  {
+   "computer_no": "2447780",
+   "seq": 1,
+   "from_user": "POST-ASSISTANT-SECTION-OFFICER-WORKS",
+   "to_user": "U03",
+   "sent_at": "2024-10-15T11:10:00+05:30",
+   "due_on": null,
+   "priority": "normal",
+   "remarks": "Submitted after Note #1",
+   "sent_back": false
+  },
+  {
+   "computer_no": "2447780",
+   "seq": 2,
+   "from_user": "U03",
+   "to_user": "U05",
+   "sent_at": "2024-10-15T16:40:00+05:30",
+   "due_on": null,
+   "priority": "normal",
+   "remarks": "Submitted after Note #2",
+   "sent_back": false
+  },
+  {
+   "computer_no": "2447780",
+   "seq": 3,
+   "from_user": "U05",
+   "to_user": "U06",
+   "sent_at": "2024-10-17T12:00:00+05:30",
+   "due_on": null,
+   "priority": "normal",
+   "remarks": "Submitted after Note #3",
+   "sent_back": false
+  },
+  {
+   "computer_no": "2601155",
+   "seq": 1,
+   "from_user": "U04",
+   "to_user": "U05",
+   "sent_at": "2025-04-09T11:05:00+05:30",
+   "due_on": null,
+   "priority": "normal",
+   "remarks": "Submitted after Note #1",
+   "sent_back": false
+  },
+  {
+   "computer_no": "2601155",
+   "seq": 2,
+   "from_user": "U05",
+   "to_user": "U06",
+   "sent_at": "2025-04-11T15:30:00+05:30",
+   "due_on": null,
+   "priority": "normal",
+   "remarks": "Submitted after Note #2",
+   "sent_back": false
+  },
+  {
+   "computer_no": "2601155",
+   "seq": 3,
+   "from_user": "U04",
+   "to_user": "U05",
+   "sent_at": "2025-07-21T12:40:00+05:30",
+   "due_on": null,
+   "priority": "normal",
+   "remarks": "Submitted after Note #6",
+   "sent_back": false
+  },
+  {
+   "computer_no": "2601155",
+   "seq": 4,
+   "from_user": "U05",
+   "to_user": "U06",
+   "sent_at": "2025-07-23T11:15:00+05:30",
+   "due_on": null,
+   "priority": "normal",
+   "remarks": "Submitted after Note #7",
+   "sent_back": false
+  },
+  {
+   "computer_no": "2629410",
+   "seq": 1,
+   "from_user": "POST-ASSISTANT-SECTION-OFFICER-ESTT-I",
+   "to_user": "U01",
+   "sent_at": "2025-05-19T12:20:00+05:30",
+   "due_on": null,
+   "priority": "normal",
+   "remarks": "Submitted after Note #1",
+   "sent_back": false
+  },
+  {
+   "computer_no": "2629410",
+   "seq": 2,
+   "from_user": "U01",
+   "to_user": "U02",
+   "sent_at": "2025-05-19T17:05:00+05:30",
+   "due_on": null,
+   "priority": "normal",
+   "remarks": "Submitted after Note #2",
+   "sent_back": false
+  },
+  {
+   "computer_no": "2629410",
+   "seq": 3,
+   "from_user": "U02",
+   "to_user": "U05",
+   "sent_at": "2025-05-21T11:30:00+05:30",
+   "due_on": null,
+   "priority": "normal",
+   "remarks": "Submitted after Note #3",
+   "sent_back": false
+  },
+  {
+   "computer_no": "2629410",
+   "seq": 4,
+   "from_user": "U05",
+   "to_user": "U06",
+   "sent_at": "2025-05-23T10:45:00+05:30",
+   "due_on": null,
+   "priority": "normal",
+   "remarks": "Submitted after Note #4",
+   "sent_back": false
+  },
+  {
+   "computer_no": "2633187",
+   "seq": 1,
+   "from_user": "POST-ASSISTANT-SECTION-OFFICER-ESTT-I",
+   "to_user": "U01",
+   "sent_at": "2025-05-26T14:30:00+05:30",
+   "due_on": null,
+   "priority": "normal",
+   "remarks": "Submitted after Note #1",
+   "sent_back": false
+  },
+  {
+   "computer_no": "2633187",
+   "seq": 2,
+   "from_user": "U01",
+   "to_user": "U05",
+   "sent_at": "2025-05-27T10:15:00+05:30",
+   "due_on": null,
+   "priority": "normal",
+   "remarks": "Submitted after Note #2",
+   "sent_back": false
+  },
+  {
+   "computer_no": "2633187",
+   "seq": 3,
+   "from_user": "U05",
+   "to_user": "U06",
+   "sent_at": "2025-05-28T16:00:00+05:30",
+   "due_on": null,
+   "priority": "normal",
+   "remarks": "Submitted after Note #3",
+   "sent_back": false
+  }
+ ],
+ "receipts": [
+  {
+   "computer_no": "9100001",
+   "receipt_no": "1/2018/ESTT.I",
+   "nature": "E",
+   "diary_date": "2018-02-09",
+   "sender": "Secretary To Government (Ser.), General Administration Department",
+   "letter_ref": "G.O.Ms.No.19",
+   "letter_date": "2018-02-09",
+   "main_category": "Government Order",
+   "subject": "Secretariat Service – Transfers and Postings of Officers in the Secretariat Departments – Competent authority – Orders – Issued.",
+   "dealing_section": "ESTT.I",
+   "source_uri": "mock_v1/documents/02_GAD_Services/D09_GAD01-GOMS-19-2018_scan.pdf",
+   "put_in_file": null,
+   "assumed_fields": [
+    "diary_date",
+    "dealing_section",
+    "computer_no"
+   ]
+  },
+  {
+   "computer_no": "9100002",
+   "receipt_no": "1/2019/ESTT.I",
+   "nature": "E",
+   "diary_date": "2019-06-14",
+   "sender": "Principal Secretary To Government, Finance Department",
+   "letter_ref": "G.O.Ms.No.62",
+   "letter_date": "2019-06-14",
+   "main_category": "Government Order",
+   "subject": "Public Services – Human Resources – General Transfers of Employees for the year 2019 – Guidelines – Orders – Issued.",
+   "dealing_section": "ESTT.I",
+   "source_uri": "mock_v1/documents/01_Finance_HR/D01_FIN01-GOMS-62-2019_scan.pdf",
+   "put_in_file": null,
+   "assumed_fields": [
+    "diary_date",
+    "dealing_section",
+    "computer_no"
+   ]
+  },
+  {
+   "computer_no": "9100003",
+   "receipt_no": "2/2019/ESTT.I",
+   "nature": "E",
+   "diary_date": "2019-06-28",
+   "sender": "Principal Secretary To Government, Finance Department",
+   "letter_ref": "G.O.Ms.No.71",
+   "letter_date": "2019-06-28",
+   "main_category": "Amendment",
+   "subject": "Public Services – Human Resources – General Transfers 2019 – Extension of the period of relaxation of ban on transfers – Amendment – Orders – Issued.",
+   "dealing_section": "ESTT.I",
+   "source_uri": "mock_v1/documents/01_Finance_HR/D02_FIN01-GOMS-71-2019_scan.pdf",
+   "put_in_file": null,
+   "assumed_fields": [
+    "diary_date",
+    "dealing_section",
+    "computer_no"
+   ]
+  },
+  {
+   "computer_no": "9100004",
+   "receipt_no": "1/2020/ESTT.I",
+   "nature": "E",
+   "diary_date": "2020-04-28",
+   "sender": "Principal Secretary To Government, Finance Department",
+   "letter_ref": "G.O.Ms.No.40",
+   "letter_date": "2020-04-28",
+   "main_category": "Government Order",
+   "subject": "Public Services – Contract and Outsourcing services in Government Departments – Prior concurrence of Finance Department – Instructions – Orders – Issued.",
+   "dealing_section": "ESTT.I",
+   "source_uri": "mock_v1/documents/01_Finance_HR/D06_FIN01-GOMS-40-2020.pdf",
+   "put_in_file": null,
+   "assumed_fields": [
+    "diary_date",
+    "dealing_section",
+    "computer_no"
+   ]
+  },
+  {
+   "computer_no": "9100005",
+   "receipt_no": "1/2022/ESTT.I",
+   "nature": "E",
+   "diary_date": "2022-06-03",
+   "sender": "Principal Secretary To Government, Finance Department",
+   "letter_ref": "G.O.Ms.No.88",
+   "letter_date": "2022-06-03",
+   "main_category": "Government Order",
+   "subject": "Public Services – Human Resources – General Transfers of Employees for the year 2022 – Guidelines – Orders – Issued.",
+   "dealing_section": "ESTT.I",
+   "source_uri": "mock_v1/documents/01_Finance_HR/D03_FIN01-GOMS-88-2022.pdf",
+   "put_in_file": null,
+   "assumed_fields": [
+    "diary_date",
+    "dealing_section",
+    "computer_no"
+   ]
+  },
+  {
+   "computer_no": "9100006",
+   "receipt_no": "1/2023/ESTT.I",
+   "nature": "E",
+   "diary_date": "2023-08-14",
+   "sender": "Secretary To Government (Ser.), General Administration Department",
+   "letter_ref": "Circular Memo No.GAD01-SERA0/3/2023",
+   "letter_date": "2023-08-14",
+   "main_category": "Circular",
+   "subject": "Public Services – Transfers of employees facing vigilance enquiries / disciplinary proceedings – Prior clearance of Vigilance section – Instructions – Issued.",
+   "dealing_section": "ESTT.I",
+   "source_uri": "mock_v1/documents/02_GAD_Services/D10_GAD01-CIRMEMO-GAD01SERA0-3-2023.pdf",
+   "put_in_file": null,
+   "assumed_fields": [
+    "diary_date",
+    "dealing_section",
+    "computer_no"
+   ]
+  },
+  {
+   "computer_no": "9100007",
+   "receipt_no": "1/2024/ESTT.I",
+   "nature": "E",
+   "diary_date": "2024-03-27",
+   "sender": "Special Secretary To Government, Finance Department",
+   "letter_ref": "Circular Memo No.FIN01-HROPDPP(OUTS)/7/2024",
+   "letter_date": "2024-03-27",
+   "main_category": "Circular",
+   "subject": "Public Services – Continuation of contract and outsourcing services in all Departments up to 31-03-2025 – Orders – Reg.",
+   "dealing_section": "ESTT.I",
+   "source_uri": "mock_v1/documents/01_Finance_HR/D07_FIN01-CIRMEMO-FIN01HROPDPPOUTS-7-2024.pdf",
+   "put_in_file": null,
+   "assumed_fields": [
+    "diary_date",
+    "dealing_section",
+    "computer_no"
+   ]
+  },
+  {
+   "computer_no": "9100008",
+   "receipt_no": "1/2025/ESTT.I",
+   "nature": "E",
+   "diary_date": "2025-03-21",
+   "sender": "Special Secretary To Government, Finance Department",
+   "letter_ref": "G.O.Rt.No.1184",
+   "letter_date": "2025-03-21",
+   "main_category": "Government Order",
+   "subject": "Public Services – Continuation of contract and outsourcing services in all Departments for the period from 01-04-2025 to 31-03-2026 – Orders – Issued.",
+   "dealing_section": "ESTT.I",
+   "source_uri": "mock_v1/documents/01_Finance_HR/D08_FIN01-GORT-1184-2025.pdf",
+   "put_in_file": null,
+   "assumed_fields": [
+    "diary_date",
+    "dealing_section",
+    "computer_no"
+   ]
+  },
+  {
+   "computer_no": "9100009",
+   "receipt_no": "2/2025/ESTT.I",
+   "nature": "E",
+   "diary_date": "2025-05-12",
+   "sender": "Principal Secretary To Government, Finance Department",
+   "letter_ref": "G.O.Ms.No.31",
+   "letter_date": "2025-05-12",
+   "main_category": "Government Order",
+   "subject": "Public Services – Human Resources – General Transfers of Employees for the year 2025 – Guidelines – Orders – Issued.",
+   "dealing_section": "ESTT.I",
+   "source_uri": "mock_v1/documents/01_Finance_HR/D04_FIN01-GOMS-31-2025.pdf",
+   "put_in_file": null,
+   "assumed_fields": [
+    "diary_date",
+    "dealing_section",
+    "computer_no"
+   ]
+  },
+  {
+   "computer_no": "9100010",
+   "receipt_no": "3/2025/ESTT.I",
+   "nature": "E",
+   "diary_date": "2025-05-21",
+   "sender": "Special Secretary To Government, Finance Department",
+   "letter_ref": "Memo No.FIN01-HRPLG0(TRF)/3/2025-2",
+   "letter_date": "2025-05-21",
+   "main_category": "Clarification",
+   "subject": "Public Services – General Transfers 2025 – Computation of station period – Clarification – Issued.",
+   "dealing_section": "ESTT.I",
+   "source_uri": "mock_v1/documents/01_Finance_HR/D05_FIN01-MEMO-FIN01HRPLG0TRF-3-2025-2.pdf",
+   "put_in_file": null,
+   "assumed_fields": [
+    "diary_date",
+    "dealing_section",
+    "computer_no"
+   ]
+  }
+ ]
+}

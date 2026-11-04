@@ -1,0 +1,11 @@
+# Department codes and the names used in references (plan §4.4). Codes follow the GAD e-File pattern
+# seen on real orders (FIN01, GAD01, ESE01); USD01 is SYNTHETIC (mock corpus only).
+# Aliases are matched as whole words inside a reference only — never across a whole abstract.
+# Kept in step with data_collection/scope.yaml `departments`.
+version: "2026-11-02"
+status: draft
+departments:
+  - {code: FIN01, name: "Finance", aliases: ["Finance", "Fin."], synthetic: false}
+  - {code: GAD01, name: "General Administration", aliases: ["General Administration", "G.A."], synthetic: false}
+  - {code: ESE01, name: "School Education", aliases: ["School Education"], synthetic: false}
+  - {code: USD01, name: "Urban Services", aliases: ["Urban Services"], synthetic: true}

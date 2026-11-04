@@ -1,0 +1,594 @@
+{
+ "synthetic": true,
+ "status": "draft — owner review",
+ "evaluation_only": "Answer key for the evaluation harness. Application code must never read this file (CLAUDE.md §9.2).",
+ "plan": "§11.5 core touchpoints 2,3,4,6,7,8,9,10,11,13,14,15,20; §13.1 golden case fields; §13.2 e-Office touchpoint scenarios",
+ "fields": {
+  "docs": "must be retrieved/cited",
+  "forbidden_docs": "must never appear, be counted or be hinted at",
+  "files": "Computer Nos to return",
+  "forbidden_files": "Computer Nos that must not appear",
+  "flags": "expected conflict flags",
+  "as_of": "date the scenario runs at",
+  "setup.holdback": "documents removed from every index before the scenario (replay)"
+ },
+ "scenarios": [
+  {
+   "id": "TP02-a",
+   "touchpoint": 2,
+   "touchpoint_name": "Receipt inbox",
+   "user": "U01",
+   "as_of": "2025-05-21",
+   "context": {
+    "receipt": "9100010"
+   },
+   "trigger": "Section Officer (Estt.I) opens the receipt inbox; the clarification memo of 21-05-2025 is listed.",
+   "expected": {
+    "docs": [
+     "D05",
+     "D04"
+    ],
+    "forbidden_docs": [],
+    "files": [],
+    "forbidden_files": [],
+    "flags": [],
+    "ladder_level": "L0",
+    "answer_key": "Two-line summary: Finance clarifies how the 5-year station period is computed for the 2025 transfers (continuous service as on 30-04-2025; leave up to 6 months counts; deputation does not). Relates to G.O.Ms.No.31/2025, which is in force — no validity flag."
+   },
+   "related_questions": [
+    "Q21"
+   ],
+   "status": "draft — owner review"
+  },
+  {
+   "id": "TP02-b",
+   "touchpoint": 2,
+   "touchpoint_name": "Receipt inbox",
+   "user": "U01",
+   "as_of": "2026-10-02",
+   "context": {
+    "receipt": "9100008"
+   },
+   "trigger": "Section Officer (Estt.I) reopens the 2025 receipt of G.O.Rt.No.1184.",
+   "expected": {
+    "docs": [
+     "D08",
+     "D06",
+     "D07"
+    ],
+    "forbidden_docs": [],
+    "files": [],
+    "forbidden_files": [],
+    "flags": [
+     {
+      "type": "F",
+      "cited": "D07",
+      "detail": "Circular Memo of 27-03-2024 valid only up to 31-03-2025"
+     },
+     {
+      "type": "F",
+      "cited": "D08",
+      "detail": "The order itself was valid only up to 31-03-2026"
+     }
+    ],
+    "ladder_level": "L0",
+    "answer_key": "Summary of the continuation order for outsourced staff for 2025-26; warns that the order and the circular it relies on are no longer valid as of 02-10-2026."
+   },
+   "related_questions": [
+    "Q20"
+   ],
+   "status": "draft — owner review"
+  },
+  {
+   "id": "TP03",
+   "touchpoint": 3,
+   "touchpoint_name": "Put in a file",
+   "user": "U01",
+   "as_of": "2025-05-21",
+   "context": {
+    "receipt": "9100010"
+   },
+   "trigger": "Section Officer (Estt.I) clicks 'Put in a file' for the station-period clarification memo.",
+   "expected": {
+    "docs": [
+     "D05",
+     "D04"
+    ],
+    "forbidden_docs": [],
+    "files": [],
+    "forbidden_files": [],
+    "flags": [],
+    "ladder_level": "L1",
+    "answer_key": "No existing file is about the same subject (a general clarification, not one employee's case): suggest creating a new file rather than forcing a match. File 2629410 (a 2025 spouse-ground request governed by G.O.Ms.31/2025) may be shown as related, never as the file to put the memo in."
+   },
+   "related_questions": [],
+   "status": "draft — owner review"
+  },
+  {
+   "id": "TP04",
+   "touchpoint": 4,
+   "touchpoint_name": "Received letters (other dept)",
+   "user": "U02",
+   "as_of": "2026-10-02",
+   "setup": {
+    "holdback": [
+     "D04",
+     "D05",
+     "D19",
+     "D20",
+     "D26"
+    ],
+    "event": {
+     "kind": "order_received",
+     "receipt": "9100009"
+    },
+    "note": "Replay: G.O.Ms.31/2025 and the records that depend on it are held out of the index, then the order arrives."
+   },
+   "context": {
+    "receipt": "9100009"
+   },
+   "trigger": "The Finance G.O.Ms.No.31/2025 arrives in the received-letters list.",
+   "expected": {
+    "docs": [
+     "D04",
+     "D03"
+    ],
+    "forbidden_docs": [],
+    "files": [
+     "2894562"
+    ],
+    "forbidden_files": [
+     "2601155"
+    ],
+    "flags": [
+     {
+      "type": "A",
+      "cited": "D03",
+      "detail": "Incoming order supersedes G.O.Ms.No.88/2022 ('in supersession of … reference 1st read above')"
+     }
+    ],
+    "ladder_level": "L3",
+    "hitl": "Explicit supersession is set directly (plan §7.3): status of D03 flips to superseded; the officer gets an open-file notice. Only an inferred supersession would be queued for confirmation",
+    "cache": "answers citing D03 are invalidated",
+    "answer_key": "Detects that the new order supersedes G.O.Ms.No.88/2022; lists the open file citing it (USD01-12/19/2026-ESTT.I, Computer No. 2894562); decided files (2022, 2023) are not listed as open."
+   },
+   "related_questions": [
+    "Q03"
+   ],
+   "status": "draft — owner review"
+  },
+  {
+   "id": "TP06",
+   "touchpoint": 6,
+   "touchpoint_name": "Writing a note (Yellow Note)",
+   "user": "U01",
+   "as_of": "2026-10-02",
+   "context": {
+    "computer_no": "2894562"
+   },
+   "trigger": "Section Officer (Estt.I) asks for a cited first-cut note on the spouse-ground transfer request, then clicks 'Insert as Yellow Note'.",
+   "expected": {
+    "docs": [
+     "D04",
+     "D09",
+     "D11",
+     "D17",
+     "D18",
+     "D19"
+    ],
+    "forbidden_docs": [
+     "D20",
+     "D21",
+     "D22",
+     "D23"
+    ],
+    "files": [],
+    "forbidden_files": [],
+    "flags": "same as TP11-a",
+    "ladder_level": "L2",
+    "draft": {
+     "kind": "yellow_note",
+     "created_only_on_click": true,
+     "status": "draft"
+    },
+    "answer_key": "Every factual line cited. Governing rule is G.O.Ms.No.31/2025 (not 88/2022): ban in force after 31-05-2025, 15% ceiling needs Finance concurrence, competent authority Secretary to Government. Precedents: approvals 2022 and 2025 inside relaxation windows, rejection 2023 under the ban. Nothing from the confidential 2025 rejection (D20) or the Vigilance file."
+   },
+   "related_questions": [
+    "Q01",
+    "Q03",
+    "Q24"
+   ],
+   "status": "draft — owner review"
+  },
+  {
+   "id": "TP07",
+   "touchpoint": 7,
+   "touchpoint_name": "Referencing in a note",
+   "user": "U04",
+   "as_of": "2025-07-21",
+   "context": {
+    "computer_no": "2601155"
+   },
+   "trigger": "Section Officer (Vigilance), drafting Note #6, asks for the reference to the earlier proposal for a preliminary enquiry.",
+   "expected": {
+    "docs": [
+     "D21"
+    ],
+    "forbidden_docs": [
+     "D23"
+    ],
+    "files": [],
+    "forbidden_files": [],
+    "flags": [],
+    "ladder_level": "L0",
+    "citation": {
+     "target": "previous_note",
+     "note_id": "2601155-N1",
+     "paragraph": 3
+    },
+    "answer_key": "Reference points to Note #1, para 3 of the same file (enquiry proposed, SE (Vigilance) as Enquiry Officer, report in 60 days), ready to insert as an e-Office previous-note reference."
+   },
+   "related_questions": [],
+   "status": "draft — owner review"
+  },
+  {
+   "id": "TP08",
+   "touchpoint": 8,
+   "touchpoint_name": "Catching up on a long file",
+   "user": "U05",
+   "as_of": "2026-10-02",
+   "context": {
+    "computer_no": "2601155"
+   },
+   "trigger": "Deputy Secretary asks 'file so far' on the Vigilance file.",
+   "expected": {
+    "docs": [
+     "D21",
+     "D22"
+    ],
+    "forbidden_docs": [
+     "D23"
+    ],
+    "files": [],
+    "forbidden_files": [],
+    "flags": [],
+    "ladder_level": "L0",
+    "answer_key": "Note chain by post: SO (Vigilance) proposed enquiry → DS submitted → Secretary approved (18-04-2025); enquiry report found prima facie alteration of technical scores → charges proposed → DS submitted → Secretary approved, 'Issue charge memo' (25-07-2025, last direction). Notes #4–#5 are not available (say so; do not fill the gap). The SECRET V&E report is not mentioned."
+   },
+   "related_questions": [
+    "Q12",
+    "Q14"
+   ],
+   "status": "draft — owner review"
+  },
+  {
+   "id": "TP09",
+   "touchpoint": 9,
+   "touchpoint_name": "Link file",
+   "user": "U03",
+   "as_of": "2026-10-02",
+   "context": {
+    "computer_no": "2899017"
+   },
+   "trigger": "Section Officer (Works) asks which precedent files to link to the 2026 emergency-works proposal.",
+   "expected": {
+    "docs": [
+     "D24",
+     "D25"
+    ],
+    "forbidden_docs": [
+     "D21",
+     "D22",
+     "D23"
+    ],
+    "files": [
+     "2003377",
+     "2447780"
+    ],
+    "forbidden_files": [
+     "2601155",
+     "2671408"
+    ],
+    "flags": [],
+    "ladder_level": "L2",
+    "answer_key": "Link 2003377 (2023, Rs.1.20 crore sanctioned by the Commissioner under the 2023 circular — before G.O.Ms.No.27/2024) and 2447780 (2024, Rs.1.40 crore sanctioned by Government). The Vigilance drain-tender file must not be suggested."
+   },
+   "related_questions": [
+    "Q08"
+   ],
+   "status": "draft — owner review"
+  },
+  {
+   "id": "TP10",
+   "touchpoint": 10,
+   "touchpoint_name": "Local reference",
+   "user": "U01",
+   "as_of": "2026-10-02",
+   "context": {
+    "computer_no": "2894562"
+   },
+   "trigger": "Section Officer (Estt.I) adds G.O.Ms.No.88/2022 para 2(v) as a local reference.",
+   "expected": {
+    "docs": [
+     "D03",
+     "D04"
+    ],
+    "forbidden_docs": [],
+    "files": [],
+    "forbidden_files": [],
+    "flags": [
+     {
+      "type": "A",
+      "cited": "D03",
+      "detail": "superseded by G.O.Ms.No.31/2025 from 12-05-2025"
+     }
+    ],
+    "current_version": "AP-FIN01-GOMS-31-2025",
+    "clause": "AP-FIN01-GOMS-31-2025#para-2.v",
+    "ladder_level": "L0",
+    "answer_key": "Warns that G.O.Ms.No.88/2022 is superseded and offers the current provision, para 2(v) of G.O.Ms.No.31/2025."
+   },
+   "related_questions": [
+    "Q18",
+    "Q03"
+   ],
+   "status": "draft — owner review"
+  },
+  {
+   "id": "TP11-a",
+   "touchpoint": 11,
+   "touchpoint_name": "Before Send",
+   "user": "U01",
+   "as_of": "2026-10-02",
+   "context": {
+    "computer_no": "2894562"
+   },
+   "trigger": "Officer clicks Send; the pre-send check runs.",
+   "expected": {
+    "docs": "as related question",
+    "forbidden_docs": "as related question",
+    "files": [],
+    "forbidden_files": [],
+    "flags": "conflicts.json entries with in=D27",
+    "ladder_level": "L1",
+    "competent_authority": "Secretary to Government",
+    "answer_key": "Every planted conflict for the file flagged with evidence and the §6.4 wording; suggests the competent authority to send to."
+   },
+   "related_questions": [
+    "Q07"
+   ],
+   "status": "draft — owner review"
+  },
+  {
+   "id": "TP11-b",
+   "touchpoint": 11,
+   "touchpoint_name": "Before Send",
+   "user": "U03",
+   "as_of": "2026-10-02",
+   "context": {
+    "computer_no": "2899017"
+   },
+   "trigger": "Officer clicks Send; the pre-send check runs.",
+   "expected": {
+    "docs": "as related question",
+    "forbidden_docs": "as related question",
+    "files": [],
+    "forbidden_files": [],
+    "flags": "conflicts.json entries with in=D28",
+    "ladder_level": "L1",
+    "competent_authority": "Government",
+    "answer_key": "Every planted conflict for the file flagged with evidence and the §6.4 wording; suggests the competent authority to send to."
+   },
+   "related_questions": [
+    "Q08"
+   ],
+   "status": "draft — owner review"
+  },
+  {
+   "id": "TP11-c",
+   "touchpoint": 11,
+   "touchpoint_name": "Before Send",
+   "user": "U01",
+   "as_of": "2026-10-02",
+   "context": {
+    "computer_no": "2881930"
+   },
+   "trigger": "Officer clicks Send; the pre-send check runs.",
+   "expected": {
+    "docs": "as related question",
+    "forbidden_docs": "as related question",
+    "files": [],
+    "forbidden_files": [],
+    "flags": "conflicts.json entries with in=D29",
+    "ladder_level": "L1",
+    "competent_authority": null,
+    "answer_key": "Flags F (G.O.Rt.No.1184/2025 valid only to 31-03-2026) and C (no prior Finance concurrence, G.O.Ms.No.40/2020) with evidence; the corpus does not name the competent authority, so none is suggested."
+   },
+   "related_questions": [
+    "Q09"
+   ],
+   "status": "draft — owner review"
+  },
+  {
+   "id": "TP13",
+   "touchpoint": 13,
+   "touchpoint_name": "Senior opens a file",
+   "user": "U06",
+   "as_of": "2026-10-02",
+   "context": {
+    "computer_no": "2894562"
+   },
+   "trigger": "Secretary to Government opens the transfer file.",
+   "expected": {
+    "docs": [
+     "D04",
+     "D09",
+     "D11",
+     "D17",
+     "D18",
+     "D19",
+     "D20",
+     "D26"
+    ],
+    "forbidden_docs": [],
+    "files": [],
+    "forbidden_files": [],
+    "flags": "same as TP11-a",
+    "ladder_level": "L2",
+    "answer_key": "Approval brief: proposal (spouse-ground transfer, Eluru → Vijayawada, ceiling would reach 15.8%); governing rule G.O.Ms.No.31/2025; precedents incl. the confidential 2025 rejection (visible to the Secretary); flags A, F, C, E, B, D; movement so far: put up by ASO (Estt.I) on 22-09-2026."
+   },
+   "related_questions": [
+    "Q07",
+    "Q02"
+   ],
+   "status": "draft — owner review"
+  },
+  {
+   "id": "TP14",
+   "touchpoint": 14,
+   "touchpoint_name": "Draft (DFA)",
+   "user": "U02",
+   "as_of": "2026-10-02",
+   "context": {
+    "computer_no": "2894562"
+   },
+   "trigger": "Assistant Secretary (Estt.) clicks 'Create DFA draft'.",
+   "expected": {
+    "docs": [
+     "D04",
+     "D09",
+     "D11"
+    ],
+    "forbidden_docs": [
+     "D21",
+     "D22",
+     "D23"
+    ],
+    "files": [],
+    "forbidden_files": [],
+    "flags": "same as TP11-a",
+    "ladder_level": "L1",
+    "draft": {
+     "kind": "dfa_draft",
+     "created_only_on_click": true,
+     "status": "draft",
+     "never": [
+      "sign",
+      "send",
+      "dispatch"
+     ]
+    },
+    "answer_key": "Draft proceedings with abstract, a 'Read the following' list that cites G.O.Ms.No.31/2025 (not the superseded 88/2022 nor the unresolvable G.O.Ms.No.104/2026) and order paragraphs; the open conflict flags travel with the draft."
+   },
+   "related_questions": [
+    "Q07",
+    "Q24"
+   ],
+   "status": "draft — owner review"
+  },
+  {
+   "id": "TP15-a",
+   "touchpoint": 15,
+   "touchpoint_name": "Advance search",
+   "user": "U03",
+   "as_of": "2026-10-02",
+   "context": {},
+   "trigger": "Section Officer (Works) searches: 'that 2023 drain case'.",
+   "expected": {
+    "docs": [
+     "D24"
+    ],
+    "forbidden_docs": [
+     "D21",
+     "D22",
+     "D23"
+    ],
+    "files": [
+     "2003377"
+    ],
+    "forbidden_files": [
+     "2601155",
+     "2671408"
+    ],
+    "flags": [],
+    "ladder_level": "L2",
+    "answer_key": "Returns File No. USD01-WRKS0/18/2023-WORKS (Computer No. 2003377), the 2023 Gandhi Nagar drain restoration. The Vigilance drain-tender files neither appear nor are hinted at."
+   },
+   "related_questions": [
+    "Q12"
+   ],
+   "status": "draft — owner review"
+  },
+  {
+   "id": "TP15-b",
+   "touchpoint": 15,
+   "touchpoint_name": "Advance search",
+   "user": "U05",
+   "as_of": "2026-10-02",
+   "context": {},
+   "trigger": "Deputy Secretary runs the same search: 'that 2023 drain case'.",
+   "expected": {
+    "docs": [
+     "D24"
+    ],
+    "forbidden_docs": [
+     "D23"
+    ],
+    "files": [
+     "2003377"
+    ],
+    "forbidden_files": [
+     "2671408"
+    ],
+    "flags": [],
+    "ladder_level": "L2",
+    "answer_key": "Same 2023 file; the 2025 Vigilance file about 2024 drain tenders may be offered as related (visible to DS); the SECRET report is not."
+   },
+   "related_questions": [
+    "Q14"
+   ],
+   "status": "draft — owner review"
+  },
+  {
+   "id": "TP20",
+   "touchpoint": 20,
+   "touchpoint_name": "Search privilege respected",
+   "user": "U01",
+   "as_of": "2026-10-02",
+   "context": {},
+   "trigger": "Same question asked by different officers (pairs of golden questions).",
+   "expected": {
+    "pairs": [
+     [
+      "Q01",
+      "Q02"
+     ],
+     [
+      "Q14",
+      "Q15"
+     ],
+     [
+      "Q10",
+      "Q12",
+      "Q13"
+     ],
+     [
+      "Q23"
+     ]
+    ],
+    "answer_key": "Each officer gets exactly the documents their access allows; restricted files never surface, are never counted and their existence is never confirmed."
+   },
+   "related_questions": [
+    "Q01",
+    "Q02",
+    "Q10",
+    "Q12",
+    "Q13",
+    "Q14",
+    "Q15",
+    "Q23"
+   ],
+   "status": "draft — owner review"
+  }
+ ]
+}

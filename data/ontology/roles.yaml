@@ -1,0 +1,86 @@
+# Officer roles and reporting hierarchy for Finance (FIN01), GAD (GAD01), School Education (ESE01).  ADR-0008.
+# PROVISIONAL — fixed on 2026-11-02 for building; re-research in depth and confirm with the department before
+# relying on it for access control (CLAUDE.md §5.9: hierarchy is a working assumption, keep it configurable).
+# Separate from hierarchy.yaml (instrument precedence: Act > Rules > G.O.). This file = who reports to whom.
+# evidence: official = official document; corpus = count of real G.O.s (826, 2018–2025) naming/signing the role.
+version: "2026-11-02-provisional"
+status: provisional
+sources:
+  BR: "AP Business Rules & Secretariat Instructions (via AP Cooperation Dept RTI manual, ch. 1)"
+  FIN_RTI: "AP Finance Department RTI 4(1)(b) disclosure, 2020 (apfinance.gov.in)"
+  ESR: "AP Educational Service Rules amendment, Oct 2026 (The Hans India report): MEO-II, multi-zones, RJDSE appoints zonal cadres"
+  CORPUS: "Public G.O. corpus, signature blocks / addressees / section codes (data_collection, 31 Oct 2026)"
+
+# Normal file movement in the Secretariat (BR): up for orders, back down in the same order.
+channel_of_submission: [ASO, SO, ASST_SECY, DY_JT_ADDL_SECY, SECRETARY, MINISTER]
+channel_notes: "Assistant Secretary may submit directly to the Secretary to speed disposal (BR)."
+
+# Secretariat chain common to all three departments. tier 0 = highest.
+secretariat:
+  - {id: MINISTER,        title: "Minister / Chief Minister",                  tier: 0, reports_to: null,          evidence: [BR]}
+  - {id: CHIEF_SECY,      title: "Chief Secretary",                            tier: 1, reports_to: MINISTER,      evidence: [BR, "CORPUS: signs 155/305 GAD orders"]}
+  - {id: SECRETARY,       title: "Special Chief Secretary / Principal Secretary / Secretary to Government", tier: 2, reports_to: MINISTER, evidence: [BR, "CORPUS: signs most orders in all 3 depts"]}
+  - {id: DY_JT_ADDL_SECY, title: "Special / Additional / Joint / Deputy Secretary", tier: 3, reports_to: SECRETARY,  evidence: [BR, FIN_RTI]}
+  - {id: ASST_SECY,       title: "Assistant Secretary to Government",          tier: 4, reports_to: DY_JT_ADDL_SECY, evidence: [BR, FIN_RTI]}
+  - {id: SO,              title: "Section Officer",                            tier: 5, reports_to: ASST_SECY,     evidence: [BR, FIN_RTI, "CORPUS: 256 GAD orders"]}
+  - {id: ASO,             title: "Assistant Section Officer (dealing hand)",   tier: 6, reports_to: SO,            evidence: [BR, FIN_RTI]}
+  - {id: SUPPORT,         title: "Typist-cum-Assistant / Record Assistant / Attender", tier: 7, reports_to: SO,   evidence: [BR]}
+
+departments:
+  FIN01:
+    head: "Special Chief Secretary / Principal Finance Secretary (final decision authority)"   # FIN_RTI; CORPUS 131/352
+    wings:   # tier 2 wing heads under the department head
+      - {id: FIN_HR,   title: "Principal Secretary (HR)",  sections: [HR-1 Planning & Policy, HR-2 Posts, HR-3 Pensions/PC/TA, HR-4 FR & Leave, HR-5 TFR/A&L/EWF], evidence: [FIN_RTI, "CORPUS: HR sections in 171 orders"]}
+      - {id: FIN_RMFP, title: "Secretary (Resource Mobilisation & Fiscal Policy)", sections: [Resources, PMU-PPP, PMU-NABARD, PMU-EAP, SLBC], evidence: [FIN_RTI]}
+      - {id: FIN_BIF,  title: "Secretary (Budget & Institutional Finance)", sections: [Budget-I, Budget-II, Cash & Debt, PMU-FC & CASPS, Institutional Finance], evidence: [FIN_RTI, "CORPUS: Budget 44"]}
+      - {id: FIN_FMU,  title: "Special/Joint Secretaries, Financial Advisers (department-wise FMUs)", sections: [FMU-Revenue, FMU-GAD, FMU-Welfare, FMU-HM&FW, "..."], evidence: [FIN_RTI]}
+      - {id: FIN_OP,   title: "Office Procedures / Registry / Claims / Court", sections: [OP-I, OP-II & Grievances], evidence: [FIN_RTI]}
+    hods:      # attached offices (outside the Secretariat)
+      - {id: DTA,  title: "Director of Treasuries & Accounts", reports_to: FIN_BIF, evidence: [FIN_RTI, "CORPUS 112"]}
+      - {id: PAO,  title: "Pay & Accounts Officer",            reports_to: FIN_BIF, evidence: [FIN_RTI, "CORPUS 261"]}
+      - {id: DWA,  title: "Director of Works Accounts",        reports_to: FIN_BIF, evidence: [FIN_RTI, "CORPUS 87"]}
+      - {id: DINS, title: "Director of Insurance (APGLI)",     reports_to: FIN_BIF, evidence: [FIN_RTI, "CORPUS 17"]}
+      - {id: DSA,  title: "Director of State Audit",           reports_to: FIN_BIF, evidence: [FIN_RTI, "CORPUS 90"]}
+    field:
+      - {id: DTO, title: "District Treasury Officer", reports_to: DTA, evidence: ["CORPUS 151"]}
+      - {id: STO, title: "Sub-Treasury Officer",      reports_to: DTO, evidence: ["CORPUS 29"]}
+      - {id: DDO, title: "Drawing & Disbursing Officer (in every department)", reports_to: STO, relation: "draws through", evidence: ["CORPUS 82"]}
+
+  GAD01:
+    head: "Chief Secretary (heads GAD directly)"            # CORPUS 155/305 signed
+    wings:
+      - {id: GAD_SER,  title: "Secretary (Services)",  sections: [SER.A, SER.B, SER.C, ...], evidence: ["CORPUS: SER 90"]}
+      - {id: GAD_CAB,  title: "Secretary (Cabinet)",   sections: [Cabinet], evidence: ["CORPUS: Cabinet 67"]}
+      - {id: GAD_POLL, title: "Secretary (Poll / Elections)", sections: [Poll, Elections], evidence: ["CORPUS: Poll 40"]}
+      - {id: GAD_POL,  title: "Principal Secretary (Political) / Protocol", sections: [Political, Protocol], evidence: ["CORPUS: Political 56, Protocol 28 orders"]}
+      - {id: GAD_OTH,  title: "Special Secretaries (I&PR, Special Cell, AR, Estt, NRI ...)", sections: [I&PR, SC, AR, Estt, NRI], evidence: ["CORPUS: IPR 22, SC 29"]}
+    linked:
+      - {id: COLLECTOR, title: "District Collector",  relation: "receives GAD orders; district head", evidence: ["CORPUS 141"]}
+      - {id: APPSC,     title: "Secretary, APPSC",     relation: "recruitment body", evidence: ["CORPUS 66"]}
+      - {id: VIG,       title: "Vigilance Commission", relation: "oversight", evidence: ["CORPUS 14"]}
+      - {id: HODS,      title: "All Heads of Departments", relation: "service matters follow GAD orders", evidence: ["CORPUS 91"]}
+
+  ESE01:
+    head: "Principal Secretary / Special Chief Secretary, School Education"   # CORPUS 112/169 signed
+    sections: [Programmes, Services, Exams, Private, IE, General, Training]   # CORPUS
+    hods:
+      - {id: CSE,   title: "Commissioner of School Education (head of the department's offices)", reports_to: SECRETARY, evidence: ["CORPUS 104", "spsnellore.ap.gov.in profile"]}
+      - {id: DSE,   title: "Director of School Education",        reports_to: CSE,       evidence: ["CORPUS 75", ESR]}
+      - {id: SPD,   title: "State Project Director, Samagra Shiksha", reports_to: SECRETARY, evidence: ["CORPUS 53"]}
+      - {id: SCERT, title: "Director, SCERT",                     reports_to: CSE,       evidence: ["CORPUS 52"]}
+      - {id: DGE,   title: "Director of Government Examinations", reports_to: CSE,       evidence: ["CORPUS 31"]}
+    field:
+      - {id: RJDSE, title: "Regional Joint Director of School Education (appoints zonal cadres)", reports_to: DSE, evidence: ["CORPUS 52", ESR]}
+      - {id: DEO,   title: "District Educational Officer", reports_to: RJDSE, evidence: ["CORPUS 73"]}
+      - {id: DIET,  title: "DIET (Principal, lecturers)",  reports_to: SCERT, evidence: ["CORPUS 10", ESR]}
+      - {id: DYEO,  title: "Deputy Educational Officer",   reports_to: DEO,   evidence: ["CORPUS 12", ESR]}
+      - {id: MEO,   title: "Mandal Educational Officer (MEO-I, MEO-II)", reports_to: DYEO, evidence: ["CORPUS 7", ESR]}
+      - {id: HM,    title: "Headmaster",                   reports_to: MEO,   evidence: ["CORPUS 38"]}
+      - {id: TEACHER, title: "School Assistant / Secondary Grade Teacher", reports_to: HM, evidence: ["CORPUS 23 / 18"]}
+
+# Not decided yet (revisit with the reminder in PROGRESS.md): model depth (Secretariat only / + HoDs / + field),
+# role granularity (designation vs designation + wing), mapping to access scope, update rule for new G.O.s.
+open_questions:
+  - "GAD and School Education official org charts not found; School Education reporting below the Commissioner is inferred from orders"
+  - "MEO reports to Dy.EO or DEO directly — verify"
+  - "Whether DDO belongs in the hierarchy or only as a role in workflows"

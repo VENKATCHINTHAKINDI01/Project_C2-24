@@ -1,0 +1,9 @@
+# Security classification order, CSMOP grading (ADR-0002, plan §5.1).
+# Mock values — [To confirm] the department's real levels. Higher rank = more restricted.
+version: "2026-10-02"
+status: draft
+levels:
+  - {rank: 0, name: UNCLASSIFIED}
+  - {rank: 1, name: RESTRICTED}
+  - {rank: 2, name: CONFIDENTIAL}
+  - {rank: 3, name: SECRET}

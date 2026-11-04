@@ -1,0 +1,89 @@
+# Approval-authority rules for conflict type C (plan §6.2). MOCK — TESTING ONLY. Transcribed from mock corpus v1
+# orders to test that rules are applied deterministically, respect effective dates and cite sources. They do NOT
+# establish whether a real officer may approve a real proposal (owner, 4 Nov 2026; ADR-0010).
+# Before real use: collect authoritative, current rules per department and action (thresholds, effective dates,
+# amendments), set status: verified, and declare coverage below with who verified it and when.
+# Each rule cites the paragraph it comes from; a rule applies only from its source's date (effective_from).
+# Post levels follow ADR-0008 (provisional) — re-check the officer hierarchy before real use.
+version: "2026-11-04-mock"
+status: mock          # mock | verified — a mock file may not declare verified coverage (enforced on load)
+
+# Which (department, action) pairs this rule set covers, and whether that coverage is verified and complete.
+# Unverified or missing coverage → a check with no conflict is "review needed", never a clean pass.
+coverage:
+  - {department: USD01, action: transfer, verified: false, complete: false, note: "mock, testing only"}
+  - {department: USD01, action: works_sanction, verified: false, complete: false, note: "mock, testing only"}
+  - {department: USD01, action: outsourcing, verified: false, complete: false, note: "mock, testing only"}
+
+# aliases: how notes name the authority (used to read the proposed approver from a note; longest match wins)
+authorities:
+  - {code: SECRETARY, label: "Secretary to Government", aliases: ["Secretary to Government", "Secretary"]}
+  - {code: DEPUTY_SECRETARY, label: "Deputy Secretary", aliases: ["Deputy Secretary"]}
+  - {code: ASSISTANT_SECRETARY, label: "Assistant Secretary", aliases: ["Assistant Secretary"]}
+  - {code: GAD_SER_A, label: "General Administration (Ser.A) Department", aliases: ["General Administration (Ser.A) Department", "GAD"]}
+  - {code: GOVERNMENT, label: "Government", aliases: ["Government"]}
+  - {code: COMMISSIONER, label: "Commissioner", aliases: ["Commissioner"]}
+  - {code: CHIEF_ENGINEER, label: "Chief Engineer", aliases: ["Chief Engineer"]}
+
+concurrences:
+  - {code: FINANCE, label: "prior concurrence of the Finance Department", aliases: ["Finance Department", "Finance"]}
+
+# Which posts count as "Section Officer and below" (staff) vs "Assistant Secretary and above" (officer).
+post_levels:
+  staff: ["section officer", "assistant section officer", "superintendent", "senior assistant",
+          "junior assistant", "typist", "record assistant", "data entry operator"]
+  officer: ["assistant secretary", "deputy secretary", "joint secretary", "additional secretary",
+            "special secretary", "secretary"]
+
+rules:
+  - id: TRANSFER-STAFF
+    action: transfer
+    post_level: staff
+    competent: [SECRETARY]
+    recommend_only: [DEPUTY_SECRETARY, ASSISTANT_SECRETARY]
+    effective_from: 2018-02-09
+    sources:
+      - {id: "AP-GAD01-GOMS-19-2018#para-2.ii", text: "Transfers and postings of Section Officers, Assistant Section Officers and other staff within a Secretariat Department shall be ordered by the Secretary to Government of that Department."}
+      - {id: "AP-FIN01-GOMS-31-2025#para-2.viii", text: "The competent authority for transfers of Section Officers and below in the Secretariat Departments shall be the Secretary to Government of the Department concerned"}
+      - {id: "AP-USD01-SO-2-2020#para-1.iv", text: "The Deputy Secretary may recommend, but orders shall be passed only by the Secretary to Government."}
+
+  - id: TRANSFER-OFFICER
+    action: transfer
+    post_level: officer
+    competent: [GAD_SER_A]
+    effective_from: 2018-02-09
+    sources:
+      - {id: "AP-GAD01-GOMS-19-2018#para-2.i", text: "Transfers and postings of Assistant Secretaries and officers above that rank in the Secretariat Departments shall be ordered by the General Administration (Ser.A) Department only."}
+
+  - id: WORKS-SANCTION-UP-TO-1CR
+    action: works_sanction
+    amount_max: 10000000          # Rs.1.00 crore, inclusive
+    competent: [COMMISSIONER, GOVERNMENT]
+    effective_from: 2024-08-06
+    sources:
+      - {id: "AP-USD01-GOMS-27-2024#para-2.iv", text: "Commissioner, Urban Services – up to Rs.1.00 crore per work."}
+
+  - id: WORKS-SANCTION-ABOVE-1CR
+    action: works_sanction
+    amount_min_exclusive: 10000000
+    competent: [GOVERNMENT]
+    effective_from: 2024-08-06
+    sources:
+      - {id: "AP-USD01-GOMS-27-2024#para-2.vi", text: "Works (including emergency works) costing above Rs.1.00 crore – Government only."}
+
+  - id: WORKS-SANCTION-ABOVE-5CR
+    action: works_sanction
+    amount_min_exclusive: 50000000
+    competent: [GOVERNMENT]
+    requires_concurrence: [FINANCE]
+    effective_from: 2024-08-06
+    sources:
+      - {id: "AP-USD01-GOMS-27-2024#para-2.vi", text: "Works costing above Rs.5.00 crore shall require the concurrence of the Finance Department."}
+
+  - id: OUTSOURCING-ENGAGEMENT
+    action: outsourcing          # new engagement, extension or continuation
+    competent: [GOVERNMENT, SECRETARY]
+    requires_concurrence: [FINANCE]
+    effective_from: 2020-04-28
+    sources:
+      - {id: "AP-FIN01-GOMS-40-2020#para-2", text: "no services shall be contracted or outsourced, and no existing engagement shall be extended or continued, without the prior concurrence of the Finance Department and the approval of the Government."}
