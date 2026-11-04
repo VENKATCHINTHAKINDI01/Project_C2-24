@@ -12,13 +12,16 @@ from pathlib import Path
 from typing import Any
 
 from app.agents.intents import RELATED, Intent, IntentSlots, build_request
+from app.agents.tools import ToolContext
 from app.auth.store import InMemoryAuthzStore
+from app.config import load_hierarchy
 from app.conflict.presend import PreSendReport, presend_check
 from app.conflict.procedural import AuthorityRules, load_authority_rules
 from app.graph.repository import Direction
 from app.identifiers.canonical import InvalidCanonicalIdError, lookup_keys
 from app.ingestion.metadata import extract_metadata
 from app.noting.chain import file_so_far
+from app.precedent.links import suggest_links
 from app.retrieval.evidence import CandidateSpan, build_package
 from app.retrieval.ladder import LadderRequest, LadderResult, ladder_label, run_ladder
 from app.retrieval.references import LookupStatus, lookup_reference
@@ -416,6 +419,49 @@ class Harness:
 
     # ---- suite 4 · touchpoint scenarios -----------------------------------------------------
 
+    def _link_file(self, sc: dict[str, Any]) -> dict[str, Any]:
+        """TP09: precedent files to link, within the officer's scope, never the open file."""
+        user, exp = sc["user"], sc["expected"]
+        seed_files = _load_seed()["files"]
+        cno_of = {f["file_no"]: f["computer_no"] for f in seed_files}
+        open_f = next(f for f in seed_files if f["computer_no"] == sc["context"]["computer_no"])
+        ctx = ToolContext(
+            user_id=user,
+            as_of=dt.date.fromisoformat(sc["as_of"]),
+            index=self.s.stores.index,
+            l2=self.s.l2,
+            graph=self.s.stores.graph,
+            cfg=self.s.cfg,
+            store=self.store(),
+            policy=POLICY,
+            classification=CLASSES,
+            hierarchy=load_hierarchy(ONTOLOGY / "hierarchy.yaml"),
+            instruments=self.s.stores.instruments,
+            relations=tuple(self.s.stores.relations),
+        )
+
+        def file_of(cid: str) -> str | None:
+            t = self.s.tags(cid)
+            return t.file_no if t else None
+
+        links = suggest_links(ctx, open_f["subject"], open_f["file_no"], file_of)
+        got_files = {cno_of.get(s.file_no, s.file_no) for s in links}
+        got_docs = {
+            self.s.doc_of.get(d.canonical_id, d.canonical_id) for s in links for d in s.documents
+        }
+        want_f, forbid_f = set(exp["files"]), set(exp["forbidden_files"])
+        want_d, forbid_d = set(exp["docs"]), set(exp["forbidden_docs"])
+        return {
+            "run": True,
+            "pass": want_f <= got_files
+            and not forbid_f & got_files
+            and want_d <= got_docs
+            and not forbid_d & got_docs,
+            "expected_files": sorted(want_f),
+            "files": sorted(got_files),
+            "docs": sorted(got_docs),
+        }
+
     def _file_so_far(self, sc: dict[str, Any]) -> dict[str, Any]:
         """TP08: note chain from the file's note documents the officer may see."""
         user, exp = sc["user"], sc["expected"]
@@ -491,6 +537,8 @@ class Harness:
                 }
             elif sc["touchpoint"] == 8:
                 row |= self._file_so_far(sc)
+            elif sc["touchpoint"] == 9:
+                row |= self._link_file(sc)
             elif sid == "TP20":
                 pairs = [qid for group in exp["pairs"] for qid in group]
                 rows_ = [q_rows[q] for q in pairs]

@@ -77,6 +77,12 @@ export interface FileSoFar extends AssistMeta {
   pending_documents: number; pending_message: string | null;
 }
 
+export interface LinkSuggestion { file_no: string; rank: number; documents: DocOut[] }
+
+export interface LinkSuggestions extends AssistMeta {
+  computer_no: string; suggestions: LinkSuggestion[]; message: string | null;
+}
+
 export interface DraftReceipt {
   request_id: string; draft_id: string; kind: string; computer_no: string; status: string;
 }

@@ -2,7 +2,7 @@ import { renderToString } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { createApi } from "./api";
 import { App } from "./App";
-import { AssistPanel, SoFarCard } from "./components/AssistPanel";
+import { AssistPanel, LinkCard, SoFarCard } from "./components/AssistPanel";
 import { BANNER_TEXT } from "./components/Banner";
 import { outcomeLabel, yellowNoteFrom } from "./presend";
 import type { PresendReport } from "./types";
@@ -57,6 +57,20 @@ describe("screens", () => {
     expect(html).toContain("Source: AP-USD01-NOTE-USD0131-4-2025-C01");
     expect(html).toContain("Notes #2–#5. Nothing is inferred");
     expect(html).toContain("last direction");
+  });
+
+  it("link file lists files with their matching notes and offers only a suggested-link draft", () => {
+    const html = text(
+      <LinkCard
+        s={{ request_id: "r", calibrated: false, mock_rules: true, computer_no: "2899017", message: null,
+          suggestions: [{ file_no: "USD01-WRKS0/52/2024-WORKS", rank: 1, documents: [
+            { canonical_id: "AP-USD01-NOTE-USD01WRKS0-52-2024", doc_type: "Noting", subject: "Works – Emergency restoration of culvert", issue_date: "2024-10-21", file_no: "USD01-WRKS0/52/2024-WORKS" }] }] }}
+        linked={{}} busy={false} onLink={() => {}}
+      />,
+    );
+    expect(html).toContain("USD01-WRKS0/52/2024-WORKS");
+    expect(html).toContain("Emergency restoration of culvert");
+    expect(html).toContain("Suggest link");
   });
 
   it("a review-needed outcome never reads as clear", () => {

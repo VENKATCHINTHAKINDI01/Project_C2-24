@@ -207,6 +207,30 @@ def test_tp08_file_so_far(client: TestClient) -> None:
     assert (hidden.status_code, hidden.json()) == (unknown.status_code, unknown.json())
 
 
+def test_tp09_link_file_suggests_only_precedents_in_scope(client: TestClient) -> None:
+    r = client.post("/assist/link-suggestions", json={"computer_no": "2899017"}, headers=_h("U03"))
+    files = [s["file_no"] for s in r.json()["suggestions"]]
+    assert set(files) == {"USD01-WRKS0/52/2024-WORKS", "USD01-WRKS0/18/2023-WORKS"}
+    assert "USD01-WRKS0/30/2026-WORKS" not in files  # never the open file itself
+    assert not {"D21", "D22", "D23"} & _named_docs(r.json())  # no Vigilance file for the Works SO
+    link = client.post(
+        "/assist/draft",
+        json={
+            "computer_no": "2899017",
+            "kind": "suggested_reference",
+            "body": "Link file USD01-WRKS0/52/2024-WORKS as a read-only reference.",
+            "citations": ["AP-USD01-NOTE-USD01WRKS0-52-2024"],
+            "request_id": r.json()["request_id"],
+        },
+        headers=_h("U03"),
+    )
+    assert link.json()["status"] == "draft" and link.json()["kind"] == "suggested_reference"
+    hidden = client.post(
+        "/assist/link-suggestions", json={"computer_no": "2899017"}, headers=_h("U01")
+    )
+    assert hidden.status_code == 404
+
+
 def test_drafts_only_and_audited_without_text(client: TestClient) -> None:
     body = "1. Draft: the request may be kept pending until the next general transfers."
     r = client.post(
@@ -275,6 +299,8 @@ def test_zero_disclosures_through_the_api(client: TestClient) -> None:
             for n in fsf.get("notes", []):  # the authorised note's own words, as on the file page
                 n.pop("text", None)
             check(uid, f"file so far {cno}", fsf)
+            r = client.post("/assist/link-suggestions", json={"computer_no": cno}, headers=_h(uid))
+            check(uid, f"link suggestions {cno}", r.json())
             p = client.get(f"/sandbox/files/{cno}", headers=_h(uid)).json()
             # Note text is the authorised document itself, shown as written (it may quote a file
             # number the officer cannot open — e.g. D20 cites the Vigilance file). Check what the

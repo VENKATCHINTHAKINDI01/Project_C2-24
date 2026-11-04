@@ -81,6 +81,9 @@ pre { white-space: pre-wrap; font: inherit; margin: 0; }
 .chain .badge { margin-left: 8px; }
 .chain .src { color: var(--muted); font-size: .85rem; }
 
+.links h4 { margin: 4px 0; }
+.links .card { margin-bottom: 6px; }
+
 @media (max-width: 1000px) {
   .panes { grid-template-columns: 1fr; }
   .corr, .assist { border-left: 0; border-top: 1px solid var(--line); }

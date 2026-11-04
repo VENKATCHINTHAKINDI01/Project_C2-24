@@ -46,7 +46,7 @@ export function FilePageView({ api, computerNo }: { api: Api; computerNo: string
           ))}
           {page.drafts.map((d) => (
             <article key={d.draft_id} className="note yellow">
-              <h4>Yellow note — draft <span className="muted">{d.draft_id}</span></h4>
+              <h4>{d.kind === "suggested_reference" ? "Suggested link — draft" : "Yellow note — draft"} <span className="muted">{d.draft_id}</span></h4>
               <p className="ai">AI-assisted draft — inserted by the officer, editable. Not confirmed, signed or sent.</p>
               <pre>{d.text}</pre>
               <div className="actions">

@@ -22,7 +22,7 @@ Legend: ✅ done · 🟡 in progress · ⬜ not started · ⛔ blocked
 | P5 | Agents + noting + memory + HITL | 🟡 | Typed AgentState + intent templates done (no LangGraph/Gemini yet) |
 | P6 | Verification, audit, tracking | ⬜ | |
 | P7 | Evaluation & security harness | 🟡 | Harness on the reference stack: retrieval metrics, A–G conflict P/R, leakage matrix (8 paths, 0 disclosures), 6 of 17 touchpoints; baseline report 4 Nov 2026. RAGAS/faithfulness, answer status, OCR accuracy need GCP |
-| P8 | Integration, UI, demo hardening | 🟡 | Slices 1–2 done: sandbox + assist API, and Vite + React + TS screens (sign-in, file list, file inner page with C2-24 Assist, advance search) — TP8, TP10, TP11, TP15 usable in the browser; remaining core touchpoints next (ADR-0012) |
+| P8 | Integration, UI, demo hardening | 🟡 | Slices 1–2 done: sandbox + assist API, and Vite + React + TS screens (sign-in, file list, file inner page with C2-24 Assist, advance search) — TP8, TP9, TP10, TP11, TP15 usable in the browser; remaining core touchpoints next (ADR-0012) |
 | P9 | Buffer, dry-run, stretch | ⬜ | |
 
 ## 2. Milestones
@@ -208,6 +208,10 @@ Legend: ✅ done · 🟡 in progress · ⬜ not started · ⛔ blocked
 
 | 4 Nov 2026 | TP8 "file so far" (deterministic note chain, gaps named, sources) in API, eval (TP08 PASS, 7 touchpoints) and the Assist panel; HTTP sweep found and the fix closed a file-classification gap on assist calls; 1140 → 1149 backend tests, 9 frontend tests | Next: TP9 link file |
 
+| 4 Nov 2026 | TP9 link file: precedent files in scope, grouped by file, "Suggest link" → suggested-reference draft; eval TP09 PASS (8 touchpoints); sweep 0; 1149 → 1150 backend tests, 10 frontend tests | Next: TP2/TP3 receipt inbox and Put in a file |
+
+| 4 Nov 2026 | Screens + TP8 committed as `4febd3d`. Frontend dev tools bumped for npm audit findings: vite 6.4.5, vitest 4.1.12 → 0 vulnerabilities; checks and browser flows re-run | Next: TP2/TP3 |
+
 ## 8a. Gap report (CLAUDE.md §14), 22 Oct 2026
 
 | Phase / milestone | Status | Evidence |
@@ -228,6 +232,26 @@ Runtime facts: Python 3.13.9 (uv, `backend/.venv`), Node 24.5, uv 0.9.28, Docker
 ## 9. Task ledger
 
 Format per CLAUDE.md §12. Status: `NOT_STARTED` · `IN_PROGRESS` · `BLOCKED` · `DONE`. Newest first.
+
+### 2026-11-04 · P8 · Frontend dev-tool security update (vite 6.4.5, vitest 4.1.12)
+- **Status:** DONE
+- **Plan section:** CLAUDE.md §11.8 (dependencies), ADR-0012 update
+- **Files changed:** `frontend/eoffice/package.json` (vite 5.4.11 → 6.4.5, vitest 2.1.8 → 4.1.12, `overrides: {vite: 6.4.5}`), `frontend/eoffice/package-lock.json` (regenerated), `frontend/eoffice/vite.config.ts` (`defineConfig` from `vitest/config`), `docs/decisions/0012-…md`, `PROGRESS.md`, `docs/LEARNINGS.md`
+- **Why:** the owner's `npm audit` on the Mac reported 5 advisories (2 critical) in the dev/test tools: dev-server request forgery and `server.fs.deny` bypasses (vite ≤ 6.4.3/6.4.4), esbuild dev server (≤ 0.24.2), tinypool and @vitest/mocker code-execution gadgets (vitest ≤ 4.1.10/4.1.11). Dev-only; the static build ships none of it. `npm audit fix --force` was not used
+- **Tests/commands run:** Linux container, Node 22: `npm ci` ✅ · `npm audit` → **0 vulnerabilities** ✅ · `tsc --noEmit` ✅ · Vitest 10 passed ✅ · `vite build` ✅ · browser flows (U03 Link file, U05 File so far) through the vite 6.4.5 dev-server proxy ✅, no console errors
+- **Choice of versions:** oldest releases outside every advisory range and at least two weeks old (vite 6.4.5 published 21 Oct 2026; vitest 4.1.12 published 15 Oct 2026). npm's own suggestion (vite 5.4.21, vitest 2.1.9) is still inside the advisory ranges
+- **Blocker / decision needed:** none
+- **Exact next action:** TP2/TP3 — receipt inbox and Put in a file
+
+### 2026-11-04 · P8 / M9 · Touchpoint 9 "link file"
+- **Status:** DONE
+- **Plan section:** §11.5 touchpoint 9, §8 (precedent), §11.1 (drafts only)
+- **Files changed:** new `backend/app/precedent/links.py` (`suggest_links`: precedent lookup on the open file's subject through the scoped ladder, open file dropped, hits grouped by e-File), `backend/app/precedent/__init__.py`, `backend/app/agents/routes.py` (`POST /assist/link-suggestions`, via `open_file`), `backend/tests/unit/test_sandbox_api.py` (TP09 test; sweep covers link suggestions), `evaluation/harness/suites.py` (TP09 scenario), new `evaluation/reports/2026-11-04-link-file.{md,json}`, `frontend/eoffice/src/{types,api}.ts`, `src/components/{AssistPanel,FilePageView}.tsx` ("Link file", "Suggest link" → suggested-reference draft; drafts labelled by kind), `src/styles.css`, `src/render.test.tsx`, `PROGRESS.md`, `docs/LEARNINGS.md`
+- **Tests/commands run:** backend: ruff ✅ · mypy strict (104 files) ✅ · `pytest -q` → 1150 passed ✅ · `run_eval.py --label link-file --compare …file-so-far.json` → exit 0. Frontend: `tsc` ✅ · Vitest 10 passed ✅ · build ✅. Browser: U03 on the 2026 emergency-works file → Link file lists `USD01-WRKS0/52/2024-WORKS` and `USD01-WRKS0/18/2023-WORKS` with their notes, no Vigilance file → Suggest link creates a "Suggested link — draft" on the file page; no console errors
+- **Acceptance evidence:** TP09 PASS on the eval stack (files 2003377 and 2447780, docs D24 and D25, none of the forbidden Vigilance files or documents); touchpoints passed 7 → 8; other metrics unchanged; HTTP leakage sweep (now including link suggestions for every officer and file) → 0; U01 on the Works file → 404
+- **Finding (relevance, not access):** for the Deputy Secretary and Secretary the same request also lists the Vigilance drain-tender file and some Estt.I transfer files — they may see them, but the keyword stand-in matches on words like "drain". Semantic ranking with reranking (Vertex AI Search, GCP) is expected to fix this; not tuned on mock data
+- **Blocker / decision needed:** none
+- **Exact next action:** TP2/TP3 — receipt inbox (two-line receipt summary, "relates to file …", stale-circular flag) and Put in a file (existing file for the same subject)
 
 ### 2026-11-04 · P8 / M9 · Touchpoint 8 "file so far" + file-level clearance on every assist call
 - **Status:** DONE

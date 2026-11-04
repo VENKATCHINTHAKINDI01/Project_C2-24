@@ -16,6 +16,8 @@ P8 builds the mock e-Office sandbox and the touchpoints. It needs a backend surf
 6. **Stricter than e-Office:** the sandbox file screens also require clearance ≥ file classification, so the demo never shows more than C2-24 would.
 7. **Composition root:** only `app/main.py` imports `app.eoffice_mock`; the boundary test allows exactly that file.
 
+**Update (4 Nov 2026, security):** `npm audit` found 5 advisories (2 critical) in the dev/test tools vite 5.4.11 and vitest 2.1.8 (dev-server request forgery and `server.fs.deny` bypasses, an esbuild dev-server issue, tinypool / @vitest/mocker code-execution gadgets). They run only during development; the static build ships none of them. Bumped to the oldest releases outside every advisory range that are at least two weeks old: **vite 6.4.5** (21 Oct 2026) and **vitest 4.1.12** (15 Oct 2026); `overrides` pins every copy of vite to 6.4.5 (npm otherwise pulls a second vite for vitest and crashes resolving its optional peers). `npm audit` → 0 vulnerabilities. React, plugin-react and TypeScript unchanged.
+
 ## Alternatives considered
 | Option | Why not |
 |---|---|

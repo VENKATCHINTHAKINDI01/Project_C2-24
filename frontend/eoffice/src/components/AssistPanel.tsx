@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { Api } from "../api";
 import { FLAG_NAMES, outcomeLabel, yellowNoteFrom } from "../presend";
-import type { FileSoFar, PresendReport, ReferenceResult } from "../types";
+import type { FileSoFar, LinkSuggestions, PresendReport, ReferenceResult } from "../types";
 
 /** C2-24 Assist for the open file (plan §11.5 touchpoints 10, 11). Drafts only. */
 export function AssistPanel({ api, computerNo, report, onReport, onInserted }: {
@@ -14,6 +14,8 @@ export function AssistPanel({ api, computerNo, report, onReport, onInserted }: {
   const [ref, setRef] = useState<ReferenceResult | null>(null);
   const [inserted, setInserted] = useState<string | null>(null);
   const [soFar, setSoFar] = useState<FileSoFar | null>(null);
+  const [links, setLinks] = useState<LinkSuggestions | null>(null);
+  const [linked, setLinked] = useState<Record<string, string>>({});
 
   const run = async <T,>(f: () => Promise<T>, then: (x: T) => void) => {
     setBusy(true); setError(null);
@@ -33,6 +35,7 @@ export function AssistPanel({ api, computerNo, report, onReport, onInserted }: {
       <h3>✦ C2-24 Assist — this file</h3>
       <div className="chips">
         <button disabled={busy} onClick={() => void run(() => api.fileSoFar(computerNo), setSoFar)}>File so far</button>
+        <button disabled={busy} onClick={() => void run(() => api.linkSuggestions(computerNo), setLinks)}>Link file</button>
         <button disabled={busy} onClick={() => void run(() => api.presend(computerNo), onReport)}>Pre-send check</button>
       </div>
 
@@ -47,6 +50,18 @@ export function AssistPanel({ api, computerNo, report, onReport, onInserted }: {
 
       {error && <p className="error">{error}</p>}
       {soFar && <SoFarCard s={soFar} />}
+      {links && (
+        <LinkCard
+          s={links}
+          linked={linked}
+          busy={busy}
+          onLink={(fileNo, citations) =>
+            void run(() => api.suggestLink(computerNo, fileNo, citations, links.request_id), (r) => {
+              setLinked((m) => ({ ...m, [fileNo]: r.draft_id })); onInserted();
+            })
+          }
+        />
+      )}
 
       {report && (
         <section>
@@ -101,6 +116,31 @@ export function SoFarCard({ s }: { s: FileSoFar }) {
       </ol>
       {s.gap_message && <p className="card">{s.gap_message}</p>}
       {s.pending_message && <p className="card">{s.pending_message}</p>}
+    </section>
+  );
+}
+
+/** Touchpoint 9: precedent files to link — only files in the officer's scope; a click records a
+ *  suggested-reference DRAFT that the officer confirms in e-Office. */
+export function LinkCard({ s, linked, busy, onLink }: {
+  s: LinkSuggestions; linked: Record<string, string>; busy: boolean;
+  onLink: (fileNo: string, citations: string[]) => void;
+}) {
+  return (
+    <section className="links">
+      <h4>Precedent files to link</h4>
+      {s.message && <p className="card">{s.message}</p>}
+      {s.suggestions.map((l) => (
+        <div key={l.file_no} className="card">
+          <p><strong>{l.file_no}</strong></p>
+          {l.documents.map((d) => <p key={d.canonical_id} className="muted">{d.issue_date ?? ""} · {d.subject}</p>)}
+          <div className="actions">
+            {linked[l.file_no]
+              ? <span className="muted">Suggested link {linked[l.file_no]} added as a draft.</span>
+              : <button disabled={busy} onClick={() => onLink(l.file_no, l.documents.map((d) => d.canonical_id))}>Suggest link</button>}
+          </div>
+        </div>
+      ))}
     </section>
   );
 }

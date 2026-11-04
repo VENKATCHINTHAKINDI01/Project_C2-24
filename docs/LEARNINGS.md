@@ -80,6 +80,9 @@ Format: `- YYYY-MM-DD · fact / rule · (source or plan §)`
 - 2026-10-10 · Real G.O.s cite earlier orders in a "Read the following" list; supersession usually refers to list positions ("reference 2nd read above"), so resolve the list first
 
 ## Gotchas
+- 2026-11-04 · npm 10 crashed (`Cannot read properties of null (reading 'edgesOut')`) resolving vitest 4's optional peers when it tried a second, newer vite; `"overrides": {"vite": "<pinned>"}` in `frontend/eoffice/package.json` fixes it. Keep the override equal to the vite pin
+- 2026-11-04 · `npm audit fix` can suggest versions still inside an advisory range (it proposed vite 5.4.21 / vitest 2.1.9); check the advisory ranges, then pin by hand
+- 2026-11-04 · Same trap with `pgrep -f "npm exec vite"` inside a loop: the pattern is in your own command line. Collect PIDs with `ps -eo pid,args | grep … | grep -v grep` into a file, then `kill` in a separate command
 - 2026-11-04 · Never `pkill -f vite` (or any word in your own command) in the container shell: it matches the shell running the command and kills it. Stop servers by PID
 - 2026-11-04 · `renderToString` inserts `<!-- -->` between adjacent JSX text nodes; strip them before asserting on text
 - 2026-11-04 · pypdf can return NUL characters for glyphs without a Unicode map (G.O.Ms.31/2025's Telugu abstract line); metadata drops such lines from subjects

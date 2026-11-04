@@ -34,6 +34,7 @@ from app.connectors.eoffice import (
 )
 from app.ingestion.metadata import extract_metadata
 from app.noting.chain import file_so_far
+from app.precedent.links import suggest_links
 from app.retrieval.references import LookupStatus, lookup_reference
 
 NOT_SIGNED_IN = "Not signed in."
@@ -333,6 +334,44 @@ def build_assist_router(
                 if pending
                 else None
             ),
+            **meta(run),
+        }
+
+    @r.post("/link-suggestions")
+    def link_suggestions(body: FileIn, o: Annotated[Officer, Depends(officer)]) -> dict[str, Any]:
+        """Touchpoint 9 — precedent files the officer may open, to link as read-only references."""
+        run = rt(o, "assist.link_suggestions")
+        fctx = open_file(o, run, body.computer_no, "assist.link_suggestions")
+        store = run.store_for(o.ctx)
+
+        def file_of(cid: str) -> str | None:
+            t = run.tags(cid)
+            return t.file_no if t else None
+
+        links = suggest_links(
+            run.tool_context(o.ctx.user_id, store), fctx.subject, fctx.file_no, file_of
+        )
+        audit.record(
+            o.request_id,
+            o.ctx.user_id,
+            "assist.link_suggestions",
+            "ok" if links else "no_answer",
+            ids=(body.computer_no, *(d.canonical_id for s in links for d in s.documents)),
+        )
+        return {
+            "request_id": o.request_id,
+            "computer_no": body.computer_no,
+            "suggestions": [
+                {
+                    "file_no": s.file_no,
+                    "rank": s.rank,
+                    "documents": [d.model_dump(mode="json") for d in s.documents],
+                }
+                for s in links
+            ],
+            "message": None
+            if links
+            else "No precedent files were found in the records available to you.",
             **meta(run),
         }
 
