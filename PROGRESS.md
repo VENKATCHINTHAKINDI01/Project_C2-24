@@ -123,6 +123,7 @@ Legend: ✅ done · 🟡 in progress · ⬜ not started · ⛔ blocked
 | 2 Nov 2026 | ADR-0008 (provisional): officer roles + reporting hierarchy for FIN01/GAD01/ESE01 in `data/ontology/roles.yaml`, grounded in official sources + corpus evidence | Graph, file movement and access scopes need it now; confirm later |
 | 22 Oct 2026 | ADR-0006 (Proposed): public G.O. corpus alongside synthetic data; collection code in `data_collection/`, corpus outside the repo | No department data will arrive; start real collection when GCP access arrives |
 | 22 Oct 2026 | ADR-0007 (Proposed): memo/gazette ID forms; ID collisions → review; printed date used only when corroborated | Real records showed cases the base ID format and archive dates don't cover |
+| 4 Nov 2026 | Conflict types B, D, G wait for GCP: no deterministic pre-check or mocked judgment before Gemini is available | Owner choice; plan §6.2 has Gemini make these judgments from the authorised evidence |
 | 4 Nov 2026 | ADR-0011: ingestion may fill the department from the source system's tag only when the text names none; `department_source` recorded; text/tag disagreement → review (DEPARTMENT_MISMATCH) | Owner: the tag is recorded metadata, not a guess; department feeds compute_scope |
 | 4 Nov 2026 | ADR-0010 conditions: mock rules are testing only; three outcomes (conflict / no conflict in a verified complete rule set / review needed); unverified → uncertain flags with caveat; a mock file cannot claim verified coverage | Owner: "no matching rule" must not look like approval when the rule was simply not collected |
 | 4 Nov 2026 | ADR-0010: type C from approval-authority rules in config (mock content from corpus orders, clause-cited, date-bounded); deterministic; cites only visible sources | Owner chose option A: build now, swap rules later |
@@ -193,6 +194,8 @@ Legend: ✅ done · 🟡 in progress · ⬜ not started · ⛔ blocked
 
 | 4 Nov 2026 | Action windows read from order clauses (G.O.Ms.31/2025 para 2(i)) → type F on the proposal date; eval: A/C/E/F recall 0.857 → 1.000, touchpoints 6/6 run pass, leakage 0; reports never overwritten; 1109 → 1119 tests | Next: Telugu metadata (D16), then B/D/G approach with the owner |
 
+| 4 Nov 2026 | Committed and pushed: `34a8555` evaluation: never overwrite an existing report · `5162c59` conflict: type F from action windows (incl. `2026-11-04-baseline-2` report); Mac: 1119 passed, eval exit 0, recall A/C/E/F 1.000 | Owner: B/D/G wait for GCP. Next: Telugu metadata (D16) |
+
 ## 8a. Gap report (CLAUDE.md §14), 22 Oct 2026
 
 | Phase / milestone | Status | Evidence |
@@ -222,7 +225,7 @@ Format per CLAUDE.md §12. Status: `NOT_STARTED` · `IN_PROGRESS` · `BLOCKED` �
 - **Acceptance evidence:** windows read: G.O.Ms.62/2019 para 2(i) 15–30 Jun 2019, G.O.Ms.88/2022 para 2(i) 8–30 Jun 2022, G.O.Ms.31/2025 para 2(i) 15–31 May 2025; Standing Order 2/2020 (mentions relaxation, opens none) → none. D27 (22-09-2026) → F citing `AP-FIN01-GOMS-31-2025#para-2.i`, uncertain for the Estt.I SO (cannot see every Finance order on transfers); D19 (27-05-2025) and D17 (20-06-2022) inside their windows → no flag; 2 Sep 2023 → F citing 88/2022 (the order then in force); works / outsourcing → no basis, no flag; amended source order → uncertain. Eval vs after-gap-fixes: conflicts A/C/E/F recall 0.857 → **1.000** (precision 1.000), touchpoints 5 → **6 of 6 run**, leakage 0 / 1126, retrieval unchanged
 - **Security / temporal / citation implications:** only windows from orders the officer may see and that are in force on the proposal date count; a window is never inferred from a sentence that doesn't match the fixed pattern; "no later period" is stated only about the orders available to the officer
 - **Blocker / decision needed:** none
-- **Exact next action:** Telugu metadata for D16 (Rc. No. / తేది / విషయం), then decide with the owner whether B/D/G wait for GCP or get a deterministic pre-screen
+- **Exact next action:** Telugu metadata for D16 (Rc. No. / తేది / విషయం). B/D/G wait for GCP (owner, 4 Nov 2026)
 
 ### 2026-11-04 · P1 / P3 / P4 · Fix the gaps the baseline found + ADR-0011
 - **Status:** DONE (findings 1, 2, 3, 4, 6); 5 (Telugu Rc D16) and 7 (Telugu question) open
