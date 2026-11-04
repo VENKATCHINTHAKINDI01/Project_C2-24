@@ -8,4 +8,4 @@ departments:
   - {code: FIN01, name: "Finance", aliases: ["Finance", "Fin."], synthetic: false}
   - {code: GAD01, name: "General Administration", aliases: ["General Administration", "G.A."], synthetic: false}
   - {code: ESE01, name: "School Education", aliases: ["School Education"], synthetic: false}
-  - {code: USD01, name: "Urban Services", aliases: ["Urban Services"], synthetic: true}
+  - {code: USD01, name: "Urban Services", aliases: ["Urban Services", "పట్టణ సేవల"], synthetic: true}  # Telugu alias as used in mock D16

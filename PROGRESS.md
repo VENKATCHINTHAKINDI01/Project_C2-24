@@ -196,6 +196,8 @@ Legend: ✅ done · 🟡 in progress · ⬜ not started · ⛔ blocked
 
 | 4 Nov 2026 | Committed and pushed: `34a8555` evaluation: never overwrite an existing report · `5162c59` conflict: type F from action windows (incl. `2026-11-04-baseline-2` report); Mac: 1119 passed, eval exit 0, recall A/C/E/F 1.000 | Owner: B/D/G wait for GCP. Next: Telugu metadata (D16) |
 
+| 4 Nov 2026 | Telugu order headers: D16 resolves (Rc.No., date tag, subject, reference to G.O.Ms.27/2024); all 29 corpus documents indexed; leakage 0 / 1142; Q06/Q19 unchanged (Telugu-only subject; keyword stand-in) — needs multilingual retrieval on GCP; 1119 → 1124 tests | Next: owner pending items, or start the sandbox screens (P8) |
+
 ## 8a. Gap report (CLAUDE.md §14), 22 Oct 2026
 
 | Phase / milestone | Status | Evidence |
@@ -216,6 +218,17 @@ Runtime facts: Python 3.13.9 (uv, `backend/.venv`), Node 24.5, uv 0.9.28, Docker
 ## 9. Task ledger
 
 Format per CLAUDE.md §12. Status: `NOT_STARTED` · `IN_PROGRESS` · `BLOCKED` · `DONE`. Newest first.
+
+### 2026-11-04 · P1 / M2 · Telugu order headers (D16)
+- **Status:** DONE
+- **Plan section:** §4.1 (Telugu/English), §4.3, §4.4
+- **Files changed:** `backend/app/identifiers/resolver.py` (`TELUGU_MARKERS` fixed table + `normalise_telugu_markers`; "శాఖ" counts as naming a department), `backend/app/ingestion/metadata.py` (markers normalised before parsing; own Rc/Memo line may have a comma before the date), `data/ontology/departments.yaml` (Telugu alias "పట్టణ సేవల" for the synthetic USD01), new `backend/tests/unit/test_telugu_metadata.py`, new `evaluation/reports/2026-11-04-telugu-headers.{md,json}`, `PROGRESS.md`, `docs/LEARNINGS.md`
+- **Tests/commands run:** regression tests written first and run failing (4 of 5); then Linux Python 3.13 venv, from `backend/`: `ruff check . ../evaluation` ✅ · `ruff format` ✅ · `mypy` strict (95 files) ✅ · `pytest -q` → 1124 passed ✅ · `python ../evaluation/run_eval.py --label telugu-headers --compare ../evaluation/reports/2026-11-04-action-windows.json` → exit 0
+- **Acceptance evidence:** D16 → `AP-USD01-RC-USD01WRKS0-22-2025-D20250602`, Circular, 02-06-2025, USD01 (from its Rc code, `department_source: text`), Telugu subject kept as written, reference సూచిక → `AP-USD01-GOMS-27-2024` (named via the Telugu department name), no review reasons; a Telugu reference naming an unknown department → unresolved (never defaulted); English headers unchanged. Eval: all 29 corpus documents now indexed (none missing); leakage 0 / 1142 checks; NDCG@10 0.711 → 0.714; other metrics unchanged
+- **Finding:** Q06's recall did NOT improve (still 0.5): L1 matches English subject terms and D16's subject is only in Telugu. Q19 (Telugu question) still finds nothing in the keyword stand-in. Both need bilingual subjects or multilingual retrieval — GCP (Vertex AI embeddings); not worth tuning the stand-in
+- **Security / temporal / citation implications:** the marker table rewrites only the listed reference markers; a Telugu department name not in the table keeps the reference unresolved (no guessed department)
+- **Blocker / decision needed:** none. Telugu marker table and Telugu department names are `[To confirm]` against real Telugu orders
+- **Exact next action:** remaining non-GCP items — owner pending list (ADR-0005/0006 acceptance, 17 touchpoint scenarios, 6 date reviews, real authority rules); otherwise the sandbox screens for the touchpoints (P8, React) are the largest buildable block without GCP
 
 ### 2026-11-04 · P4 / P7 · Action windows from order clauses (type F) + overwrite-safe eval reports
 - **Status:** DONE

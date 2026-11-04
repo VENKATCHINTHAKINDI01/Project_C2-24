@@ -19,7 +19,12 @@ from enum import StrEnum
 from pydantic import BaseModel, ConfigDict
 
 from app.identifiers.canonical import parse_canonical_id
-from app.identifiers.resolver import DepartmentTable, Unresolved, resolve_reference
+from app.identifiers.resolver import (
+    DepartmentTable,
+    Unresolved,
+    normalise_telugu_markers,
+    resolve_reference,
+)
 
 
 class _Frozen(BaseModel):
@@ -98,7 +103,7 @@ _OWN_GO = re.compile(
     re.I | re.M,
 )
 _OWN_MEMO = re.compile(
-    r"^\s*((?:Circular\s+Memo|Memo|Rc)\.?\s*No\.?\s*\S+?/\d+/\d{4}(?:-\d+)?\s+Dated\s*:?\s*\d{1,2}[-./]\d{1,2}[-./]\d{2,4})",
+    r"^\s*((?:Circular\s+Memo|Memo|Rc)\.?\s*No\.?\s*\S+?/\d+/\d{4}(?:-\d+)?,?\s+Dated\s*:?\s*\d{1,2}[-./]\d{1,2}[-./]\d{2,4})",
     re.I | re.M,
 )
 _OWN_SO = re.compile(
@@ -229,7 +234,11 @@ def extract_metadata(
 
     `source_department` (ADR-0011): the department the source system recorded. Used ONLY when the
     text names none; `department_source` then says "source_system". The caller holds a document
-    whose text names a different department for review."""
+    whose text names a different department for review.
+
+    Telugu reference markers (ఆర్.సి.నెం., తేది, విషయం, సూచిక, జి.ఓ.ఎం.ఎస్.నెం.) are read through
+    a fixed table; parsed fields show them in English form, the stored source text is unchanged."""
+    text = normalise_telugu_markers(text)
     reasons: list[str] = []
     headings = [h.group(0) for h in _HEADING.finditer(text)]
     dept = departments.code_in(headings[0]) if headings else None

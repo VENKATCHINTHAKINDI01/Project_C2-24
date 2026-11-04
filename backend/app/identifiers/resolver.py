@@ -109,12 +109,36 @@ def _dept_from_mid(mid: str, departments: DepartmentTable, default_dept: str | N
     """
     if code := departments.code_in(mid):
         return code
-    names_a_department = re.search(r"\bDep(?:artmen)?t\b", mid, re.I) or _DEPT_CODE_RE.search(mid)
+    names_a_department = re.search(r"\bDep(?:artmen)?t\b|శాఖ", mid, re.I) or _DEPT_CODE_RE.search(
+        mid
+    )
     return None if names_a_department else default_dept
 
 
+# Telugu reference markers → the English forms the patterns read (plan §4.1 Telugu/English).
+# Fixed, reviewed table — longest first; nothing outside it is translated. [To confirm against
+# real Telugu orders when they arrive.]
+TELUGU_MARKERS: tuple[tuple[str, str], ...] = (
+    ("జి.ఓ.ఎం.ఎస్.నెం.", "G.O.Ms.No."),
+    ("జి.ఓ.ఆర్.టి.నెం.", "G.O.Rt.No."),
+    ("ఆర్.సి.నెం.", "Rc.No."),
+    ("మెమో నెం.", "Memo No."),
+    ("తేదీ", "Dated"),
+    ("తేది", "Dated"),
+    ("విషయం", "Sub"),
+    ("సూచిక", "Ref"),
+)
+
+
+def normalise_telugu_markers(text: str) -> str:
+    """Rewrite only the fixed Telugu reference markers; every other word is left as written."""
+    for te, en in TELUGU_MARKERS:
+        text = text.replace(te, en)
+    return text
+
+
 def _ocr_fix(text: str) -> str:
-    t = text.replace("–", "-").replace("—", "-")
+    t = normalise_telugu_markers(text).replace("–", "-").replace("—", "-")
     t = re.sub(r"\b([A-Z]{2,5})O(\d)(?=\b|-|/)", r"\g<1>0\2", t)  # FINO1 → FIN01
     return re.sub(r"\b[G6]\s*\.\s*[0O]\s*\.?\s*(?=(?:Ms|MS|Rt|RT|P\b|No|\())", "G.O.", t)
 

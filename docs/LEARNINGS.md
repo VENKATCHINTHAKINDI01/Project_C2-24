@@ -15,6 +15,7 @@ Format: `- YYYY-MM-DD · fact / rule · (source or plan §)`
 <!-- exact commands to run tests, lint, eval harness, local services -->
 
 ## Conventions
+- 2026-11-04 · Telugu reference markers go through `resolver.TELUGU_MARKERS` (fixed table, longest first); add new markers there with a test — never translate free text. "శాఖ" means a department is named, so an unmapped Telugu department leaves the reference unresolved
 - 2026-11-04 · Action windows: `windows_from_text(cid, text)` → `ActionWindow(source=cid#para-2.i, action, start, end, evidence)`; ingestion keeps them in `stores.windows`; pass `windows=` to `presend_check`. Only in-force, visible orders count; inside any window → no flag
 - 2026-11-04 · ADR-0011: `extract_metadata(..., source_department=)` fills the department only when the text names none (`department_source`); the pipeline holds text/tag disagreements as DEPARTMENT_MISMATCH. `valid_until` is read only from an order's own subject
 - 2026-11-04 · Eval reports: `run_eval.py --label <name> --compare <earlier>.json` writes `<date>-<name>` with a before/now table; an existing name gets `-2`, `-3` (never overwritten), so `make eval` is safe
@@ -75,6 +76,7 @@ Format: `- YYYY-MM-DD · fact / rule · (source or plan §)`
 - 2026-10-10 · Real G.O.s cite earlier orders in a "Read the following" list; supersession usually refers to list positions ("reference 2nd read above"), so resolve the list first
 
 ## Gotchas
+- 2026-11-04 · L1 subject filters match terms in the subject's own language: a Telugu-only subject (D16) is invisible to English terms. Cross-language needs bilingual abstracts or multilingual embeddings (GCP)
 - 2026-11-04 · Unit tests built on `documents_index.csv` dates can pass while the real pipeline misses the same fact (D29 type F: ingestion has no validity-end date). Check behaviour on the pipeline stack via `make eval`, not only unit tests
 - 2026-11-04 · (fixed same day) subjects were empty for abstracts without a rule line and for reports/statements; base-number references missed dated memo IDs
 - 2026-11-03 · PDF text puts note signature dates on their own line and wraps citations; DOCX signature blocks use <w:br/>/<w:tab/> — search flattened text, keep breaks when reading DOCX
