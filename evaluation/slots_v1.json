@@ -1,0 +1,41 @@
+{
+  "_note": "EVALUATION ONLY. Stand-in for the orchestrator's intent classification and slot filling (Gemini, needs GCP). Written from the question wording alone, before any run, and not tuned to results: precedent lookups pass the question verbatim as the L2 text; current-rule / decision-history terms are nouns taken from the question; questions that name an order go through the deterministic reference lookup; 'check file X' opens the latest note in file X (the e-Office connector would supply it). The harness therefore measures retrieval GIVEN a correct intent, not intent classification.",
+  "version": "slots_v1 (2026-11-04)",
+  "ladder_config": {"l2_top_k": 10, "l2_min_score": 1.0, "l3_max_hops": 2, "_note": "test values, NOT calibrated (plan §3.2 thresholds still open)"},
+  "as_of": "2026-10-02",
+  "questions": {
+    "Q01": {"intent": "precedent_lookup", "slots": {"text": "@question"}},
+    "Q02": {"intent": "precedent_lookup", "slots": {"text": "@question"}},
+    "Q03": {"intent": "current_rule", "slots": {"terms": ["transfer", "guidelines"]}},
+    "Q04": {"intent": "current_rule", "slots": {"terms": ["transfer"], "issued_to": "2021-01-01"}},
+    "Q05": {"intent": "document_status", "reference": "@question"},
+    "Q06": {"intent": "current_rule", "slots": {"terms": ["emergency", "work"]}},
+    "Q07": {"intent": "file_check", "file_no": "USD01-12/19/2026-ESTT.I"},
+    "Q08": {"intent": "file_check", "file_no": "USD01-WRKS0/30/2026-WORKS"},
+    "Q09": {"intent": "file_check", "file_no": "USD01-14/6/2026-ESTT.I"},
+    "Q10": {"intent": "precedent_lookup", "slots": {"text": "@question"}},
+    "Q11": {"intent": "decision_history", "slots": {"terms": ["spouse"]}},
+    "Q12": {"intent": "precedent_lookup", "slots": {"text": "@question"}},
+    "Q13": {"intent": "precedent_lookup", "slots": {"text": "@question"}},
+    "Q14": {"intent": "precedent_lookup", "slots": {"text": "@question"}},
+    "Q15": {"intent": "precedent_lookup", "slots": {"text": "@question"}},
+    "Q16": {"intent": "precedent_lookup", "slots": {"text": "@question"}},
+    "Q17": {"intent": "clause_lookup", "reference": "@question"},
+    "Q18": {"intent": "clause_lookup", "reference": "@question"},
+    "Q19": {"intent": "precedent_lookup", "slots": {"text": "@question"}},
+    "Q20": {"intent": "current_rule", "slots": {"terms": ["outsourcing"]}},
+    "Q21": {"intent": "current_rule", "slots": {"terms": ["station", "period"]}},
+    "Q22": {"intent": "precedent_lookup", "slots": {"text": "@question"}},
+    "Q23": {"intent": "precedent_lookup", "slots": {"text": "@question"}},
+    "Q24": {"intent": "current_rule", "slots": {"terms": ["transfer"]}}
+  },
+  "touchpoints": {
+    "TP15-a": {"intent": "precedent_lookup", "slots": {"text": "that 2023 drain case"}},
+    "TP15-b": {"intent": "precedent_lookup", "slots": {"text": "that 2023 drain case"}}
+  },
+  "presend": {
+    "drafts": {"D27": "U01", "D28": "U03", "D29": "U01"},
+    "clean_controls": {"D19": "U01", "D24": "U03", "D25": "U06"},
+    "_note": "drafts carry planted conflicts (conflicts.json); controls are decided notes that break no rule, run as of their own date"
+  }
+}

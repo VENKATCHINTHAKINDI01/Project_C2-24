@@ -1,0 +1,37 @@
+# Local environments
+aenv/
+.venv/
+venv/
+env/
+
+# Secrets
+.env
+*.key
+*.pem
+credentials*.json
+service-account*.json
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Node
+node_modules/
+dist/
+build/
+
+# OS / editors
+.DS_Store
+.idea/
+.vscode/
+
+# Never commit real department data
+data/real/
+
+# Data collection (ADR-0006): machine-specific data path; the corpus itself lives outside the repo
+data_collection/local.env
