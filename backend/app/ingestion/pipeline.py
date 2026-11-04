@@ -46,6 +46,7 @@ from app.ingestion.gate import Extraction, gate, indexable
 from app.ingestion.metadata import DocType, DocumentMetadata, RelKind, extract_metadata
 from app.retrieval.scoped import IndexedDocument, InMemoryScopedIndex
 from app.temporal.engine import Instrument, RelationKind, TemporalRelation
+from app.temporal.windows import ActionWindow, windows_from_text
 from app.updates.reconcile import OpenFileNotice, reconcile
 
 PIPELINE_VERSION = "ingest-2026-11-03"
@@ -60,6 +61,16 @@ _TEMPORAL = {
     RelKind.AMENDS: RelationKind.AMENDS,
     RelKind.CLARIFIES: RelationKind.CLARIFIES,
 }
+_ORDER_DOC_TYPES = frozenset(  # instruments that can open a window for an action
+    {
+        DocType.GOVERNMENT_ORDER,
+        DocType.AMENDMENT,
+        DocType.CIRCULAR,
+        DocType.MEMO,
+        DocType.CLARIFICATION,
+        DocType.STANDING_ORDER,
+    }
+)
 _CLASS_MARK = re.compile(r"^\s*\[?\s*(UNCLASSIFIED|RESTRICTED|CONFIDENTIAL|SECRET)\s*\]?\s*$", re.M)
 
 
@@ -115,6 +126,7 @@ class IngestionStores:
     files: dict[str, list[tuple[str, dt.date | None]]] = field(default_factory=dict)  # file → docs
     pending_files: list[tuple[str, str, dt.date | None]] = field(default_factory=list)
     notices: list[OpenFileNotice] = field(default_factory=list)  # touchpoint 4
+    windows: dict[str, tuple[ActionWindow, ...]] = field(default_factory=dict)  # cid → windows
 
 
 def _version(data: bytes) -> str:
@@ -257,6 +269,8 @@ def ingest(
             effective_from=meta.issue_date,
             valid_until=meta.valid_until,
         )
+    if meta.doc_type in _ORDER_DOC_TYPES:
+        stores.windows[cid] = windows_from_text(cid, text)
     added, pending = _add_edges(stores, cid, meta)
     added += _attach_pending(stores, cid)
     rec = reconcile(stores, cid, meta, tags, version=version, at=at, open_files=open_files)

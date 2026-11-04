@@ -4,5 +4,6 @@ Implemented: deterministic reference checks A, E, F (`deterministic.check_citati
 against approval-authority rules in config (`procedural.check_authority`, ADR-0010).
 Proposal facts read from note text with evidence (`facts`); the pre-send check running A/C/E/F
 together with status coverage (`presend`, touchpoint 11).
-Not yet: B/G/D (grounded Gemini judgment), clause-level effective windows (D27's type F).
+Type F for the proposal's own date against action windows stated in in-force orders
+(`windows`). Not yet: B/G/D (grounded Gemini judgment).
 """

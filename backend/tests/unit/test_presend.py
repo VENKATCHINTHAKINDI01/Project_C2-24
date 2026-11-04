@@ -17,6 +17,7 @@ from app.conflict.procedural import Action, AuthorityOutcome, PostLevel
 from app.ingestion.detect import detect_file
 from app.ingestion.extract import extract_native
 from app.ingestion.metadata import DocumentMetadata, extract_metadata
+from app.temporal.windows import windows_from_text
 from tests.unit.mock_access import CLASSES, CORPUS, POLICY, doc_tags, new_store
 from tests.unit.test_agent_tools_and_memory import INSTRUMENTS, RELS
 from tests.unit.test_conflict_procedural import FACTS, RULES, _verified
@@ -25,9 +26,14 @@ from tests.unit.test_ingestion_pipeline import DEPTS, IDX
 TAGS = {IDX[d]["canonical_id"]: t for d, t in doc_tags().items()}
 CONFLICTS = json.loads((CORPUS / "ground_truth" / "conflicts.json").read_text(encoding="utf-8"))
 DETERMINISTIC = {"A", "C", "E", "F"}
-KNOWN_GAPS = {
-    ("D27", "F"): "the 2025 relaxation window is inside G.O.Ms.31/2025's text, not a document date"
-}
+# Action windows stated inside the orders (read the same way ingestion reads them).
+WINDOWS = [
+    w
+    for d in ("D01", "D03", "D04")
+    for w in windows_from_text(
+        IDX[d]["canonical_id"], (CORPUS / "ground_truth" / "text" / f"{d}.txt").read_text("utf-8")
+    )
+]
 
 
 def _note(did: str) -> tuple[str, DocumentMetadata]:
@@ -50,6 +56,7 @@ def _run(did: str, uid: str, rules=RULES):  # type: ignore[no-untyped-def]
         store=new_store(),
         policy=POLICY,
         classification=CLASSES,
+        windows=WINDOWS,
     )
 
 
@@ -89,7 +96,6 @@ def test_facts_keep_their_evidence_and_report_gaps() -> None:
 def test_presend_finds_every_deterministic_planted_conflict(did: str, uid: str) -> None:
     rep = _run(did, uid)
     expected = {c["type"] for c in CONFLICTS if c["in"] == did} & DETERMINISTIC
-    expected -= {t for (d, t) in KNOWN_GAPS if d == did}
     got = {f.type.value for f in rep.flags}
     assert got == expected, (did, [f.explanation for f in rep.flags])
     assert rep.outcome is PreSendOutcome.CONFLICTS_FOUND

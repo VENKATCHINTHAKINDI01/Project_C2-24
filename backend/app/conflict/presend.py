@@ -3,6 +3,8 @@ draft note before it is sent.
 
 - A / E / F: every order the note cites, checked against the temporal facts the officer may see.
 - C: proposal facts read from the note, checked against approval-authority rules (ADR-0010).
+- F (action): the proposal's own date against the windows the in-force orders open for that
+  action (`conflict.windows`), e.g. a transfer proposed while the ban on transfers is in force.
 - Status coverage (owner rule, 3 Nov 2026): a cited order whose status the officer's records
   cannot establish completely is listed as "status unconfirmed", never assumed in force.
 - Overall result is CLEAR only when nothing is flagged, every cited order's status is confirmed,
@@ -13,7 +15,7 @@ draft note before it is sent.
 from __future__ import annotations
 
 import datetime as dt
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict
@@ -30,9 +32,11 @@ from app.conflict.procedural import (
     AuthorityRules,
     check_authority,
 )
+from app.conflict.windows import check_action_window
 from app.identifiers.canonical import InvalidCanonicalIdError, lookup_keys
 from app.ingestion.metadata import DocumentMetadata
 from app.temporal.engine import Instrument, Status, TemporalRelation, status_as_of
+from app.temporal.windows import ActionWindow
 
 
 class PreSendOutcome(StrEnum):
@@ -46,7 +50,7 @@ class PreSendReport(BaseModel):
 
     note_id: str
     outcome: PreSendOutcome
-    flags: tuple[ConflictFlag, ...]  # A, E, F and C, in that order
+    flags: tuple[ConflictFlag, ...]  # A, E, F (citations), F (action window), C
     authority: AuthorityResult | None
     status_unconfirmed: tuple[str, ...]  # cited orders whose status cannot be confirmed
     fact_gaps: tuple[str, ...]
@@ -82,6 +86,7 @@ def presend_check(
     store: AuthzStore,
     policy: AccessPolicy,
     classification: Classification,
+    windows: Iterable[ActionWindow] = (),
 ) -> PreSendReport:
     """Run on the officer's draft at "Send" (touchpoint 11). Fails closed to REVIEW_NEEDED."""
     action_date = meta.issue_date or dt.date.today()
@@ -108,19 +113,20 @@ def presend_check(
     flags = check_citations(cites, action_date, known, rels)  # A, E, F
 
     flagged = {f.cited for f in flags}
+
+    def ceiling_for(tags: DocumentAccessTags) -> str:
+        if policy.status_coverage is StatusCoverage.UP_TO_DOCUMENT:
+            return tags.classification
+        return max(classification.levels, key=lambda lv: lv.rank).name
+
     unconfirmed = []
     for c in cites:
         if c.canonical_id is None or c.canonical_id not in known or c.canonical_id in flagged:
             continue
         st = status_as_of(c.canonical_id, action_date, known, rels)
         tags = tags_of[c.canonical_id]
-        ceiling = (
-            tags.classification
-            if policy.status_coverage is StatusCoverage.UP_TO_DOCUMENT
-            else max(classification.levels, key=lambda lv: lv.rank).name
-        )
         if st.status is Status.IN_FORCE and not scope.covers_status_domain(
-            tags.department, ceiling
+            tags.department, ceiling_for(tags)
         ):
             unconfirmed.append(c.canonical_id)  # never assume "in force" from a partial record set
 
@@ -128,6 +134,20 @@ def presend_check(
     authority = None
     gaps = list(facts.missing)
     if facts.facts is not None:
+        window = check_action_window(
+            facts.facts.action.value, facts.facts.proposal_date, windows, known, rels
+        )
+        if window is not None:
+            wt = tags_of[window.evidence_ids[0]]
+            if not scope.covers_status_domain(wt.department, ceiling_for(wt)):
+                window = window.model_copy(
+                    update={
+                        "certain": False,
+                        "explanation": window.explanation
+                        + " Your records may not show every later order on this subject.",
+                    }
+                )
+            flags = [*flags, window]
         authority = check_authority(facts.facts, rules, set(known))
         flags = [*flags, *authority.flags]
 

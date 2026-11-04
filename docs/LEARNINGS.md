@@ -15,8 +15,9 @@ Format: `- YYYY-MM-DD · fact / rule · (source or plan §)`
 <!-- exact commands to run tests, lint, eval harness, local services -->
 
 ## Conventions
+- 2026-11-04 · Action windows: `windows_from_text(cid, text)` → `ActionWindow(source=cid#para-2.i, action, start, end, evidence)`; ingestion keeps them in `stores.windows`; pass `windows=` to `presend_check`. Only in-force, visible orders count; inside any window → no flag
 - 2026-11-04 · ADR-0011: `extract_metadata(..., source_department=)` fills the department only when the text names none (`department_source`); the pipeline holds text/tag disagreements as DEPARTMENT_MISMATCH. `valid_until` is read only from an order's own subject
-- 2026-11-04 · Eval reports: `run_eval.py --label <name> --compare <earlier>.json` writes `<date>-<name>` with a before/now table; never overwrite `*-baseline`
+- 2026-11-04 · Eval reports: `run_eval.py --label <name> --compare <earlier>.json` writes `<date>-<name>` with a before/now table; an existing name gets `-2`, `-3` (never overwritten), so `make eval` is safe
 - 2026-11-04 · Evaluation stack = the ingestion job over every corpus file (not the CSV fixtures the unit tests use); slots for golden questions live in `evaluation/slots_v1.json`, written from question wording only — never tune them or the golden set to a result; a new slots version means a new file
 - 2026-11-04 · Pre-send = `presend_check(note_id, text, meta, user_id=…)`: A/E/F over visible facts, C from `extract_proposal_facts` (last "may … approve/accord" sentence; "by X" wins), status coverage. Outcome CLEAR only with verified rules + full coverage + no fact gaps
 - 2026-11-04 · Type C results: CONFLICT / NO_CONFLICT_VERIFIED / REVIEW_NEEDED. Only a `status: verified` rules file with verified + complete coverage (who/when) for that department + action can give NO_CONFLICT_VERIFIED; mock rules = testing only (owner)

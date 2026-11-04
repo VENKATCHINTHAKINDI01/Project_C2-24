@@ -18,7 +18,7 @@ Legend: ✅ done · 🟡 in progress · ⬜ not started · ⛔ blocked
 | P1 | Ingestion & extraction | 🟡 | Idempotent ingestion job over detection, native extraction, gate, metadata, canonical IDs + collisions, index/graph/temporal writes, pending-edge reconciliation, cache invalidation; OCR (Document AI) waits for GCP |
 | P2 | Authorization core | 🟡 | Access store (tuples) + rank AND search-scope policy; enforced in L0/L1 reference retrieval with re-check; Cloud SQL DDL drafted (not applied) |
 | P3 | Retrieval ladder + RAG + citations | 🟡 | L0/L1 and L3 reference implementations with scope + re-check (in-memory); L2, BigQuery/Spanner backends, evidence package, Gemini not started |
-| P4 | Temporal + conflict + reconciliation | 🟡 | Temporal engine, deterministic A/C/E/F with facts read from notes, pre-send check (touchpoint 11), reconciliation done; B, G, D (grounded Gemini) open |
+| P4 | Temporal + conflict + reconciliation | 🟡 | Temporal engine (incl. order end dates and action windows read from clauses), deterministic A/C/E/F with facts read from notes, pre-send check (touchpoint 11), reconciliation done; every deterministic planted conflict found on the pipeline stack; B, G, D (grounded Gemini) open |
 | P5 | Agents + noting + memory + HITL | 🟡 | Typed AgentState + intent templates done (no LangGraph/Gemini yet) |
 | P6 | Verification, audit, tracking | ⬜ | |
 | P7 | Evaluation & security harness | 🟡 | Harness on the reference stack: retrieval metrics, A–G conflict P/R, leakage matrix (8 paths, 0 disclosures), 6 of 17 touchpoints; baseline report 4 Nov 2026. RAGAS/faithfulness, answer status, OCR accuracy need GCP |
@@ -191,6 +191,8 @@ Legend: ✅ done · 🟡 in progress · ⬜ not started · ⛔ blocked
 | 4 Nov 2026 | Baseline gaps fixed (dated-memo lookup by base number, 'G.O.Ms.No.31 of 2025', order end dates from subjects, missing subjects, D11 department via ADR-0011); eval vs baseline: Recall@10 0.561 → 0.754, MRR 0.684 → 0.833, A/C/E/F recall 0.714 → 0.857, leakage still 0; 1099 → 1109 tests | Next: clause-level effective windows for D27's type F, then Telugu metadata (D16) |
 | 4 Nov 2026 | First commits + push to GitHub (private repo `VENKATCHINTHAKINDI01/Project_C2-24`, branch `main`): `44c8edb` first commit · `0d48585` repo · `729ee75` docs · `3358551` data · `cce70f7` data_collection · `e05aad0` backend · `89ba0bb` progress; 256 files, no secrets/env/venv staged; checks before commit: `make check` 1109 passed, eval 0/1126 disclosures | Continue from the after-gap-fixes known gaps; commit each task as one logical change |
 
+| 4 Nov 2026 | Action windows read from order clauses (G.O.Ms.31/2025 para 2(i)) → type F on the proposal date; eval: A/C/E/F recall 0.857 → 1.000, touchpoints 6/6 run pass, leakage 0; reports never overwritten; 1109 → 1119 tests | Next: Telugu metadata (D16), then B/D/G approach with the owner |
+
 ## 8a. Gap report (CLAUDE.md §14), 22 Oct 2026
 
 | Phase / milestone | Status | Evidence |
@@ -211,6 +213,16 @@ Runtime facts: Python 3.13.9 (uv, `backend/.venv`), Node 24.5, uv 0.9.28, Docker
 ## 9. Task ledger
 
 Format per CLAUDE.md §12. Status: `NOT_STARTED` · `IN_PROGRESS` · `BLOCKED` · `DONE`. Newest first.
+
+### 2026-11-04 · P4 / P7 · Action windows from order clauses (type F) + overwrite-safe eval reports
+- **Status:** DONE
+- **Plan section:** §6.1, §6.2, §6.4 (type F), §11.5 (touchpoint 11), §13
+- **Files changed:** new `backend/app/temporal/windows.py` (`ActionWindow`, `windows_from_text`: clause-level ID, dates, the words), new `backend/app/conflict/windows.py` (`check_action_window`), `backend/app/conflict/presend.py` (`windows=` param; action-window F, uncertain without full status coverage), `backend/app/conflict/__init__.py`, `backend/app/ingestion/pipeline.py` (`stores.windows` for order types), `evaluation/harness/suites.py` (passes the stack's windows), `evaluation/run_eval.py` (`free_name`: a report is never overwritten), new `backend/tests/unit/test_action_windows.py`, `backend/tests/unit/test_presend.py` (windows passed; D27 known gap removed), `backend/tests/unit/test_eval_harness.py`, new `evaluation/reports/2026-11-04-action-windows.{md,json}`, `PROGRESS.md`, `docs/LEARNINGS.md`
+- **Tests/commands run:** Linux Python 3.13 venv, from `backend/`: `ruff check . ../evaluation` ✅ · `ruff format --check` ✅ · `mypy` strict (94 files) ✅ · `pytest -q` → 1119 passed ✅ · `python ../evaluation/run_eval.py --label action-windows --compare ../evaluation/reports/2026-11-04-after-gap-fixes.json` → exit 0
+- **Acceptance evidence:** windows read: G.O.Ms.62/2019 para 2(i) 15–30 Jun 2019, G.O.Ms.88/2022 para 2(i) 8–30 Jun 2022, G.O.Ms.31/2025 para 2(i) 15–31 May 2025; Standing Order 2/2020 (mentions relaxation, opens none) → none. D27 (22-09-2026) → F citing `AP-FIN01-GOMS-31-2025#para-2.i`, uncertain for the Estt.I SO (cannot see every Finance order on transfers); D19 (27-05-2025) and D17 (20-06-2022) inside their windows → no flag; 2 Sep 2023 → F citing 88/2022 (the order then in force); works / outsourcing → no basis, no flag; amended source order → uncertain. Eval vs after-gap-fixes: conflicts A/C/E/F recall 0.857 → **1.000** (precision 1.000), touchpoints 5 → **6 of 6 run**, leakage 0 / 1126, retrieval unchanged
+- **Security / temporal / citation implications:** only windows from orders the officer may see and that are in force on the proposal date count; a window is never inferred from a sentence that doesn't match the fixed pattern; "no later period" is stated only about the orders available to the officer
+- **Blocker / decision needed:** none
+- **Exact next action:** Telugu metadata for D16 (Rc. No. / తేది / విషయం), then decide with the owner whether B/D/G wait for GCP or get a deterministic pre-screen
 
 ### 2026-11-04 · P1 / P3 / P4 · Fix the gaps the baseline found + ADR-0011
 - **Status:** DONE (findings 1, 2, 3, 4, 6); 5 (Telugu Rc D16) and 7 (Telugu question) open

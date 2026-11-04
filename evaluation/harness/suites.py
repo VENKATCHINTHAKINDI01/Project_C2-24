@@ -108,6 +108,7 @@ class Harness:
             store=self.store(),
             policy=POLICY,
             classification=CLASSES,
+            windows=[w for ws in self.s.stores.windows.values() for w in ws],
         )
 
     def _draft_in_file(self, file_no: str, user: str) -> str | None:
