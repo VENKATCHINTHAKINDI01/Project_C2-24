@@ -2,7 +2,7 @@
 BACKEND := backend
 UV := cd $(BACKEND) && env -u VIRTUAL_ENV uv
 
-.PHONY: setup setup-all lint format typecheck test check eval run local-up local-down
+.PHONY: setup setup-all lint format typecheck test check eval run fe-install fe-dev fe-check local-up local-down
 
 setup:            ## core + dev deps
 	$(UV) sync
@@ -22,6 +22,12 @@ eval:             ## evaluation harness → evaluation/reports/ (exit 1 if any d
 	$(UV) run python ../evaluation/run_eval.py
 run:              ## local API on :8080
 	$(UV) run uvicorn app.main:app --reload --port 8080
+fe-install:       ## sandbox screens: install pinned npm deps (Node 20+)
+	cd frontend/eoffice && npm ci
+fe-dev:           ## sandbox screens on :5173 (proxies the API on :8080 — run `make run` too)
+	cd frontend/eoffice && npm run dev
+fe-check:         ## sandbox screens: typecheck, tests, production build
+	cd frontend/eoffice && npm run typecheck && npm test && npm run build
 local-up:         ## Postgres + Valkey + Spanner emulator (needs Docker running)
 	docker compose --env-file .env -f infrastructure/local/docker-compose.yml up -d
 local-down:

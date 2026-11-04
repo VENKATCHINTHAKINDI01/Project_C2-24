@@ -22,7 +22,7 @@ Legend: ✅ done · 🟡 in progress · ⬜ not started · ⛔ blocked
 | P5 | Agents + noting + memory + HITL | 🟡 | Typed AgentState + intent templates done (no LangGraph/Gemini yet) |
 | P6 | Verification, audit, tracking | ⬜ | |
 | P7 | Evaluation & security harness | 🟡 | Harness on the reference stack: retrieval metrics, A–G conflict P/R, leakage matrix (8 paths, 0 disclosures), 6 of 17 touchpoints; baseline report 4 Nov 2026. RAGAS/faithfulness, answer status, OCR accuracy need GCP |
-| P8 | Integration, UI, demo hardening | 🟡 | Slice 1 done: sandbox + assist API (TP10, TP11, TP15 over HTTP, drafts only, audit, leakage sweep 0); next: Vite + React + TS screens (ADR-0012) |
+| P8 | Integration, UI, demo hardening | 🟡 | Slices 1–2 done: sandbox + assist API, and Vite + React + TS screens (sign-in, file list, file inner page with C2-24 Assist, advance search) — TP8, TP10, TP11, TP15 usable in the browser; remaining core touchpoints next (ADR-0012) |
 | P9 | Buffer, dry-run, stretch | ⬜ | |
 
 ## 2. Milestones
@@ -204,6 +204,10 @@ Legend: ✅ done · 🟡 in progress · ⬜ not started · ⛔ blocked
 
 | 4 Nov 2026 | Sandbox API committed and pushed as `92ae228` (Mac: 1138 passed, curl checks OK). Owner refinement: status lookup states supersession by a visible order without claiming the current version; 1138 → 1139 tests | Next: P8 slice 2, the React screens |
 
+| 4 Nov 2026 | Status fix committed as `7726b23`. P8 slice 2: sandbox screens (Vite + React + TS) — sign-in, file list, file page with C2-24 Assist (pre-send, reference, Insert as Yellow Note), search; checked in a real browser; garbled Telugu subject line fixed; 1139 → 1140 backend tests, 8 frontend tests | Next: TP8 "file so far" and the other core touchpoints |
+
+| 4 Nov 2026 | TP8 "file so far" (deterministic note chain, gaps named, sources) in API, eval (TP08 PASS, 7 touchpoints) and the Assist panel; HTTP sweep found and the fix closed a file-classification gap on assist calls; 1140 → 1149 backend tests, 9 frontend tests | Next: TP9 link file |
+
 ## 8a. Gap report (CLAUDE.md §14), 22 Oct 2026
 
 | Phase / milestone | Status | Evidence |
@@ -224,6 +228,29 @@ Runtime facts: Python 3.13.9 (uv, `backend/.venv`), Node 24.5, uv 0.9.28, Docker
 ## 9. Task ledger
 
 Format per CLAUDE.md §12. Status: `NOT_STARTED` · `IN_PROGRESS` · `BLOCKED` · `DONE`. Newest first.
+
+### 2026-11-04 · P8 / M9 · Touchpoint 8 "file so far" + file-level clearance on every assist call
+- **Status:** DONE
+- **Plan section:** §11.5 touchpoint 8, §11.1 ("same access as e-Office, plus classification"), §5.4, §10.1
+- **Files changed:** new `backend/app/noting/chain.py` (`parse_notes`, `file_so_far`: note number, paragraphs, signer, post, date, the note's own words, source; gaps named; last direction), `backend/app/agents/routes.py` (`POST /assist/file-so-far`; `open_file` = connector reach AND C2-24 check on the file's classification for presend, file-so-far and draft), `backend/app/agents/runtime.py` (`held_by_file`), new `backend/tests/unit/test_file_so_far.py`, `backend/tests/unit/test_sandbox_api.py` (TP08, clearance regression, sweep covers file-so-far), `evaluation/harness/suites.py` (TP08 scenario; expected gaps read from the answer key), new `evaluation/reports/2026-11-04-file-so-far.{md,json}`, `frontend/eoffice/src/{types,api}.ts`, `src/components/{AssistPanel,FilePageView}.tsx`, `src/styles.css`, `src/render.test.tsx`, `PROGRESS.md`, `docs/LEARNINGS.md`
+- **Tests/commands run:** backend: ruff ✅ · mypy strict (103 files) ✅ · `pytest -q` → 1149 passed ✅ · `run_eval.py --label file-so-far --compare …telugu-headers.json` → exit 0. Frontend: `tsc` ✅ · Vitest 9 passed ✅ · build ✅. Browser: U05 opens the Vigilance file → File so far shows Notes #1–#3 with sources, Note #3 marked last direction, "1 more document … waiting for text review"; no mention of the SECRET report; no console errors
+- **Acceptance evidence:** eval stack (scans transcribed): TP08 PASS — sources D21 + D22, gap "Notes #4–#5" named and not filled, last direction Note #8 "Approved. Issue charge memo."; touchpoints passed 6 → 7; all other metrics unchanged; leakage 0 / 1142. App (no OCR): Notes #1–#3 and a count of the one held scan the officer may see
+- **Security finding fixed (found by the HTTP sweep):** assist calls on a file checked only e-Office reach, so an officer who could reach a file but was not cleared for its classification got a 200 with the file number (U01 on the CONFIDENTIAL D20 file; U04/U05 on the SECRET report's file). Every assist call on a file now also runs C2-24's access check on the file's classification and location; unknown, out of reach and not cleared give the identical 404. Regression test on all three endpoints. The pre-send check had the same gap (200 "no note to check" instead of 404) — fixed by the same change
+- **Note for the owner:** as on the file page, "file so far" quotes an authorised note's own words, which can include another file's number (D20 cites the Vigilance file); the sweep checks what the assistant itself names
+- **Blocker / decision needed:** none
+- **Exact next action:** TP9 "link file" — precedent files within scope as read-only references (API + Assist panel), then TP2/TP3
+
+### 2026-11-04 · P8 / M9 · Sandbox screens (slice 2): Vite + React + TypeScript
+- **Status:** DONE
+- **Plan section:** §11.1, §11.2, §11.5 (touchpoints 10, 11, 15; Insert as Yellow Note), Figure 4; ADR-0012
+- **Files changed:** new `frontend/eoffice/` (`package.json` with exact versions + `package-lock.json`, `tsconfig.json`, `vite.config.ts` with API proxy, `index.html`, `src/{main,App}.tsx`, `src/{api,types,presend}.ts`, `src/styles.css`, `src/components/{Banner,SignIn,TopBar,FileList,FilePageView,AssistPanel,SearchPage}.tsx`, tests `src/{api.test.ts,render.test.tsx}`), `frontend/README.md`, `Makefile` (`fe-install`, `fe-dev`, `fe-check`), `backend/app/ingestion/metadata.py` (subject leaves out lines with lost glyphs), `backend/tests/unit/test_telugu_metadata.py`, `PROGRESS.md`, `docs/LEARNINGS.md`
+- **New dependencies (owner-approved stack, ADR-0012):** react 18.3.1, react-dom 18.3.1; dev: vite 5.4.11, @vitejs/plugin-react 4.3.4, typescript 5.6.3, vitest 2.1.8, @types/react 18.3.12, @types/react-dom 18.3.1 — exact pins, lock file committed
+- **Tests/commands run:** frontend (Node 22 in the Linux container): `tsc --noEmit` ✅ · `vitest run` → 8 passed ✅ · `vite build` ✅ (156 kB JS, 4.5 kB CSS). Backend: ruff ✅ · mypy strict (101 files) ✅ · `pytest -q` → 1140 passed ✅ · eval `--no-write --compare …telugu-headers.json` → identical metrics. Browser run (Playwright against `uvicorn` + `vite`): sign in as U01 → open file 2894562 → Pre-send check shows A, E, F (uncertain), C (uncertain) with sources and the mock-rules / uncalibrated caveats → Insert as Yellow Note creates a draft shown in the noting panel → reference "G.O.Ms.No.88/2022" → superseded by G.O.Ms.31/2025, current version not claimed → advance search returns file numbers → sign in as U03 → only the three Works files; no console errors
+- **Acceptance evidence:** banner on every screen (render test); the Assist panel shows "uncertain" badges, caveats and "Drafts only. Nothing is saved, signed or sent without the officer."; the Yellow Note body is the flags as numbered points with their sources (deterministic, no model text); "Send" runs only the pre-send check; unbuilt toolbar items are disabled with a tooltip
+- **Fix found by looking at the screens:** G.O.Ms.31/2025's subject showed garbled Telugu (pypdf loses glyphs from that PDF's font, leaving NUL characters). Subjects now leave out lines with lost glyphs; regression test added; metrics unchanged
+- **Security / temporal / citation implications:** the screens hold no data of their own and add no access logic; everything comes from the API, which enforces scope. Sign-in remains simulated and sandbox-only
+- **Blocker / decision needed:** none
+- **Exact next action:** remaining core touchpoints in the sandbox, one per slice, each with an API test and a screen: TP8 "file so far" → TP9 link file → TP2/TP3 receipt inbox / put in a file → TP4 received letters → TP13 senior brief → TP6/TP7/TP14 (need Gemini for drafting; build the deterministic parts first)
 
 ### 2026-11-04 · P5 / P8 · Status lookup states visible supersession (owner refinement)
 - **Status:** DONE

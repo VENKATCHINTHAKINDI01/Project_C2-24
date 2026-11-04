@@ -5,6 +5,7 @@ Facts, conventions and gotchas discovered while building. Read every session. Ad
 Format: `- YYYY-MM-DD · fact / rule · (source or plan §)`
 
 ## Commands
+- 2026-11-04 · Sandbox screens: `make run` (API :8080) + `make fe-install` once + `make fe-dev` (http://localhost:5173, proxies /sandbox and /assist); `make fe-check` = typecheck + Vitest + build. Container: Node at `/opt/node22/bin`; Playwright via `NODE_PATH=/opt/node-tools/node_modules`
 - 2026-11-04 · Sandbox API: `make run` then e.g. `curl -s -H 'X-Sandbox-User: U01' localhost:8080/sandbox/files` or `curl -s -X POST -H 'X-Sandbox-User: U01' -H 'Content-Type: application/json' -d '{"computer_no":"2894562"}' localhost:8080/assist/presend`. The first assist call builds the runtime (~2 s ingestion)
 - 2026-11-04 · `make eval` (from repo root) runs the evaluation harness → `evaluation/reports/<date>-baseline.{md,json}`; exits 1 on any disclosure. Without uv: from `backend/`, `python ../evaluation/run_eval.py` (`--no-write` prints only). Lint/format now cover `../evaluation` with `--config pyproject.toml`
 - 2026-11-03 · `pypdf` is now a core dependency: run `make setup` (uv sync) on the Mac before `make check`. Lock regenerated with uv 0.9.28 (same as the Mac) — a newer uv rewrites unrelated lock lines
@@ -16,6 +17,7 @@ Format: `- YYYY-MM-DD · fact / rule · (source or plan §)`
 <!-- exact commands to run tests, lint, eval harness, local services -->
 
 ## Conventions
+- 2026-11-04 · Every assist endpoint that takes a Computer No. goes through `open_file` in `agents/routes.py`: connector reach AND `check()` on the file's classification/location; never call `connector.file_context` alone
 - 2026-11-04 · Status answers: facts the officer's records establish (superseded / repealed by a visible order, expired) may be stated without full coverage; "in force" and "current version" need `covers_status_domain` (STATUS_UNCONFIRMED / CURRENT_UNCONFIRMED otherwise). Keep `test_outcome_is_identical_with_or_without_a_hidden_successor` green
 - 2026-11-04 · Telugu reference markers go through `resolver.TELUGU_MARKERS` (fixed table, longest first); add new markers there with a test — never translate free text. "శాఖ" means a department is named, so an unmapped Telugu department leaves the reference unresolved
 - 2026-11-04 · Action windows: `windows_from_text(cid, text)` → `ActionWindow(source=cid#para-2.i, action, start, end, evidence)`; ingestion keeps them in `stores.windows`; pass `windows=` to `presend_check`. Only in-force, visible orders count; inside any window → no flag
@@ -78,6 +80,9 @@ Format: `- YYYY-MM-DD · fact / rule · (source or plan §)`
 - 2026-10-10 · Real G.O.s cite earlier orders in a "Read the following" list; supersession usually refers to list positions ("reference 2nd read above"), so resolve the list first
 
 ## Gotchas
+- 2026-11-04 · Never `pkill -f vite` (or any word in your own command) in the container shell: it matches the shell running the command and kills it. Stop servers by PID
+- 2026-11-04 · `renderToString` inserts `<!-- -->` between adjacent JSX text nodes; strip them before asserting on text
+- 2026-11-04 · pypdf can return NUL characters for glyphs without a Unicode map (G.O.Ms.31/2025's Telugu abstract line); metadata drops such lines from subjects
 - 2026-11-04 · FastAPI route modules that define dependencies inside a factory must NOT use `from __future__ import annotations`: `Annotated[X, Depends(local_fn)]` becomes a string FastAPI can't resolve, and the parameter silently turns into a query field (422)
 - 2026-11-04 · `TestClient.app_state` is Starlette's own attribute — don't assign to it in tests
 - 2026-11-04 · L1 subject filters match terms in the subject's own language: a Telugu-only subject (D16) is invisible to English terms. Cross-language needs bilingual abstracts or multilingual embeddings (GCP)

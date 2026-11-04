@@ -7,10 +7,12 @@ from __future__ import annotations
 import datetime as dt
 
 from app.identifiers.resolver import resolve_reference
+from app.ingestion.detect import detect_file
+from app.ingestion.extract import extract_native
 from app.ingestion.metadata import DocType, RelKind, extract_metadata
 from app.ingestion.pipeline import IngestionStores, IngestStatus
 from tests.unit.mock_access import CORPUS
-from tests.unit.test_ingestion_pipeline import DEPTS, _ingest, _src
+from tests.unit.test_ingestion_pipeline import DEPTS, IDX, _ingest, _src
 
 D16 = (CORPUS / "ground_truth" / "text" / "D16.txt").read_text("utf-8")
 
@@ -57,3 +59,13 @@ def test_d16_is_indexed_once_its_text_is_confirmed() -> None:
     )
     assert res.status is IngestStatus.INDEXED
     assert res.canonical_id == "AP-USD01-RC-USD01WRKS0-22-2025-D20250602"
+
+
+def test_unreadable_lines_are_left_out_of_a_subject() -> None:
+    """G.O.Ms.31/2025's PDF loses Telugu glyphs (NUL characters) in its bilingual abstract."""
+    path = CORPUS / IDX["D04"]["file"]
+    text = extract_native(path.read_bytes(), detect_file(path)).native_text
+    assert "\x00" in text  # the extraction really is damaged
+    subject = extract_metadata(text, DEPTS).subject or ""
+    assert subject.startswith("Public Services") and subject.endswith("Orders – Issued.")
+    assert "\x00" not in subject

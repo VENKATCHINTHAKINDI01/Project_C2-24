@@ -21,6 +21,7 @@ from app.agents.intents import IntentSlots
 from app.agents.runtime import AssistRuntime
 from app.agents.tools import ToolName, ToolResult, call_tool
 from app.audit.log import AuditLog
+from app.auth.models import DocumentAccessTags
 from app.auth.policy import check
 from app.conflict.presend import PreSendReport, presend_check
 from app.connectors.eoffice import (
@@ -28,9 +29,11 @@ from app.connectors.eoffice import (
     DraftKind,
     DraftRequest,
     EOfficeConnector,
+    FileContext,
     OfficerContext,
 )
 from app.ingestion.metadata import extract_metadata
+from app.noting.chain import file_so_far
 from app.retrieval.references import LookupStatus, lookup_reference
 
 NOT_SIGNED_IN = "Not signed in."
@@ -54,6 +57,10 @@ class ReferenceIn(_In):
 class PresendIn(_In):
     computer_no: str = Field(pattern=r"^\d{4,12}$")
     text: str | None = Field(default=None, max_length=20000)  # the officer's draft, if edited
+
+
+class FileIn(_In):
+    computer_no: str = Field(pattern=r"^\d{4,12}$")
 
 
 class DraftIn(_In):
@@ -107,6 +114,28 @@ def build_assist_router(
             audit.record(o.request_id, o.ctx.user_id, action, "error", detail="not configured")
             raise HTTPException(status_code=503, detail=NOT_CONFIGURED)
         return got
+
+    def open_file(o: Officer, run: AssistRuntime, computer_no: str, action: str) -> FileContext:
+        """e-Office reach (connector) AND C2-24's own check on the file's classification and
+        location (plan §11.1 'same access as e-Office, plus classification'). Unknown, out of
+        reach and not cleared all give the same 404."""
+        try:
+            fctx = connector.file_context(computer_no, o.ctx.user_id)
+        except ConnectorError:
+            fctx = None
+        if fctx is not None:
+            tags = DocumentAccessTags(
+                doc_id=f"file:{fctx.file_no}",
+                department=fctx.department,
+                section=fctx.dealing_section,
+                classification=fctx.classification,
+                file_no=fctx.file_no,
+            )
+            store = run.store_for(o.ctx)
+            if check(o.ctx.user_id, tags, store, run.policy, run.classification).allowed:
+                return fctx
+        audit.record(o.request_id, o.ctx.user_id, action, "not_available")
+        raise HTTPException(status_code=404, detail=NOT_AVAILABLE)
 
     def docs_out(run: AssistRuntime, res: ToolResult) -> list[DocOut]:
         out = []
@@ -195,11 +224,7 @@ def build_assist_router(
     def presend(body: PresendIn, o: Annotated[Officer, Depends(officer)]) -> dict[str, Any]:
         """Touchpoint 11 — the pre-send check on the note about to be sent."""
         run = rt(o, "assist.presend")
-        try:
-            fctx = connector.file_context(body.computer_no, o.ctx.user_id)
-        except ConnectorError:
-            audit.record(o.request_id, o.ctx.user_id, "assist.presend", "not_available")
-            raise HTTPException(status_code=404, detail=NOT_AVAILABLE) from None
+        fctx = open_file(o, run, body.computer_no, "assist.presend")
         store = run.store_for(o.ctx)
 
         def visible(cid: str) -> bool:
@@ -249,9 +274,72 @@ def build_assist_router(
         )
         return {"request_id": o.request_id, **_report(rep), **meta(run)}
 
+    @r.post("/file-so-far")
+    def so_far(body: FileIn, o: Annotated[Officer, Depends(officer)]) -> dict[str, Any]:
+        """Touchpoint 8 — the note chain by post, the last direction, and what is missing."""
+        run = rt(o, "assist.file_so_far")
+        fctx = open_file(o, run, body.computer_no, "assist.file_so_far")
+        store = run.store_for(o.ctx)
+
+        def allowed(t: DocumentAccessTags) -> bool:
+            return check(o.ctx.user_id, t, store, run.policy, run.classification).allowed
+
+        docs = [
+            (cid, run.texts.get(cid, ""))
+            for cid, _ in run.stores.files.get(fctx.file_no, [])
+            if (d := run.doc(cid)) is not None
+            and d.doc_type.startswith("Noting")
+            and (t := run.tags(cid)) is not None
+            and allowed(t)
+        ]
+        fs = file_so_far(docs)
+        pending = sum(allowed(t) for t in run.held_by_file.get(fctx.file_no, []))
+        audit.record(
+            o.request_id,
+            o.ctx.user_id,
+            "assist.file_so_far",
+            "ok" if fs.notes else "no_answer",
+            ids=(body.computer_no, *fs.sources),
+        )
+        return {
+            "request_id": o.request_id,
+            "computer_no": body.computer_no,
+            "file_no": fctx.file_no,
+            "notes": [
+                {
+                    "note_no": n.note_no,
+                    "paragraphs": list(n.paragraphs) if n.paragraphs else None,
+                    "post": n.post,
+                    "signed_at": n.signed_at.isoformat() if n.signed_at else None,
+                    "text": n.text,
+                    "source": n.source,
+                }
+                for n in fs.notes
+            ],
+            "chain": list(fs.chain),
+            "last_direction": fs.last_direction.note_no if fs.last_direction else None,
+            "gaps": [list(g) for g in fs.gaps],
+            "gap_message": (
+                "Not available in the records available to you: "
+                + ", ".join(f"Note #{a}" if a == b else f"Notes #{a}–#{b}" for a, b in fs.gaps)
+                + ". Nothing is inferred for them."
+                if fs.gaps
+                else None
+            ),
+            "pending_documents": pending,
+            "pending_message": (
+                f"{pending} more document(s) in this file are scanned and waiting for text "
+                "review; their notes are not shown yet."
+                if pending
+                else None
+            ),
+            **meta(run),
+        }
+
     @r.post("/draft")
     def draft(body: DraftIn, o: Annotated[Officer, Depends(officer)]) -> dict[str, Any]:
         """Insert as Yellow Note / Create DFA draft / Suggest reference — a DRAFT, on click."""
+        open_file(o, rt(o, "draft.create"), body.computer_no, "draft.create")
         try:
             receipt = connector.create_draft(
                 DraftRequest(

@@ -18,6 +18,7 @@ from app.conflict.procedural import AuthorityRules, load_authority_rules
 from app.graph.repository import Direction
 from app.identifiers.canonical import InvalidCanonicalIdError, lookup_keys
 from app.ingestion.metadata import extract_metadata
+from app.noting.chain import file_so_far
 from app.retrieval.evidence import CandidateSpan, build_package
 from app.retrieval.ladder import LadderRequest, LadderResult, ladder_label, run_ladder
 from app.retrieval.references import LookupStatus, lookup_reference
@@ -34,6 +35,10 @@ NOT_YET = "needs grounded Gemini judgment (GCP) — not implemented yet"
 
 def _load(name: str) -> Any:
     return json.loads((GT / name).read_text("utf-8"))
+
+
+def _load_seed() -> Any:
+    return json.loads((CORPUS / "eoffice" / "seed.json").read_text("utf-8"))
 
 
 @dataclass
@@ -411,6 +416,40 @@ class Harness:
 
     # ---- suite 4 · touchpoint scenarios -----------------------------------------------------
 
+    def _file_so_far(self, sc: dict[str, Any]) -> dict[str, Any]:
+        """TP08: note chain from the file's note documents the officer may see."""
+        user, exp = sc["user"], sc["expected"]
+        cno = sc["context"]["computer_no"]
+        file_no = next(
+            (f["file_no"] for f in _load_seed()["files"] if f["computer_no"] == cno), None
+        )
+        docs = [
+            (cid, self.s.text_of.get(cid, ""))
+            for cid, _ in self.s.stores.files.get(file_no or "", [])
+            if self.visible(user, cid)
+            and (d := next((x for x in self.s.documents() if x.canonical_id == cid), None))
+            and d.doc_type.startswith("Noting")
+        ]
+        fs = file_so_far(docs)
+        # gaps the answer key says must be named ("Notes #4–#5 are not available")
+        want_gaps = tuple(
+            (int(a), int(b or a))
+            for a, b in re.findall(
+                r"Notes? #(\d+)(?:[–-]#(\d+))? (?:is|are) not available", exp["answer_key"]
+            )
+        )
+        got = {self.s.doc_of.get(c, c) for c in fs.sources}
+        want, forbid = set(exp["docs"]), set(exp["forbidden_docs"])
+        return {
+            "run": True,
+            "pass": want <= got and not forbid & got and fs.gaps == want_gaps,
+            "expected_gaps": [list(g) for g in want_gaps],
+            "expected_docs": sorted(want),
+            "sources": sorted(got),
+            "gaps": [list(g) for g in fs.gaps],
+            "last_direction": fs.last_direction.note_no if fs.last_direction else None,
+        }
+
     def touchpoints(self, retrieval: dict[str, Any], conflict: dict[str, Any]) -> dict[str, Any]:
         q_rows = {r["id"]: r for r in retrieval["questions"]}
         c_rows = {r["draft"]: r for r in conflict["runs"]}
@@ -450,6 +489,8 @@ class Harness:
                     "expected_level": exp.get("ladder_level"),
                     "files_checked": False,
                 }
+            elif sc["touchpoint"] == 8:
+                row |= self._file_so_far(sc)
             elif sid == "TP20":
                 pairs = [qid for group in exp["pairs"] for qid in group]
                 rows_ = [q_rows[q] for q in pairs]

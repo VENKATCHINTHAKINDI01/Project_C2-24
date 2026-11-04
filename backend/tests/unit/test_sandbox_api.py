@@ -170,6 +170,43 @@ def test_tp11_presend_through_http(client: TestClient) -> None:
     assert not c[0]["certain"] and "not verified as complete" in c[0]["explanation"]
 
 
+@pytest.mark.parametrize(
+    ("uid", "cno"), [("U01", "2633187"), ("U04", "2671408"), ("U05", "2671408")]
+)
+def test_assist_needs_clearance_for_the_file_not_just_e_office_reach(
+    client: TestClient, uid: str, cno: str
+) -> None:
+    """Regression (found by the sweep, 4 Nov 2026): e-Office reach without clearance for the
+    file's classification must look exactly like an unknown file on every assist endpoint."""
+    for path, extra in (
+        ("/assist/file-so-far", {}),
+        ("/assist/presend", {}),
+        ("/assist/draft", {"kind": "yellow_note", "body": "x", "request_id": "r"}),
+    ):
+        hidden = client.post(path, json={"computer_no": cno, **extra}, headers=_h(uid))
+        unknown = client.post(path, json={"computer_no": "9999999", **extra}, headers=_h(uid))
+        assert (hidden.status_code, hidden.json()) == (404, {"detail": "File not available."}), path
+        assert (unknown.status_code, unknown.json()) == (hidden.status_code, hidden.json())
+
+
+def test_tp08_file_so_far(client: TestClient) -> None:
+    r = client.post("/assist/file-so-far", json={"computer_no": "2601155"}, headers=_h("U05"))
+    body = r.json()
+    assert [n["note_no"] for n in body["notes"]] == [1, 2, 3]  # D21; D22 is a scan, held
+    assert body["chain"][-1] == "Secretary to Government" and body["last_direction"] == 3
+    assert body["pending_documents"] == 1 and "waiting for text review" in body["pending_message"]
+    assert "D23" not in _named_docs(body)  # the SECRET V&E report is never mentioned
+    assert (
+        client.post(
+            "/assist/file-so-far", json={"computer_no": "2601155"}, headers=_h("U04")
+        ).status_code
+        == 200
+    )  # assigned
+    hidden = client.post("/assist/file-so-far", json={"computer_no": "2601155"}, headers=_h("U01"))
+    unknown = client.post("/assist/file-so-far", json={"computer_no": "9999999"}, headers=_h("U01"))
+    assert (hidden.status_code, hidden.json()) == (unknown.status_code, unknown.json())
+
+
 def test_drafts_only_and_audited_without_text(client: TestClient) -> None:
     body = "1. Draft: the request may be kept pending until the next general transfers."
     r = client.post(
@@ -233,6 +270,11 @@ def test_zero_disclosures_through_the_api(client: TestClient) -> None:
         for cno in COMPUTER_NOS:
             r = client.post("/assist/presend", json={"computer_no": cno}, headers=_h(uid))
             check(uid, f"presend {cno}", r.json())
+            r = client.post("/assist/file-so-far", json={"computer_no": cno}, headers=_h(uid))
+            fsf = r.json()
+            for n in fsf.get("notes", []):  # the authorised note's own words, as on the file page
+                n.pop("text", None)
+            check(uid, f"file so far {cno}", fsf)
             p = client.get(f"/sandbox/files/{cno}", headers=_h(uid)).json()
             # Note text is the authorised document itself, shown as written (it may quote a file
             # number the officer cannot open — e.g. D20 cites the Vigilance file). Check what the

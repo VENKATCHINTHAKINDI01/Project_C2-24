@@ -162,7 +162,10 @@ def _subject(text: str) -> str | None:
         )
     if not m:
         return None
-    return re.sub(r"\s+", " ", m.group("s")).strip() or None
+    # A line with NUL characters lost glyphs in extraction (a font without a Unicode map, e.g.
+    # the Telugu line of a bilingual abstract): leave it out of the subject, never show it garbled.
+    lines = [ln for ln in m.group("s").splitlines() if "\x00" not in ln]
+    return re.sub(r"\s+", " ", " ".join(lines)).strip() or None
 
 
 _DATED_TYPES = frozenset(

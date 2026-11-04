@@ -45,6 +45,7 @@ class AssistRuntime:
     as_of: dt.date
     indexed: int
     held: int  # documents waiting in the review queue (e.g. scans with no OCR yet)
+    held_by_file: dict[str, list[DocumentAccessTags]]  # e-File → access tags of held documents
 
     @classmethod
     def build(
@@ -63,6 +64,7 @@ class AssistRuntime:
         departments = load_departments(ontology_dir / "departments.yaml")
         texts: dict[str, str] = {}
         indexed = held = 0
+        held_by_file: dict[str, list[DocumentAccessTags]] = {}
         for a in artefacts:
             src = SourceDocument(
                 source_uri=a.source_uri,
@@ -91,6 +93,8 @@ class AssistRuntime:
                 ).native_text
             elif res.status is IngestStatus.HELD:
                 held += 1
+                if a.file_no:
+                    held_by_file.setdefault(a.file_no, []).append(src.tags)
         docs: list[IndexedDocument] = list(stores.index._docs)  # noqa: SLF001 — reference store
         return cls(
             stores=stores,
@@ -106,6 +110,7 @@ class AssistRuntime:
             as_of=as_of,
             indexed=indexed,
             held=held,
+            held_by_file=held_by_file,
         )
 
     def store_for(self, ctx: OfficerContext) -> InMemoryAuthzStore:
