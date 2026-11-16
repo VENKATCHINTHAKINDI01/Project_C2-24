@@ -1,0 +1,25 @@
+{
+  "file_no": "GAD01-SCF0ACB/164/2020-SC.F",
+  "computer_no": "4419526",
+  "subject": "Appointment of the Chief Legal Advisor in the Anti-Corruption Bureau — period of appointment – Reg.",
+  "department_code": "GAD01",
+  "section": "SC-F",
+  "section_label": "General Administration (SC.F) Department",
+  "classification": "CONFIDENTIAL",
+  "status": "decided",
+  "opened": "2020-06-05",
+  "scenario": "GAD01-G-HG3",
+  "touchpoints": [
+    1,
+    2,
+    10,
+    11,
+    13,
+    20
+  ],
+  "origin": "synthetic",
+  "banner": "Synthetic — not a real government file",
+  "cites": [
+    "AP-GAD01-GOMS-34-2020"
+  ]
+}

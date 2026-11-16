@@ -1,0 +1,1 @@
+{"prompt": "conflict_contradiction.v2", "model": "gemini-3.5-flash", "response": {"verdict": "consistent", "quote_a": "", "quote_b": "", "explanation": "The two documents address different subjects: Document A concerns age concessions for Scheduled Castes and Scheduled Tribes, while Document B concerns the counting of deputation periods for seniority."}}

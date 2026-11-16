@@ -1,0 +1,33 @@
+{
+  "file_no": "ESE01-SERV20TRF/59/2024-SER.II",
+  "computer_no": "3688031",
+  "subject": "School Education - Vijayawada Municipal Corporation Educational Subordinate Service Rules, 2016 for the posts of all categories of teachers working in the Vijayawada  Municipal Corporation Schools under the control of Vijayawada Municipal Corporation in Andhra Pradesh -  Entrustment of supervision and Administrative responsibilities of the Municipal Schools to the School Education Department - Further – Reg.",
+  "department_code": "ESE01",
+  "section": "SERVICES-II",
+  "section_label": "School Education (Services.II) Department",
+  "classification": "UNCLASSIFIED",
+  "status": "decided",
+  "opened": "2024-08-19",
+  "scenario": "ESE01-E-110",
+  "touchpoints": [
+    10,
+    11,
+    15
+  ],
+  "origin": "synthetic",
+  "banner": "Synthetic — not a real government file",
+  "cites": [
+    "AP-ESE02-RC-ESE0213-162-2023-D20231129"
+  ],
+  "consultations": [
+    {
+      "with": "GADSER",
+      "uo_no": "GAD01-SERA0SER/549/2024-SER.A",
+      "department": "General Administration (Ser.A)",
+      "sent": "2024-08-24",
+      "returned": "2024-09-04",
+      "conditional": false,
+      "correspondence": "R-002.md"
+    }
+  ]
+}

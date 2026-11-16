@@ -1,0 +1,24 @@
+{
+  "file_no": "GAD01-SERA0SER/196/2023-SER.A",
+  "computer_no": "4672934",
+  "subject": "Counting of deputation period for seniority – Reg.",
+  "department_code": "GAD01",
+  "section": "SER-A",
+  "section_label": "General Administration (Ser.A) Department",
+  "classification": "RESTRICTED",
+  "status": "decided",
+  "opened": "2023-06-26",
+  "scenario": "GAD01-B-HB1",
+  "touchpoints": [
+    1,
+    2,
+    10,
+    11,
+    13
+  ],
+  "origin": "synthetic",
+  "banner": "Synthetic — not a real government file",
+  "cites": [
+    "AP-GAD01-GOMS-95-2021"
+  ]
+}

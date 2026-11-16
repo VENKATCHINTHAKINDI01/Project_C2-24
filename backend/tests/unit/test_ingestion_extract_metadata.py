@@ -170,3 +170,39 @@ def test_corrupt_docx_raises_extraction_error() -> None:
     bad = _docx("<w:p><w:r><w:t>unclosed")
     with pytest.raises(ExtractionError):
         extract_native(bad, detect(bad, "bad.docx"))
+
+
+# ---- OCR layout: number and "Dated:" on separate lines (real Document AI output, 11 Nov 2026) ----
+
+
+@pytest.mark.parametrize(
+    ("header", "expected"),
+    [
+        ("G.O.Ms.No.62\nDated: 14-06-2019", "AP-FIN01-GOMS-62-2019"),  # D01: number first
+        ("Dated: 28-06-2019\nG.O.Ms.No.71", "AP-FIN01-GOMS-71-2019"),  # D02: date first
+        ("G.O.Ms.No.19\n\nDated: 09-02-2018", "AP-FIN01-GOMS-19-2018"),  # blank line between
+    ],
+)
+def test_split_header_lines_are_rejoined_for_the_own_reference(header: str, expected: str) -> None:
+    head = "GOVERNMENT OF ANDHRA PRADESH\nFINANCE (HR.I-PLG. & POLICY) DEPARTMENT"
+    text = f"{head}\n{header}\nORDER:\n1. x."
+    meta = extract_metadata(text, DEPTS)
+    assert meta.canonical_id == expected
+
+
+def test_circular_memo_with_date_above_the_number() -> None:
+    text = (
+        "GOVERNMENT OF ANDHRA PRADESH\nURBAN SERVICES (WORKS) DEPARTMENT\nDated: 11-07-2023\n"
+        "Circular Memo No.USD01-WRKS0/9/2023\nSub: Works - Reg.\n1. x."
+    )
+    assert (
+        extract_metadata(text, DEPTS).canonical_id == "AP-USD01-CIRMEMO-USD01WRKS0-9-2023-D20230711"
+    )
+
+
+def test_a_date_far_from_the_number_is_not_joined() -> None:
+    text = (
+        "GOVERNMENT OF ANDHRA PRADESH\nFINANCE (HR.I) DEPARTMENT\nG.O.Ms.No.62\n"
+        "Read the following:\n1. something\nDated: 14-06-2019\nORDER:\n1. x."
+    )
+    assert extract_metadata(text, DEPTS).canonical_id is None  # never guessed (CLAUDE.md §5.6)

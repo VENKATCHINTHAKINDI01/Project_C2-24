@@ -57,6 +57,12 @@ class AgentState(BaseModel):
     answer_status: AnswerStatus | None = None  # answered | review_needed | no_answer
     hitl_flags: frozenset[HitlFlag] = frozenset()
     audit_ref: str | None = None
+    # conversation (plan §10.1) and runtime bookkeeping (plan §10.2, §10.4)
+    turn: int = Field(default=1, ge=1)
+    recalled: tuple[str, ...] = ()  # entities from earlier turns, re-checked this turn
+    cache_hit: bool = False
+    outcome: str | None = None  # answered | review_needed | no_answer | not_run | denied
+    result: dict[str, Any] | None = None  # the response shown to the officer
 
     @model_validator(mode="after")
     def _consistent(self) -> AgentState:

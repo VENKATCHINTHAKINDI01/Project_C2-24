@@ -12,8 +12,23 @@ from __future__ import annotations
 import hashlib
 import re
 from dataclasses import dataclass, field
+from typing import Any, Protocol
 
 from app.auth.models import Scope
+
+
+class AnswerCache(Protocol):
+    """In memory (reference, one instance) or Redis (Memorystore, shared; ADR-0035)."""
+
+    def get(self, canonical_query: str, scope: Scope | None) -> str | None: ...
+
+    def put(
+        self, canonical_query: str, scope: Scope | None, answer: str, cited_ids: frozenset[str]
+    ) -> None: ...
+
+    def invalidate_documents(self, canonical_ids: frozenset[str]) -> int: ...
+
+    def stats(self) -> dict[str, Any]: ...
 
 
 def normalise_query(canonical_query: str) -> str:
@@ -36,12 +51,18 @@ class InMemoryAnswerCache:
     """Reference cache; Memorystore implements the same methods later (cache only)."""
 
     _entries: dict[str, _Entry] = field(default_factory=dict)
+    hits: int = 0
+    misses: int = 0
 
     def get(self, canonical_query: str, scope: Scope | None) -> str | None:
         if scope is None:  # unverifiable scope → bypass
             return None
         entry = self._entries.get(answer_cache_key(canonical_query, scope))
-        return entry.answer if entry else None
+        if entry is None:
+            self.misses += 1
+            return None
+        self.hits += 1
+        return entry.answer
 
     def put(
         self, canonical_query: str, scope: Scope | None, answer: str, cited_ids: frozenset[str]
@@ -59,3 +80,12 @@ class InMemoryAnswerCache:
 
     def __len__(self) -> int:
         return len(self._entries)
+
+    def stats(self) -> dict[str, Any]:
+        return {
+            "backend": "memory (this instance only)",
+            "serving": True,
+            "hits": self.hits,
+            "misses": self.misses,
+            "answers": len(self._entries),
+        }

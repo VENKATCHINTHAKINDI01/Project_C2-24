@@ -1,0 +1,25 @@
+{
+  "file_no": "FIN01-BUDG0BRO/121/2021-BUDGET.I",
+  "computer_no": "3979009",
+  "subject": "BUDGET 2018-19 – Demands for Grants for expenditure during the financial year 2018-19 – Presented to the State Legislature – The Andhra Pradesh Appropriation Act, 2018 passed by the State Legislature – Communicated – Reg.",
+  "department_code": "FIN01",
+  "section": "BUDGET-I",
+  "section_label": "Finance (Budget.I) Department",
+  "classification": "CONFIDENTIAL",
+  "status": "decided",
+  "opened": "2021-10-24",
+  "scenario": "FIN01-E-056",
+  "touchpoints": [
+    5,
+    10,
+    11,
+    15,
+    20
+  ],
+  "origin": "synthetic",
+  "banner": "Synthetic — not a real government file",
+  "cites": [
+    "AP-FIN01-GOMS-68-1996"
+  ],
+  "received_by": "U.O. Note"
+}

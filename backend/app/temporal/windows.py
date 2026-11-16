@@ -14,6 +14,8 @@ import re
 
 from pydantic import BaseModel, ConfigDict, model_validator
 
+from app.ingestion.clauses import clauses
+
 
 class ActionWindow(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
@@ -46,8 +48,6 @@ _PATTERNS = {
         re.I,
     ),
 }
-_PARA = re.compile(r"^\s*(\d{1,2})\.\s+")
-_SUB = re.compile(r"^\s*\(([ivx]{1,5}|[a-z])\)\s+")
 
 
 def _date(raw: str) -> dt.date | None:
@@ -59,27 +59,10 @@ def _date(raw: str) -> dt.date | None:
     return None
 
 
-def _clauses(text: str) -> list[tuple[str, str]]:
-    """(locator, clause text) blocks: "2" for para 2, "2.i" for (i) under para 2. Lines that
-    start no new clause continue the previous one (PDF line wraps)."""
-    out: list[tuple[str, str]] = []
-    para = ""
-    for line in text.splitlines():
-        if m := _PARA.match(line):
-            para = m.group(1)
-            out.append((para, line))
-        elif (m := _SUB.match(line)) and para:
-            out.append((f"{para}.{m.group(1).lower()}", line))
-        elif out and line.strip():
-            loc, body = out[-1]
-            out[-1] = (loc, f"{body} {line.strip()}")
-    return out
-
-
 def windows_from_text(canonical_id: str, text: str) -> tuple[ActionWindow, ...]:
     """Every action window an order states, one per matching clause."""
     found: list[ActionWindow] = []
-    for loc, body in _clauses(text):
+    for loc, body in clauses(text):
         flat = re.sub(r"\s+", " ", body)
         for action, rx in _PATTERNS.items():
             for m in rx.finditer(flat):

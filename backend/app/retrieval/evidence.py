@@ -12,6 +12,7 @@ import datetime as dt
 import hashlib
 import json
 import logging
+import re
 from collections.abc import Iterable
 from enum import StrEnum
 
@@ -48,11 +49,32 @@ class CandidateSpan(_Frozen):
     status: str
     effective_from: dt.date | None = None
     effective_to: dt.date | None = None
+    issue_date: dt.date | None = None  # the record's own date (its header), when known
     ladder_level: str  # L0 | L1 | L2 | L3
     score: float | None = None
     text_quality: TextQuality = TextQuality.NATIVE
     incomplete: bool = False  # the passage was cut (page break, truncated span)
     tags: DocumentAccessTags
+
+
+_ADDRESSED_TO_AI = re.compile(
+    r"ignore (?:all |any )?(?:the )?(?:previous|prior|above|earlier) instructions"
+    # a role label opening a line or a sentence ("SYSTEM: …", "2. Assistant: …"); NOT a cadre
+    # name inside a line ("Senior Assistant: cadre 120")
+    r"|(?:^|[.!?]\s+|\d\.\s+|>\s*)(?:system|assistant|ai|chatbot|model)\s*:"
+    r"|</?\s*evidence"
+    r"|\byou are now\b|\badministrator mode\b|\bdeveloper mode\b"
+    r"|\b(?:instruction|note|message|notice) to the (?:assistant|ai|model|chatbot)\b"
+    r"|\bcite evidence\b|\bquote exactly\b"
+    r"|\bcall [a-z]+_[a-z_]+\b",
+    re.I | re.M,
+)
+
+
+def addressed_to_ai(text: str) -> bool:
+    """Text in a record that speaks to an AI system rather than to officers (plan §5.5). Such a
+    passage is still passed on as data, but nothing may be stated on its authority."""
+    return bool(_ADDRESSED_TO_AI.search(text))
 
 
 class EvidenceItem(_Frozen):
@@ -70,12 +92,14 @@ class EvidenceItem(_Frozen):
     status: str
     effective_from: dt.date | None
     effective_to: dt.date | None
+    issue_date: dt.date | None = None
     ladder_level: str
     score: float | None
     access_decision_ref: str
     text_quality: TextQuality
     incomplete: bool
     tags: DocumentAccessTags  # kept so the verifier can re-check at answer time
+    addressed_to_ai: bool = False  # the passage contains instructions aimed at an AI (§5.5)
 
 
 class EvidencePackage(_Frozen):
@@ -142,6 +166,7 @@ def build_package(
                 status=c.status,
                 effective_from=c.effective_from,
                 effective_to=c.effective_to,
+                issue_date=c.issue_date,
                 ladder_level=c.ladder_level,
                 score=c.score,
                 access_decision_ref=f"{request_id}:{c.tags.doc_id}:{decision.reason.value}:"
@@ -149,6 +174,7 @@ def build_package(
                 text_quality=c.text_quality,
                 incomplete=c.incomplete,
                 tags=c.tags,
+                addressed_to_ai=addressed_to_ai(c.span_text),
             ),
         )
     if dropped:  # IDs only; never the text of what was dropped
@@ -175,7 +201,9 @@ def render_for_prompt(package: EvidencePackage) -> str:
         text = i.span_text.replace("<", "‹").replace(">", "›")
         out.append(
             f'<evidence id="{i.evidence_id}" doc="{i.canonical_id}" clause="{i.clause_id or ""}" '
-            f'page="{i.page or ""}" status="{i.status}" level="{i.hierarchy_level}">'
+            f'page="{i.page or ""}" status="{i.status}" level="{i.hierarchy_level}"'
+            + (' contains-instructions-to-ai="true"' if i.addressed_to_ai else "")
+            + ">"
         )
         out.append(text)
         out.append("</evidence>")

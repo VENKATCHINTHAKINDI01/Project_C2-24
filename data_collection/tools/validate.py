@@ -61,8 +61,12 @@ def check_doc(meta_path: pathlib.Path, seen: dict) -> list[str]:
         h = sha256(orig)
         if m.get("sha256") and m["sha256"] != h:
             errs.append("sha256 mismatch (file changed after registration)")
+        rep = seen.setdefault("republishes", {})
+        rep[cid] = m.get("republishes_id")
         if h in seen["hashes"]:
-            errs.append(f"same bytes as {seen['hashes'][h]}")
+            other = seen["hashes"][h]
+            if not (rep.get(cid) == other or rep.get(other) == cid):   # a gazette republishing that G.O. is fine
+                errs.append(f"same bytes as {other}")
         seen["hashes"][h] = cid
     ocr = d / (m.get("files", {}).get("ocr") or "ocr.txt")
     if not ocr.exists() or len(ocr.read_text(errors="ignore").strip()) < 50:

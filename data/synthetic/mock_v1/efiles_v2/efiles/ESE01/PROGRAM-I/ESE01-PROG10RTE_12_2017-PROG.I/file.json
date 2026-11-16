@@ -1,0 +1,34 @@
+{
+  "file_no": "ESE01-PROG10RTE/12/2017-PROG.I",
+  "computer_no": "3315838",
+  "subject": "School Education Department – Mandal Parishad Upper Primary School, C. Bandapalle, Santhipuram (M), Chittoor District – Permission for Up-gradation of existing – Reg.",
+  "department_code": "ESE01",
+  "section": "PROGRAM-I",
+  "section_label": "School Education (Prog.I) Department",
+  "classification": "UNCLASSIFIED",
+  "status": "decided",
+  "opened": "2017-05-08",
+  "scenario": "ESE01-CLEAN-060",
+  "touchpoints": [
+    3,
+    6,
+    7,
+    14
+  ],
+  "origin": "synthetic",
+  "banner": "Synthetic — not a real government file",
+  "cites": [
+    "AP-ESE01-GOMS-20-2017"
+  ],
+  "consultations": [
+    {
+      "with": "FIN",
+      "uo_no": "FIN01-FMU0MISC/42/2017-FMU-SE-I",
+      "department": "Finance (FMU-SE-I)",
+      "sent": "2017-05-13",
+      "returned": "2017-05-15",
+      "conditional": false,
+      "correspondence": "R-002.md"
+    }
+  ]
+}

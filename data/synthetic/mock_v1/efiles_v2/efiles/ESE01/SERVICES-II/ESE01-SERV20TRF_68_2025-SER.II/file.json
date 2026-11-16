@@ -1,0 +1,25 @@
+{
+  "file_no": "ESE01-SERV20TRF/68/2025-SER.II",
+  "computer_no": "3759302",
+  "subject": "Compulsory transfer — Headmaster Gr.II with five years in the school – Reg.",
+  "department_code": "ESE01",
+  "section": "SERVICES-II",
+  "section_label": "School Education (Services.II) Department",
+  "classification": "RESTRICTED",
+  "status": "decided",
+  "opened": "2025-05-30",
+  "scenario": "ESE01-G-HG4",
+  "touchpoints": [
+    1,
+    2,
+    10,
+    11,
+    13,
+    19
+  ],
+  "origin": "synthetic",
+  "banner": "Synthetic — not a real government file",
+  "cites": [
+    "AP-ESE01-GOMS-22-2025"
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "file_no": "FIN01-HRPEN0PEN/139/2024-HR.III",
+  "computer_no": "4121551",
+  "subject": "Enhancement of APGLI premium above 8% without medical examination – Reg.",
+  "department_code": "FIN01",
+  "section": "HR-III",
+  "section_label": "Finance (HR.III-Pension & GPF) Department",
+  "classification": "UNCLASSIFIED",
+  "status": "decided",
+  "opened": "2024-06-30",
+  "scenario": "FIN01-G-HG3",
+  "touchpoints": [
+    1,
+    2,
+    3,
+    10,
+    11,
+    13
+  ],
+  "origin": "synthetic",
+  "banner": "Synthetic — not a real government file",
+  "cites": [
+    "AP-GAZ-GAZETTE-EI-3880-2024"
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "file_no": "FIN01-HRPEN0PEN/98/2017-HR.III",
+  "computer_no": "3796872",
+  "subject": "Arrears of Dearness Relief — claim – Reg.",
+  "department_code": "FIN01",
+  "section": "HR-III",
+  "section_label": "Finance (HR.III-Pension & GPF) Department",
+  "classification": "UNCLASSIFIED",
+  "status": "reopened",
+  "opened": "2017-11-26",
+  "scenario": "FIN01-F-047",
+  "touchpoints": [
+    2,
+    11,
+    13,
+    14,
+    17
+  ],
+  "origin": "synthetic",
+  "banner": "Synthetic — not a real government file",
+  "cites": [
+    "AP-FIN01-GOMS-17-2017"
+  ]
+}

@@ -31,7 +31,7 @@ An environment variable of the same name overrides `local.env`.
 | `tools/collect_ia.py`, `run_batches.sh` | Internet Archive mirror of GOIR (search API) |
 | `tools/collect_goir.py` | GOIR (goir.ap.gov.in) — official register; held check before download |
 | `tools/list_web.py`, `collect_web.py` | APUTF / CAG / Finance pages (listing, then guarded downloads) |
-| `tools/collect_gazette.py` | AP e-Gazette search (year filter), rules/Acts |
+| `tools/collect_gazette.py` | AP e-Gazette search (year filter), rules/Acts; `--batch` lists Rules/Acts for FIN/GAD/School Education 2016–2025 (dry run), `--download --limit N` saves them |
 | `tools/add_manual.py` | Register a PDF downloaded by hand |
 | `tools/extract_relations.py` | SUPERSEDES / AMENDS / REPEALS / CLARIFIES / REFERENCES candidates |
 | `tools/validate.py`, `audit_corpus.py` | Metadata, IDs, files, OCR quality, header date vs metadata |
@@ -39,6 +39,7 @@ An environment variable of the same name overrides `local.env`.
 | `tools/refilter.py`, `estimate_yield.py`, `find_holdback.py`, `check_coverage.py` | Filter, yield, demo holdback, coverage |
 | `tools/generate_efiles.py`, `seed_from_mock.py` | Synthetic e-files (output joins `data/synthetic/` later, ADR-0006) |
 | `tools/check_robots.py`, `inspect_form.py`, `test_archive.py` | Source checks before automating |
+| `tools/ocr_corpus.py` | Document AI OCR of scans / unreadable PDFs (run from backend/ with the gcp extra; dry run shows pages + cost; `--scans-too` adds scans that only have the archive's OCR) |
 
 ## Everyday commands (from the Project_1 root)
 

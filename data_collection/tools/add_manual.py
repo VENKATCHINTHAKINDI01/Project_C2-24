@@ -53,7 +53,11 @@ def main():
     ap.add_argument("--dry-run", action="store_true")
     a = ap.parse_args()
     scope = load_scope()
-    src = pathlib.Path(a.pdf)
+    src = pathlib.Path(a.pdf).expanduser()
+    if not src.is_file():
+        sys.exit(f"File not found: {src}\nSave the downloaded PDF there first (or give its real path).")
+    if a.url and (a.url.startswith("<") or "://" not in a.url):
+        sys.exit(f"--url must be the real page/PDF address you downloaded from, not {a.url!r}")
     text = pdf_text(src)
 
     hm = GO_REF.search(text)

@@ -1,9 +1,22 @@
-# Security classification order, CSMOP grading (ADR-0002, plan §5.1).
-# Mock values — [To confirm] the department's real levels. Higher rank = more restricted.
-version: "2026-10-02"
-status: draft
+# Security classification order (ADR-0002, ADR-0027; plan §5.1).
+# MOCK by owner decision (14 Nov 2026): grades from public sources, NOT the department's confirmed list.
+# Higher rank = more restricted.
+# Sources (read 14 Nov 2026):
+#   CSMOP  Central Secretariat Manual of Office Procedure: classified dak bears "a security grading –
+#          confidential, secret etc." (definitions); classified papers follow the Departmental Security
+#          Instructions of the Ministry of Home Affairs (para 56); confidential papers may be carried outside by an
+#          officer not below Section Officer, secret papers by one not below Under Secretary with written
+#          authority of a Joint Secretary-level officer (para 57)
+#   DSI    "Restricted" as the lowest grade is from the MHA Departmental Security Instructions as commonly cited;
+#          the instructions themselves are not public — treated as an assumption here
+# TOP SECRET (CSMOP) is deliberately NOT a level here: a paper with any marking that is not listed below is an
+# unknown classification and is outside every officer's scope (fail closed). Listing a grade that no officer may
+# hold would also stop every officer from confirming an order's current status (the strict status rule needs the
+# scope to cover the department up to the highest listed grade) — tried and reverted, 14 Nov 2026.
+version: "2026-11-14-mock"
+status: mock
 levels:
-  - {rank: 0, name: UNCLASSIFIED}
-  - {rank: 1, name: RESTRICTED}
-  - {rank: 2, name: CONFIDENTIAL}
-  - {rank: 3, name: SECRET}
+  - {rank: 0, name: UNCLASSIFIED, basis: "no grading"}
+  - {rank: 1, name: RESTRICTED, basis: "DSI (assumption)"}
+  - {rank: 2, name: CONFIDENTIAL, basis: CSMOP}
+  - {rank: 3, name: SECRET, basis: CSMOP}

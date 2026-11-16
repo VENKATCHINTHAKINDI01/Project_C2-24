@@ -33,6 +33,15 @@
     "TP15-a": {"intent": "precedent_lookup", "slots": {"text": "that 2023 drain case"}},
     "TP15-b": {"intent": "precedent_lookup", "slots": {"text": "that 2023 drain case"}}
   },
+  "reference_requests": {
+    "TP07": {"text": "the earlier proposal for a preliminary enquiry"},
+    "_note": "touchpoint 7: the officer's request, taken from the scenario trigger's wording (added 2026-11-05)"
+  },
+  "local_references": {
+    "TP10": {"text": "G.O.Ms.No.88/2022 para 2(v)"},
+    "_note": "touchpoint 10: the reference the officer adds, taken from the scenario trigger's wording (added 2026-11-05)"
+  },
+  "reference_config": {"min_terms": 2, "max_suggestions": 3, "_note": "same TEST values as backend/config/sandbox.yaml; not calibrated"},
   "presend": {
     "drafts": {"D27": "U01", "D28": "U03", "D29": "U01"},
     "clean_controls": {"D19": "U01", "D24": "U03", "D25": "U06"},

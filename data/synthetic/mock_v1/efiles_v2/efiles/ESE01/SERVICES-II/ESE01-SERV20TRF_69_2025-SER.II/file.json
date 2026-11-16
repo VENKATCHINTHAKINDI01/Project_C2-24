@@ -1,0 +1,24 @@
+{
+  "file_no": "ESE01-SERV20TRF/69/2025-SER.II",
+  "computer_no": "3767221",
+  "subject": "Issue of transfer orders to teachers after web counselling – Reg.",
+  "department_code": "ESE01",
+  "section": "SERVICES-II",
+  "section_label": "School Education (Services.II) Department",
+  "classification": "RESTRICTED",
+  "status": "open",
+  "opened": "2025-06-07",
+  "scenario": "ESE01-C-HC1",
+  "touchpoints": [
+    6,
+    10,
+    11,
+    13,
+    20
+  ],
+  "origin": "synthetic",
+  "banner": "Synthetic — not a real government file",
+  "cites": [
+    "AP-ESE01-GOMS-22-2025"
+  ]
+}

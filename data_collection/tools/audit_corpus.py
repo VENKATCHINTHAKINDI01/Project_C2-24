@@ -31,7 +31,7 @@ def main():
     sc = load_scope()
     lo, as_of = d(sc.get("from_date")), d(sc.get("as_of"))
     probs = collections.defaultdict(list)   # check -> [ids]
-    stats = collections.Counter(); ids = collections.Counter(); shas = collections.defaultdict(list)
+    stats = collections.Counter(); ids = collections.Counter(); shas = collections.defaultdict(list); republishes = {}
     per = collections.Counter(); notes = {}
     metas = sorted((ST / "rule-library").rglob("meta.json"))
     for mf in metas:
@@ -71,8 +71,15 @@ def main():
             b = pdf.read_bytes()
             if not b.startswith(b"%PDF"): probs["PDF not a PDF"].append(cid)
             if len(b) < 2000: probs["PDF tiny (<2 KB)"].append(cid)
-            h = hashlib.sha256(b).hexdigest(); shas[h].append(cid)
+            h = hashlib.sha256(b).hexdigest(); shas[h].append(cid); republishes[cid] = m.get("republishes_id")
             if m.get("sha256") and m["sha256"] != h: probs["sha256 mismatch"].append(cid)
+        # Known, recorded cases are counted, not re-reported (owner decisions, 12 Nov 2026)
+        if m.get("withheld"):
+            stats["withheld: confidential, order text not published"] += 1; continue
+        if m.get("document_missing"):
+            stats["document missing in source (empty PDF; get by hand)"] += 1; continue
+        if m.get("ocr_status") == "needs_documentai":
+            probs["waiting for Document AI OCR (text layer unusable)"].append(cid); continue
         # OCR
         ocr = folder / ((m.get("files") or {}).get("ocr") or "ocr.txt")
         if not ocr.exists(): probs["OCR text missing"].append(cid); continue
@@ -81,23 +88,31 @@ def main():
         if n < 300: probs["OCR text too short (<300 chars; scanned/empty?)"].append(cid)
         if n:
             letters = sum(ch.isalnum() for ch in t); noise = 1 - letters / max(1, len(re.sub(r"\s", "", t)))
-            if noise > 0.35: probs["OCR noisy (>35% symbols)"].append(cid)
             te = len(TELUGU.findall(t)) / n
+            if noise > 0.35 and te < 0.3: probs["OCR noisy (>35% symbols)"].append(cid)
             if te > 0.05: stats["orders with Telugu text"] += 1
             if "\f" in t: stats["orders with page breaks"] += 1
             num = str(m.get("number") or "")
             words = re.findall(r"[A-Za-z]{3,}", t[:6000])
             common_w = sum(w.lower() in COMMON for w in words)
-            if n >= 300 and common_w < 25:
+            if n >= 300 and te < 0.3 and common_w < 25 and not (len(words) >= 50 and common_w / len(words) >= 0.12):  # short docs
                 probs["OCR unreadable (few English words; needs Document AI re-OCR)"].append(cid)
             if num and not re.search(r"(?<!\d)0*" + re.escape(num.lstrip("0") or "0") + r"(?!\d)", t[:3000]):
-                probs["own G.O. number not found in first page of OCR"].append(cid)
+                if m.get("number_verified"):  # a person checked the printed PDF (OCR misread the number)
+                    stats["G.O. number checked on the PDF by a person (OCR misread)"] += 1
+                elif m.get("number_source") == "registry":  # owner-accepted 12 Nov 2026: listing number, not printed
+                    stats["G.O. number from registry listing (not printed on page 1; owner-accepted)"] += 1
+                else:
+                    probs["own G.O. number not found in first page of OCR"].append(cid)
         if m.get("read_list"): stats["orders with read_list"] += 1
         if m.get("instrument") == "G.O.(Ms)" and n:   # issue date printed on the order's own G.O. line vs metadata
             try:
                 import collect_web as CW
                 k, own = CW.own_line(t)
-                if k == "MS" and own:
+                if m.get("date_verification_status") == "verified":  # a person checked the date on the PDF
+                    stats["issue date verified on the PDF by a person"] += 1
+                elif k == "MS" and own and own.group(1).isdigit() and int(own.group(1)) == int(m.get("number") or -1):
+                    # only the order's OWN G.O. line (same number); a cited G.O. in the subject is not its header
                     dm = CW.own_date(t, own)
                     pdf_date = CW.iso(dm)
                     if pdf_date and pdf_date != str(m.get("date")):
@@ -117,7 +132,9 @@ def main():
     for cid, k in ids.items():
         if k > 1: probs["duplicate canonical_id"].append(cid)
     for h, l in shas.items():
-        if len(l) > 1: probs["same PDF under two IDs"].append(" = ".join(l))
+        if len(l) == 2 and (republishes.get(l[0]) == l[1] or republishes.get(l[1]) == l[0]):
+            stats["gazette PDF identical to the G.O. it republishes (linked)"] += 1
+        elif len(l) > 1: probs["same PDF under two IDs"].append(" = ".join(l))
     # relations
     rel = ST / "manifests" / "relations.jsonl"; known = set(ids)
     ef = ST / "manifests" / "efiles_index.json"   # synthetic e-file notes are valid relation sources

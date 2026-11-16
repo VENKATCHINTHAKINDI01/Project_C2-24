@@ -1,0 +1,174 @@
+# SYNTHETIC set v2 — hand-picked B / C / G scenarios (ADR-0020), read against the real orders on 13 Nov 2026.
+# `anchor` is a regex that must match the real order's own text: build_scenarios_v2.py copies the quote from there and
+# refuses the entry if the anchor is not found. `synthetic_doc` = a LABELLED SYNTHETIC lower instrument (district /
+# section circular, proceedings, memo) written for the scenario. It is never a G.O., and never claims to be real.
+# Types: G = a lower instrument contradicts a higher one (Rules > G.O. > circular); C = wrong authority / procedure;
+# B = two instruments of the same level contradict each other (both synthetic circulars citing the same real rule).
+departments:
+  ESE01:
+    - {id: G1, type: G, section: SERVICES-II, date: "2017-06-12", subject: "Request transfer of a School Assistant with one year of service in the present school",
+       rule: AP-ESE01-GOMS-32-2017, anchor: "minimum period of two years-service in a School",
+       synthetic_doc: {kind: Proceedings, issuer: "District Educational Officer, Krishna (SYNTHETIC)", number: "Rc.No.SYN-412/A1/2017", date: "2017-06-08",
+                       text: "Teachers who have completed one year of service in the present school are eligible to apply for transfer."},
+       reason: "The note admits the request under the DEO proceedings (one year of service); the Transfer Rules issued in G.O.Ms.No.32 (Rules, under the A.P. Education Act) require a minimum of two years. A lower instrument cannot relax the Rules."}
+    - {id: G2, type: G, section: SERVICES-II, date: "2017-06-14", subject: "Exemption from compulsory transfer — teacher with eight years in the school",
+       rule: AP-ESE01-GOMS-32-2017, anchor: "completed 8 Academic calendar years of service",
+       synthetic_doc: {kind: Circular, issuer: "Regional Joint Director of School Education, Kakinada (SYNTHETIC)", number: "Cir.No.SYN-27/2017", date: "2017-06-09",
+                       text: "Teachers shall be shifted compulsorily only after completing ten academic years in a school."},
+       reason: "The note keeps a teacher with eight academic years in the school by following the RJD circular (ten years); Rule 2(i)(a) of the Transfer Rules (G.O.Ms.No.32) makes eight years compulsory."}
+    - {id: G3, type: G, section: SERVICES-II, date: "2025-06-10", subject: "Compulsory transfer list — teachers with eight academic years",
+       rule: AP-ESE01-GOMS-22-2025, anchor: "completed eight \\(8\\) academic years of service in a particular school",
+       synthetic_doc: {kind: Proceedings, issuer: "District Educational Officer, Guntur (SYNTHETIC)", number: "Rc.No.SYN-88/B2/2025", date: "2025-06-02",
+                       text: "Only teachers who have completed ten academic years in the school shall be included in the compulsory list."},
+       reason: "The compulsory list follows DEO proceedings (ten years); the A.P. State Teachers (Regulation of Transfers) Rules, 2025 (G.O.Ms.No.22) fix eight years."}
+    - {id: G4, type: G, section: SERVICES-II, date: "2025-06-11", subject: "Compulsory transfer — Headmaster Gr.II with five years in the school",
+       rule: AP-ESE01-GOMS-22-2025, anchor: "Headmasters \\(Gr.II\\) who have completed five \\(5\\) academic years",
+       synthetic_doc: {kind: Circular, issuer: "District Educational Officer, Prakasam (SYNTHETIC)", number: "Cir.No.SYN-19/2025", date: "2025-06-03",
+                       text: "Headmasters Gr.II shall be shifted only after completing six academic years in the school."},
+       reason: "The note retains a Headmaster Gr.II with five years by following the DEO circular (six years); Rule 2(a) of the 2025 Rules fixes five years."}
+    - {id: C1, type: C, section: SERVICES-II, date: "2025-06-12", subject: "Issue of transfer orders to teachers after web counselling",
+       proposal: "the District Educational Officer may issue the transfer orders on the basis of the counselling lists, without waiting for the Committee",
+       rule: AP-ESE01-GOMS-22-2025, anchor: "Transfer orders shall be issued by the competent authority with the approval of the respective Committees",
+       reason: "The note proposes that the DEO issue the orders directly; under the 2025 Rules orders issue only with the approval of the respective Committee. Procedure not followed."}
+    - {id: C2, type: C, section: SERVICES-II, date: "2025-06-18", subject: "Transfer of a Headmaster Gr.II in a ZP High School",
+       proposal: "the District Educational Officer, as the transferring authority, may issue orders transferring the Headmaster Gr.II",
+       rule: AP-ESE01-GOMS-22-2025, anchor: "The Committee shall be the competent authority for transfer of all the Headmasters",
+       reason: "The note treats the DEO as the transferring authority; the 2025 Rules make the district Committee the competent authority for Headmasters (Gr.II) in ZP High Schools."}
+    - {id: C3, type: C, section: SERVICES-II, date: "2025-06-20", subject: "Transfer of a Headmaster Gr.II on request — orders by the Regional Joint Director",
+       proposal: "the transfer orders already issued by the Regional Joint Director may be ratified",
+       rule: AP-ESE01-GOMS-22-2025, anchor: "The Committee shall be the competent authority for transfer of all the Headmasters",
+       reason: "Orders already issued by the RJD are put up for ratification; for Headmasters (Gr.II) in ZP High Schools the competent authority is the Committee. Wrong authority."}
+    - {id: B1, type: B, section: SERVICES-II, date: "2020-11-06", subject: "Counting of the academic year for compulsory transfer",
+       rule: AP-ESE01-GOMS-54-2020, anchor: "more than half the Academic year would be considered as a complete full year",
+       synthetic_doc: {kind: Circular, issuer: "District Educational Officer, West Godavari (SYNTHETIC)", number: "Cir.No.SYN-41/2020", date: "2020-10-20",
+                       text: "Only completed academic years shall be counted; part of a year shall be ignored."},
+       synthetic_doc_2: {kind: Circular, issuer: "District Educational Officer, West Godavari (SYNTHETIC)", number: "Cir.No.SYN-44/2020", date: "2020-10-27",
+                       text: "More than half of an academic year shall be counted as a full year."},
+       reason: "Two circulars of the same office, a week apart, count the academic year differently; the note cites both. The 2020 Guidelines (G.O.Ms.No.54) count more than half a year as a full year."}
+    - {id: B2, type: B, section: EXAMS, date: "2023-02-14", subject: "Validity of the Teacher Eligibility Test certificate",
+       rule: AP-ESE01-GOMS-25-2018, anchor: "Teacher Eligibility Test",
+       synthetic_doc: {kind: Circular, issuer: "Director of Government Examinations (SYNTHETIC)", number: "Cir.No.SYN-7/2023", date: "2023-01-10",
+                       text: "A TET certificate is valid for seven years from the date of the result."},
+       synthetic_doc_2: {kind: Circular, issuer: "Director of Government Examinations (SYNTHETIC)", number: "Cir.No.SYN-11/2023", date: "2023-01-24",
+                       text: "A TET certificate is valid for life."},
+       reason: "Two circulars of the same authority give different validity for the same certificate; the note relies on the first without reconciling them. Review recommended."}
+    - {id: B3, type: B, section: PROGRAM-I, date: "2021-08-09", subject: "Admission age for Class I under the RTE Rules",
+       rule: AP-ESE01-GOMS-20-2011, anchor: "Right of Children to Free and Compulsory Education",
+       synthetic_doc: {kind: Circular, issuer: "Commissioner of School Education (SYNTHETIC)", number: "Cir.No.SYN-102/2021", date: "2021-06-14",
+                       text: "Children who complete five years by 1st June shall be admitted to Class I."},
+       synthetic_doc_2: {kind: Circular, issuer: "Commissioner of School Education (SYNTHETIC)", number: "Cir.No.SYN-131/2021", date: "2021-07-05",
+                       text: "Children who complete six years by 1st June shall be admitted to Class I."},
+       reason: "Two circulars of the same authority set different admission ages; the note follows the later one without noting the earlier. Review recommended."}
+  GAD01:
+    - {id: G1, type: G, section: SER-A, date: "2022-03-10", subject: "Age relaxation to SC/ST candidates in a direct recruitment",
+       rule: AP-GAD01-GOMS-95-2021, anchor: "This age concession in favour of Scheduled Castes / Scheduled Tribes will be in force upto 31.5.2026",
+       synthetic_doc: {kind: Memo, issuer: "Recruiting unit, Commissionerate (SYNTHETIC)", number: "Memo.No.SYN-206/Rect/2022", date: "2022-02-21",
+                       text: "The age concession to SC/ST candidates lapsed on 31.05.2021 and shall not be allowed."},
+       reason: "The note withdraws the SC/ST age concession following the memo; the State & Subordinate Service Rules as amended by G.O.Ms.No.95 (02-09-2021) keep it in force up to 31.5.2026."}
+    - {id: G2, type: G, section: SER-A, date: "2024-01-18", subject: "Upper age limit for SC/ST candidates — notification for recruitment",
+       rule: AP-GAD01-GOMS-95-2021, anchor: "This age concession in favour of Scheduled Castes / Scheduled Tribes will be in force upto 31.5.2026",
+       synthetic_doc: {kind: Circular, issuer: "Head of Department, recruitment wing (SYNTHETIC)", number: "Cir.No.SYN-3/2024", date: "2024-01-05",
+                       text: "No age concession shall be allowed to any category in recruitments notified in 2024."},
+       reason: "The draft notification follows the circular and omits the SC/ST concession, which Rule 12 (as amended, G.O.Ms.No.95) keeps until 31.5.2026."}
+    # 14 Nov 2026: was a vague "method of appointment" memo that named no post, so nothing could be compared. Now the
+    # rule's own clause for one post (Chief Legal Advisor: 3 years, terminable with 3 months' notice).
+    - {id: G3, type: G, section: SC-F, date: "2020-06-15", subject: "Appointment of the Chief Legal Advisor in the Anti-Corruption Bureau — period of appointment",
+       rule: AP-GAD01-GOMS-34-2020, anchor: "contract basis for a period of 3 years",
+       synthetic_doc: {kind: Memo, issuer: "Office of the Director General, ACB (SYNTHETIC)", number: "Memo.No.SYN-55/Adm/2020", date: "2020-05-28",
+                       text: "The Chief Legal Advisor may be appointed on contract basis for a period of five years."},
+       reason: "The note appoints the Chief Legal Advisor for five years under the memo; the A.P. Anti-Corruption Service Rules as amended (G.O.Ms.No.34, 15-04-2020) fix the appointment on tenure / contract basis at 3 years. Review against the Rules."}
+    - {id: C1, type: C, section: SER-A, date: "2017-09-05", subject: "Ratification of transfers of Deputy Collectors ordered by another department",
+       proposal: "the transfer orders of Deputy Collectors already issued by the Revenue Department may be ratified",
+       rule: AP-GAD01-GOMS-74-2017, anchor: "Transfers and Postings of Deputy Collectors and Special Grade Deputy Collectors",
+       reason: "Since G.O.Ms.No.74 (14-06-2017) the Business Rules allot 'Transfers and Postings of Deputy Collectors and Special Grade Deputy Collectors' to the General Administration Department; the note proposes to ratify orders another department issued."}
+    - {id: C2, type: C, section: SER-A, date: "2018-02-12", subject: "Postings of Special Grade Deputy Collectors — proposal from a district",
+       proposal: "the proposal may be returned to the Revenue Department, being the department concerned with postings of Special Grade Deputy Collectors",
+       rule: AP-GAD01-GOMS-74-2017, anchor: "Transfers and Postings of Deputy Collectors and Special Grade Deputy Collectors",
+       reason: "The note returns the proposal to the Revenue Department as the competent department; the subject was allotted to the General Administration Department by G.O.Ms.No.74 (14-06-2017)."}
+    - {id: C3, type: C, section: CABINET-II, date: "2017-10-16", subject: "Proposal on Rajiv Swagruha Corporation routed as a Housing Department subject",
+       proposal: "the proposal may be circulated as a subject of the Housing Department",
+       rule: AP-GAD01-GOMS-99-2017, anchor: "Under the heading .22 Municipal Administration & Urban Development Department.{0,80}shall be inserted",
+       reason: "The note circulates the proposal as a Housing Department subject; G.O.Ms.No.99 (04-08-2017) moved Rajiv Swagruha Corporation, the A.P. State Housing Board and DIL to MA&UD."}
+    - {id: C4, type: C, section: CABINET-II, date: "2018-01-08", subject: "A.P. State Housing Board — reference from the Housing Department for orders",
+       proposal: "the Housing Department may be treated as the administrative department for the A.P. State Housing Board",
+       rule: AP-GAD01-GOMS-99-2017, anchor: "the following subject shall be omitted",
+       reason: "The note accepts the Housing Department as the administrative department for the Housing Board; the subject was omitted from Housing and allotted to MA&UD (G.O.Ms.No.99, 04-08-2017)."}
+    - {id: C5, type: C, section: CABINET-II, date: "2017-03-28", subject: "Corporate bodies for tourism and culture — allocation query",
+       proposal: "the heritage corporation may be placed under the Municipal Administration & Urban Development Department",
+       rule: AP-GAD01-GOMS-32-2017, anchor: "All corporate bodies created in relation to Tourism, Culture and Heritage",
+       reason: "The note places a heritage corporation with another department; the First Schedule as substituted by G.O.Ms.No.32 (10-03-2017) lists all corporate bodies for Tourism, Culture and Heritage under Youth Advancement, Tourism and Culture."}
+    - {id: B1, type: B, section: SER-A, date: "2023-07-03", subject: "Counting of deputation period for seniority",
+       rule: AP-GAD01-GOMS-95-2021, anchor: "State & Subordinate Service Rules|State and Subordinate Service Rules",
+       synthetic_doc: {kind: Memo, issuer: "Services wing (SYNTHETIC)", number: "Memo.No.SYN-71/Ser/2023", date: "2023-05-15",
+                       text: "Deputation within the State shall count for seniority in the parent cadre."},
+       synthetic_doc_2: {kind: Memo, issuer: "Services wing (SYNTHETIC)", number: "Memo.No.SYN-84/Ser/2023", date: "2023-06-12",
+                       text: "Deputation shall not count for seniority in the parent cadre."},
+       reason: "Two memos of the same wing say opposite things on the same question; the note follows one of them. Review recommended."}
+    - {id: B2, type: B, section: CABINET-II, date: "2019-09-02", subject: "Circulation of a proposal to the Council of Ministers",
+       rule: AP-GAD01-GOMS-32-2017, anchor: "Business Rules",
+       synthetic_doc: {kind: Circular, issuer: "Cabinet wing (SYNTHETIC)", number: "Cir.No.SYN-12/Cab/2019", date: "2019-07-01",
+                       text: "Proposals shall reach the Cabinet wing seven days before the meeting."},
+       synthetic_doc_2: {kind: Circular, issuer: "Cabinet wing (SYNTHETIC)", number: "Cir.No.SYN-15/Cab/2019", date: "2019-08-05",
+                       text: "Proposals shall reach the Cabinet wing three days before the meeting."},
+       reason: "Two circulars of the same wing fix different lead times; the note applies the earlier one. Review recommended."}
+  FIN01:
+    # 13 Nov 2026 (owner OK): was G1 / type G. Gazette 3644 publishes a Finance circular memo, the same level as the
+    # synthetic instruction, so the conflict is same-level (B), not lower-against-higher (G).
+    - {id: B4, type: B, section: HR-III, date: "2024-03-11", subject: "Counting of contract service towards qualifying service for pension",
+       rule: AP-GAZ-GAZETTE-EI-3644-2024, anchor: "Service rendered casual/contract/part time/ hourly basis etc., is not a substantive appointment",
+       synthetic_doc: {kind: Instruction, issuer: "District Treasury Officer (SYNTHETIC)", number: "Lr.No.SYN-301/Pen/2024", date: "2024-02-20",
+                       text: "Contract service preceding regular appointment shall be counted in full for pension."},
+       reason: "The pension proposal counts contract service under the DTO's instruction; the Finance Department's circular memo (published in the Gazette, 05-01-2024) says casual / contract service is not substantive and is not counted. Two instruments of the same level say opposite things."}
+    - {id: G2, type: G, section: HR-III, date: "2024-06-17", subject: "Second voluntary enhancement of APGLI premium in a financial year",
+       rule: AP-GAZ-GAZETTE-EI-3880-2024, anchor: "avail it only once in a financial year",
+       synthetic_doc: {kind: Circular, issuer: "APGLI district office (SYNTHETIC)", number: "Cir.No.SYN-9/APGLI/2024", date: "2024-05-30",
+                       text: "Voluntary enhancement of premium may be allowed twice in a financial year."},
+       reason: "The note allows a second enhancement in the same financial year following the circular; the A.P. Government Life Insurance Fund Rules, 2024 allow it only once."}
+    - {id: G3, type: G, section: HR-III, date: "2024-07-08", subject: "Enhancement of APGLI premium above 8% without medical examination",
+       rule: AP-GAZ-GAZETTE-EI-3880-2024, anchor: "above 8% and up to 15% of basic pay, on self\\s*-\\s*declaration and compulsory medical examination",
+       synthetic_doc: {kind: Circular, issuer: "APGLI district office (SYNTHETIC)", number: "Cir.No.SYN-14/APGLI/2024", date: "2024-06-21",
+                       text: "Enhancement up to 15% of basic pay may be allowed on self-declaration."},
+       reason: "The note waives the medical examination following the circular; the APGLI Fund Rules, 2024 require it for premium above 8% and up to 15% of basic pay."}
+    # 14 Nov 2026: C1 / C2 rested on a rule G.O.Ms.110 does not state ("recruitment needs Finance permission").
+    # Now on what it does say: the permitted posts are under APPSC / SLPRB (para 2), and those agencies issue the
+    # notification (para 3).
+    - {id: C1, type: C, section: HR-I, date: "2016-09-12", subject: "Direct recruitment to the permitted vacancies — proposal for recruitment at department level",
+       proposal: "the permitted vacancies may be filled by the Head of the Department through recruitment at the department level",
+       rule: AP-FIN01-GOMS-110-2016, anchor: "posts come under the purview of A\\.P\\. Public Service Commission",
+       reason: "The note lets the Head of the Department fill the permitted vacancies; G.O.Ms.No.110 (17-06-2016) places them under the A.P. Public Service Commission and the State Level Police Recruitment Board. Wrong authority."}
+    - {id: C2, type: C, section: HR-I, date: "2016-11-21", subject: "Direct recruitment — notification issued by a department on its own",
+       proposal: "the recruitment notification already issued by the Head of the Department may be ratified",
+       rule: AP-FIN01-GOMS-110-2016, anchor: "agencies are hereby instructed to issue schedule for recruitment",
+       reason: "The note ratifies a notification the Head of the Department issued; under G.O.Ms.No.110 (17-06-2016) the recruiting agencies (APPSC, SLPRB) issue the schedule and the notification. Wrong authority."}
+    - {id: C3, type: C, section: BUDGET-I, date: "2016-05-16", subject: "Request for re-appropriation of funds in the first quarter",
+       proposal: "re-appropriation of funds may be sanctioned as requested",
+       rule: AP-FIN01-GOMS-51-2016, anchor: "no request for additional funds or re-appropriation will be entertained in the first two quarters",
+       reason: "The note recommends a re-appropriation in May 2016; G.O.Ms.No.51 (01-04-2016) says no request for additional funds or re-appropriation will be entertained in the first two quarters."}
+    - {id: C4, type: C, section: BUDGET-I, date: "2016-08-22", subject: "Additional funds requested in the second quarter",
+       proposal: "additional funds may be released as requested",
+       rule: AP-FIN01-GOMS-51-2016, anchor: "no request for additional funds or re-appropriation will be entertained in the first two quarters",
+       reason: "The note processes a request for additional funds in August 2016 (second quarter), against para 11 of G.O.Ms.No.51."}
+    - {id: B1, type: B, section: HR-III, date: "2023-09-11", subject: "Commutation of pension — date of effect",
+       # 13 Nov 2026 (owner OK): the rule was Gazette 3644 (05-01-2024), issued after this note; now the pension
+       # order in force on the note date
+       # G.O.Ms.105/2022 superseded only para 14 (funeral charges) of 2/2022, so the note reads the two together
+       rule: AP-FIN01-GOMS-2-2022, anchor: "Commuted value of Pension", also_cite: [AP-FIN01-GOMS-105-2022],
+       synthetic_doc: {kind: Memo, issuer: "Pension wing, Finance (SYNTHETIC)", number: "Memo.No.SYN-118/Pen/2023", date: "2023-07-10",
+                       text: "Commutation takes effect from the date the application is received."},
+       synthetic_doc_2: {kind: Memo, issuer: "Pension wing, Finance (SYNTHETIC)", number: "Memo.No.SYN-126/Pen/2023", date: "2023-08-07",
+                       text: "Commutation takes effect from the date of sanction."},
+       reason: "Two memos of the same wing fix different dates of effect; the note follows one without reconciling them. Review recommended."}
+    - {id: B2, type: B, section: HR-I, date: "2019-01-21", subject: "Engagement of outsourced staff — rate of remuneration",
+       rule: AP-FIN01-GOMS-110-2016, anchor: "direct recruitment",
+       synthetic_doc: {kind: Circular, issuer: "Planning wing, Finance (SYNTHETIC)", number: "Cir.No.SYN-4/Plg/2018", date: "2018-11-05",
+                       text: "Outsourced data entry operators shall be paid Rs.15,000 per month."},
+       synthetic_doc_2: {kind: Circular, issuer: "Planning wing, Finance (SYNTHETIC)", number: "Cir.No.SYN-6/Plg/2018", date: "2018-12-03",
+                       text: "Outsourced data entry operators shall be paid Rs.12,000 per month."},
+       reason: "Two circulars of the same wing fix different remuneration for the same post; the note relies on the later one without noting the earlier. Review recommended."}
+    - {id: B3, type: B, section: BUDGET-I, date: "2016-07-04", subject: "Expenditure before the Comprehensive Budget Release Order",
+       rule: AP-FIN01-GOMS-51-2016, anchor: "until the issue of CBRO by the Finance Department",
+       synthetic_doc: {kind: Circular, issuer: "Budget wing (SYNTHETIC)", number: "Cir.No.SYN-21/Bud/2016", date: "2016-05-09",
+                       text: "No expenditure shall be incurred until the CBRO is issued."},
+       synthetic_doc_2: {kind: Circular, issuer: "Budget wing (SYNTHETIC)", number: "Cir.No.SYN-25/Bud/2016", date: "2016-06-06",
+                       text: "Expenditure up to the authorised share may be incurred pending the CBRO."},
+       reason: "Two circulars of the same wing conflict on spending before the CBRO; para 8 of G.O.Ms.No.51 authorises a limited share pending the CBRO."}

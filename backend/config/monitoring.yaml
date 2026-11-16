@@ -1,0 +1,98 @@
+# Monitoring alerts (ADR-0036). MOCK values: what counts as unusual activity, and when it is
+# raised, is the department's decision. Until it decides, these are working values for the demo.
+# An alert is a prompt for a person to look, never a finding against an officer.
+version: "0.1-mock"
+status: "mock — thresholds and patterns to be set by the department"
+
+# Words in a question that read as instructions to the assistant rather than a question about
+# records (prompt-injection / jailbreak attempts). Case-insensitive regular expressions.
+instruction_like:
+  - '\bignore\b.{0,30}\b(instructions?|rules?|prompts?|restrictions?)\b'
+  - '\b(system|hidden|internal)\s+(prompt|instructions?)\b'
+  # not a plain "act as": "can the Joint Secretary act as the competent authority?" is a real question
+  - '\byou are now\b|\bpretend (to be|you are)\b'
+  - '\bact as (an? |the )?(admin\w*|system|developer|root|super ?user|unrestricted|unfiltered|dan)\b'
+  - '\b(jailbreak|developer mode|dan mode)\b'
+  # not "permission" or "check": "can the Secretary override the permission given?" is real work
+  - '\b(bypass|override|disable|switch off|get around)\b.{0,30}\b(access control|security|filters?|clearance|your scope|restrictions?|guard ?rails?)\b'
+  - '\b(reveal|show|print)\b.{0,20}\b(your|the)\s+(prompt|instructions|configuration|api key|password)s?\b'
+
+# Requests for everything at once, or for records by restriction rather than by subject.
+bulk_request:
+  - '\b(list|show|give|dump|export|download)\b.{0,15}\b(all|every|entire)\b.{0,25}\b(files?|orders?|notes?|records?|documents?)\b'
+  - '\b(all|every)\b.{0,15}\b(confidential|secret|classified|restricted|vigilance)\b'
+
+# A question that names none of these, names no order or file, and found nothing is counted as
+# outside what the assistant is for (e.g. sports, general knowledge). Lower case, word starts.
+domain_terms:
+  - order
+  - g.o
+  - go ms
+  - go rt
+  - goms
+  - gort
+  - memo
+  - circular
+  - notification
+  - rule
+  - note
+  - noting
+  - file
+  - transfer
+  - posting
+  - leave
+  - pension
+  - promotion
+  - seniority
+  - pay
+  - salary
+  - allowance
+  - recruit
+  - appointment
+  - deputation
+  - disciplinary
+  - suspension
+  - enquiry
+  - vigilance
+  - department
+  - government
+  - sanction
+  - approval
+  - approved
+  - rejected
+  - precedent
+  - decision
+  - decided
+  - supersed
+  - amend
+  - clause
+  - para
+  - section
+  - officer
+  - employee
+  - staff
+  - service
+  - budget
+  - fund
+  - grant
+  - tender
+  - procurement
+  - scheme
+  - guideline
+  - policy
+  - spouse
+  - medical
+  - retirement
+  - establishment
+  - dfa
+  - draft
+  - yellow
+  - green
+
+thresholds:
+  refusals_in_window: 5      # refused requests (hidden or unknown records, pages not theirs) ...
+  window_minutes: 30         # ... within this many minutes → possible probing (high)
+  questions_per_hour: 40     # more than this in any 60 minutes → unusual volume (medium)
+  off_topic_per_day: 3       # this many off-topic questions in a day → medium (fewer: low)
+  working_hours: [8, 20]     # local hours [start, end); activity outside → after hours (low)
+  utc_offset_minutes: 330    # IST

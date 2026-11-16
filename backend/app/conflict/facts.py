@@ -36,7 +36,17 @@ _ACTIONS = {
     Action.TRANSFER: re.compile(r"\btransfer", re.I),
     Action.WORKS_SANCTION: re.compile(r"administrative\s+sanction|\bworks?\b.*\bsanction", re.I),
     Action.OUTSOURCING: re.compile(r"outsourc|contract\s+(?:and|&)\s+outsourcing", re.I),
+    Action.RECRUITMENT: re.compile(r"\bdirect\s+recruitment\b", re.I),
+    Action.REAPPROPRIATION: re.compile(r"re-?appropriation|additional\s+funds", re.I),
 }
+# "3) It is proposed that …" up to the next numbered para (efiles_v2 note layout)
+_IT_IS_PROPOSED = re.compile(r"It\s+is\s+proposed\s+that\s+(.+?)(?=\s\d{1,2}[.)]\s|$)", re.I)
+_GRANTS = re.compile(
+    r"may\s+(?:kindly\s+)?be\s+(?:sanctioned|released|accorded|approved|allowed|permitted|agreed)",
+    re.I,
+)
+_REFUSES = re.compile(r"\b(?:not|rejected|declined|refused|returned|regretted)\b", re.I)
+_SET_ASIDE = re.compile(r"\b(?:without|not|except|other\s+than|instead\s+of)\b[^,.;]{0,40}$", re.I)
 _PROPOSAL = re.compile(
     r"may\s+(?:kindly\s+)?approve|may\s+be\s+permitted\s+to\s+accord|may\s+be\s+accorded\s+by"
     r"|may\s+(?:kindly\s+)?(?:accord|sanction|order)\b|orders?\s+may\s+be\s+(?:issued|passed)\s+by",
@@ -77,6 +87,18 @@ def _proposed_authority(sentence: str, rules: AuthorityRules) -> str | None:
     return before[-1][2] if before else None
 
 
+def _named_body(sentence: str, rules: AuthorityRules) -> str | None:
+    """The one known body a plain "It is proposed that …" sentence puts in charge. Bodies the
+    sentence sets aside ("without waiting for the Committee") do not count; none or several
+    different bodies → unknown (never guessed)."""
+    codes = {
+        code
+        for start, _, code in _mentions(sentence, rules)
+        if not _SET_ASIDE.search(sentence[:start])
+    }
+    return next(iter(codes)) if len(codes) == 1 else None
+
+
 def extract_proposal_facts(
     text: str, meta: DocumentMetadata, rules: AuthorityRules, proposal_id: str
 ) -> FactsResult:
@@ -86,6 +108,17 @@ def extract_proposal_facts(
     missing: list[str] = []
 
     actions = [a for a, rx in _ACTIONS.items() if rx.search(subject)]
+    if len(actions) != 1 and subject:
+        # a rule limited to named subjects (e.g. a Business Rules entry) says what the note is about
+        named = {
+            r.action
+            for r in rules.rules
+            if r.subject_terms
+            and r.names(subject)
+            and (not r.departments or meta.department in r.departments)
+        }
+        if len(named) == 1:
+            actions = list(named)
     if len(actions) != 1 or meta.issue_date is None or meta.department is None:
         missing.append("action" if len(actions) != 1 else "note identity/date/department")
         return FactsResult(facts=None, evidence={"subject": subject}, missing=tuple(missing))
@@ -103,6 +136,10 @@ def extract_proposal_facts(
     sentences = _sentences(text)
     proposals = [s for s in sentences if _PROPOSAL.search(s)]
     proposal = proposals[-1] if proposals else None
+    plain = None  # "It is proposed that …" with none of the approval verbs above
+    if proposal is None:
+        found = _IT_IS_PROPOSED.findall(re.sub(r"\s+", " ", text))
+        plain = found[-1].strip() if found else None
 
     amount = None
     if action is Action.WORKS_SANCTION:
@@ -116,10 +153,14 @@ def extract_proposal_facts(
             evidence["amount"] = evidence_src
 
     authority = _proposed_authority(proposal, rules) if proposal else None
+    if authority is None and plain:
+        authority = _named_body(plain, rules)
     if authority is None:
         missing.append("proposed_authority")
+    proposal = proposal or plain
     if proposal:
         evidence["proposed_authority"] = proposal
+    grants = bool(proposal and _GRANTS.search(proposal) and not _REFUSES.search(proposal))
 
     obtained: set[str] = set()
     for s in sentences:
@@ -139,6 +180,8 @@ def extract_proposal_facts(
         amount_rupees=amount,
         proposed_authority=authority,
         concurrences_obtained=frozenset(obtained),
+        grants=grants,
+        subject=subject,
         evidence=proposal or subject,
     )
     return FactsResult(facts=facts, evidence=evidence, missing=tuple(missing))

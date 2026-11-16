@@ -1,0 +1,76 @@
+[
+  {
+    "note": 1,
+    "from": "V15",
+    "name": "L. Bhargavi",
+    "designation": "Assistant Section Officer",
+    "at": "23/08/2024 10:12 AM",
+    "sent_to": "V16",
+    "remarks": "for approval"
+  },
+  {
+    "note": 2,
+    "from": "V16",
+    "name": "Ch. Venkata Ramana",
+    "designation": "Section Officer",
+    "at": "23/08/2024 10:51 AM",
+    "sent_to": "V19",
+    "remarks": "for approval"
+  },
+  {
+    "note": 3,
+    "from": "V19",
+    "name": "E. Sarada Devi",
+    "designation": "Assistant Secretary",
+    "at": "23/08/2024 03:13 PM",
+    "sent_to": "V20",
+    "remarks": "for approval"
+  },
+  {
+    "note": 4,
+    "from": "V20",
+    "name": "B. Suresh Kumar",
+    "designation": "Joint Secretary",
+    "at": "24/08/2024 10:04 AM",
+    "sent_to": "V15",
+    "remarks": "returned"
+  },
+  {
+    "note": null,
+    "from": "V15",
+    "name": "L. Bhargavi",
+    "designation": "Assistant Section Officer",
+    "at": "24/08/2024",
+    "sent_to": "GAD01/SER-A",
+    "external": true,
+    "returned": "04/09/2024",
+    "remarks": "referred to General Administration (Ser.A) Department for views (U.O.)"
+  },
+  {
+    "note": 5,
+    "from": "V15",
+    "name": "L. Bhargavi",
+    "designation": "Assistant Section Officer",
+    "at": "04/09/2024 02:26 PM",
+    "sent_to": "V16",
+    "remarks": "for approval"
+  },
+  {
+    "note": 6,
+    "from": "V16",
+    "name": "Ch. Venkata Ramana",
+    "designation": "Section Officer",
+    "at": "04/09/2024 04:53 PM",
+    "sent_to": "V20",
+    "remarks": "for approval"
+  },
+  {
+    "note": 7,
+    "from": "V20",
+    "name": "B. Suresh Kumar",
+    "designation": "Joint Secretary",
+    "at": "05/09/2024 10:20 AM",
+    "sent_to": null,
+    "remarks": "approved"
+  }
+]

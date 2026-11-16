@@ -8,17 +8,45 @@ Unknown and unavailable files give the same answer. Every response carries the m
 """
 
 from collections.abc import Callable
+from pathlib import Path
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel, ConfigDict, Field
 
+from app.auth.messages import FILE_NOT_AVAILABLE, RECEIPT_NOT_AVAILABLE
 from app.config import Classification
-from app.connectors.eoffice import ConnectorError, ReceiptContext
+from app.connectors.eoffice import ConnectorError, DraftOutcome, ReceiptContext
 from app.eoffice_mock.adapter import MockEOfficeAdapter
 from app.eoffice_mock.models import BANNER, EFile, SandboxProfile
 
 NOT_SIGNED_IN = "Not signed in."
-NOT_AVAILABLE = "File not available."
+NOT_AVAILABLE = FILE_NOT_AVAILABLE  # ADR-0016: same for unknown and hidden
+
+
+class OrderArrivesIn(BaseModel):
+    id: str  # canonical ID of a held-back order, as listed by GET /orders/pending
+
+
+class DraftSaveIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    text: str = Field(min_length=1, max_length=20000)
+
+
+DRAFT_NOT_AVAILABLE = "This draft isn't available."
+
+
+class CreateFileIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    subject: str = Field(min_length=10, max_length=500)
+    previous_references: list[str] = Field(default_factory=list, max_length=20)
+
+
+class CloseFileIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    remarks: str = Field(min_length=5, max_length=4000)
 
 
 def build_sandbox_router(
@@ -27,6 +55,7 @@ def build_sandbox_router(
     classification: Classification,
     identify: Callable[[Request], str | None],
     on_event: Callable[[], None] = lambda: None,
+    on_outcome: Callable[[DraftOutcome], None] = lambda _o: None,
 ) -> APIRouter:
     r = APIRouter(prefix="/sandbox", tags=["sandbox"])
     rank = {lv.name: lv.rank for lv in classification.levels}
@@ -112,9 +141,9 @@ def build_sandbox_router(
                 "status": d.status.value,
                 "text": d.versions[-1].text if d.versions else None,
                 "request_id": d.request_id,
+                "versions": len(d.versions),
             }
-            for d in adapter.drafts.values()
-            if d.computer_no == computer_no
+            for d in adapter.my_drafts(computer_no, p.user_id)  # the author's own, until confirmed
         ]
         return {
             "banner": BANNER,
@@ -131,6 +160,58 @@ def build_sandbox_router(
             ],
             "movements": [m.model_dump(mode="json") for m in adapter.movements(computer_no)],
         }
+
+    def own_draft_file(computer_no: str, p: SandboxProfile) -> None:
+        try:
+            f = adapter.open_file(computer_no, p.user_id)
+        except ConnectorError:
+            raise HTTPException(status_code=404, detail=NOT_AVAILABLE) from None
+        if not cleared(p, f):
+            raise HTTPException(status_code=404, detail=NOT_AVAILABLE)
+
+    @r.post("/files/{computer_no}/drafts/{draft_id}/save")
+    def save_draft(
+        computer_no: str,
+        draft_id: str,
+        body: DraftSaveIn,
+        p: Annotated[SandboxProfile, Depends(me)],
+    ) -> dict[str, Any]:
+        """The officer edits their own draft (Yellow Note / DFA): a new version, earlier kept."""
+        own_draft_file(computer_no, p)
+        try:
+            d = adapter.save_draft(computer_no, draft_id, p.user_id, body.text)
+        except ConnectorError:
+            raise HTTPException(status_code=404, detail=DRAFT_NOT_AVAILABLE) from None
+        return {"banner": BANNER, "draft_id": d.draft_id, "versions": len(d.versions)}
+
+    @r.post("/files/{computer_no}/drafts/{draft_id}/confirm")
+    def confirm_draft(
+        computer_no: str, draft_id: str, p: Annotated[SandboxProfile, Depends(me)]
+    ) -> dict[str, Any]:
+        """The officer confirms their Yellow Note → the next Green Note (simulated signature, no
+        DSC/eSign). This is the officer's e-Office action; the assistant has no such endpoint."""
+        own_draft_file(computer_no, p)
+        try:
+            out = adapter.confirm_yellow_note(computer_no, draft_id, p.user_id)
+        except ConnectorError:
+            raise HTTPException(status_code=404, detail=DRAFT_NOT_AVAILABLE) from None
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from None
+        on_outcome(out)  # composition root: recorded as feedback (ADR-0031)
+        return {"banner": BANNER, "draft_id": draft_id, "note_id": out.note_id, "state": "green"}
+
+    @r.post("/files/{computer_no}/drafts/{draft_id}/discard")
+    def discard_draft(
+        computer_no: str, draft_id: str, p: Annotated[SandboxProfile, Depends(me)]
+    ) -> dict[str, Any]:
+        """The officer throws their draft away (kept as discarded, never shown again)."""
+        own_draft_file(computer_no, p)
+        try:
+            out = adapter.discard_draft(computer_no, draft_id, p.user_id)
+        except ConnectorError:
+            raise HTTPException(status_code=404, detail=DRAFT_NOT_AVAILABLE) from None
+        on_outcome(out)
+        return {"banner": BANNER, "draft_id": draft_id, "status": "discarded"}
 
     def receipt_row(rc: ReceiptContext) -> dict[str, Any]:
         return {
@@ -160,7 +241,7 @@ def build_sandbox_router(
         try:
             rc = adapter.receipt_context(computer_no, p.user_id)
         except ConnectorError:
-            raise HTTPException(status_code=404, detail="Receipt not available.") from None
+            raise HTTPException(status_code=404, detail=RECEIPT_NOT_AVAILABLE) from None
         return {"banner": BANNER, "receipt": receipt_row(rc)}
 
     @r.post("/receipts/{computer_no}/arrive")
@@ -171,8 +252,66 @@ def build_sandbox_router(
         try:
             ev = adapter.letter_arrives(computer_no, p.user_id)
         except ConnectorError:
-            raise HTTPException(status_code=404, detail="Receipt not available.") from None
+            raise HTTPException(status_code=404, detail=RECEIPT_NOT_AVAILABLE) from None
         on_event()  # composition root: the core picks up the event (ingestion → reconciliation)
         return {"banner": BANNER, "event_id": ev.event_id, "kind": ev.kind.value}
+
+    @r.get("/orders/pending")
+    def orders_pending(p: Annotated[SandboxProfile, Depends(me)]) -> dict[str, Any]:
+        """Sandbox replay: orders held back for the demo that have not arrived yet (public orders;
+        only their IDs are shown)."""
+        return {
+            "banner": BANNER,
+            "orders": [
+                {"id": Path(u).parent.name, "source_uri": u} for u in adapter.pending_orders()
+            ],
+        }
+
+    @r.post("/files")
+    def create_file(
+        body: CreateFileIn, p: Annotated[SandboxProfile, Depends(me)]
+    ) -> dict[str, Any]:
+        """Simulated e-Office "Create File" (touchpoint 5): the officer opens a file in their own
+        section with the previous references THEY chose (the assistant only suggests)."""
+        try:
+            f = adapter.create_file(p.user_id, body.subject, body.previous_references)
+        except ValueError:
+            raise HTTPException(
+                status_code=422, detail="You hold no section to open a file in."
+            ) from None
+        return {
+            "banner": BANNER,
+            "file": {**file_row(f), "previous_references": f.previous_references},
+        }
+
+    @r.post("/files/{computer_no}/close")
+    def close_file(
+        computer_no: str, body: CloseFileIn, p: Annotated[SandboxProfile, Depends(me)]
+    ) -> dict[str, Any]:
+        """Simulated e-Office "Close File" (touchpoint 16): the officer holding the file closes it
+        with closing remarks they wrote or accepted; the decided file then goes to ingestion."""
+        try:
+            f = adapter.open_file(computer_no, p.user_id)
+            if not cleared(p, f):
+                raise ConnectorError("file not available")
+            closed = adapter.close_file(computer_no, p.user_id, body.remarks)
+        except ConnectorError:
+            raise HTTPException(status_code=404, detail=NOT_AVAILABLE) from None
+        on_event()
+        return {"banner": BANNER, "file": file_row(closed)}
+
+    @r.post("/orders/arrive")
+    def order_arrives(
+        body: OrderArrivesIn, p: Annotated[SandboxProfile, Depends(me)]
+    ) -> dict[str, Any]:
+        """Sandbox replay: a newly issued order arrives and is handed to ingestion; reconciliation
+        then lists the open files that rely on the order it changes (touchpoint 4)."""
+        uri = next((u for u in adapter.pending_orders() if Path(u).parent.name == body.id), None)
+        try:
+            ev = adapter.order_arrives(uri or "")
+        except ConnectorError:
+            raise HTTPException(status_code=404, detail="No such order is waiting.") from None
+        on_event()
+        return {"banner": BANNER, "event_id": ev.event_id, "kind": ev.kind.value, "id": body.id}
 
     return r

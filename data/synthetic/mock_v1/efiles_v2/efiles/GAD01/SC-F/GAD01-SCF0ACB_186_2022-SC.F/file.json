@@ -1,0 +1,24 @@
+{
+  "file_no": "GAD01-SCF0ACB/186/2022-SC.F",
+  "computer_no": "4593744",
+  "subject": "Public Services – Andhra Pradesh Anti-Corruption Service Rules – Reg.",
+  "department_code": "GAD01",
+  "section": "SC-F",
+  "section_label": "General Administration (SC.F) Department",
+  "classification": "CONFIDENTIAL",
+  "status": "open",
+  "opened": "2022-06-16",
+  "scenario": "GAD01-F-012",
+  "touchpoints": [
+    3,
+    6,
+    10,
+    11,
+    20
+  ],
+  "origin": "synthetic",
+  "banner": "Synthetic — not a real government file",
+  "cites": [
+    "AP-GAD01-GOMS-34-2020"
+  ]
+}

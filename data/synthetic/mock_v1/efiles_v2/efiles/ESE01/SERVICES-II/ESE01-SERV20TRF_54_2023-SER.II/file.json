@@ -1,0 +1,23 @@
+{
+  "file_no": "ESE01-SERV20TRF/54/2023-SER.II",
+  "computer_no": "3648436",
+  "subject": "SE- Ensuring of subject teachers in the high schools and required number of teachers in Foundational schools, Foundational School Plus – The Andhra Pradesh Teac – Reg.",
+  "department_code": "ESE01",
+  "section": "SERVICES-II",
+  "section_label": "School Education (Services.II) Department",
+  "classification": "UNCLASSIFIED",
+  "status": "open",
+  "opened": "2023-11-18",
+  "scenario": "ESE01-A-106",
+  "touchpoints": [
+    5,
+    6,
+    10,
+    11
+  ],
+  "origin": "synthetic",
+  "banner": "Synthetic — not a real government file",
+  "cites": [
+    "AP-ESE01-GOMS-190-2022"
+  ]
+}

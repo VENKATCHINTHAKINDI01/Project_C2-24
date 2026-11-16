@@ -1,0 +1,24 @@
+{
+  "file_no": "GAD01-SERA0SER/153/2018-SER.A",
+  "computer_no": "4332417",
+  "subject": "PUBLIC SERVICES – State and Subordinate Services – Prescription of minimum service for promotion/appointment by recruitment by transfer to next higher class, ca – Reg.",
+  "department_code": "GAD01",
+  "section": "SER-A",
+  "section_label": "General Administration (Ser.A) Department",
+  "classification": "RESTRICTED",
+  "status": "open",
+  "opened": "2018-03-25",
+  "scenario": "GAD01-CLEAN-029",
+  "touchpoints": [
+    6,
+    8,
+    10,
+    13
+  ],
+  "origin": "synthetic",
+  "banner": "Synthetic — not a real government file",
+  "cites": [
+    "AP-GAD01-GOMS-175-2017",
+    "AP-GAD01-GOMS-230-2014"
+  ]
+}

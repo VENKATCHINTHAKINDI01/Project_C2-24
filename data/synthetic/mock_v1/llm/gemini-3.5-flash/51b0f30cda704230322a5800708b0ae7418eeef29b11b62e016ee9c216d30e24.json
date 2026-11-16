@@ -1,0 +1,1 @@
+{"prompt": "conflict_contradiction.v2", "model": "gemini-3.5-flash", "response": {"verdict": "insufficient", "quote_a": "", "quote_b": "", "explanation": "The two documents discuss entirely different subjects: Document A regulates funeral charges for deceased pensioners, while Document B addresses the effective date of pension commutation."}}

@@ -1,0 +1,23 @@
+{
+  "file_no": "FIN01-HRPLG0REC/114/2019-HR.I",
+  "computer_no": "3923576",
+  "subject": "Andhra Pradesh Public Service Commission – Holding Screening Test, Multi Session and Multiple Question Paper Screening Test in recruitment Tests – Permission – Reg.",
+  "department_code": "FIN01",
+  "section": "HR-I",
+  "section_label": "Finance (HR.I-Plg. & Policy) Department",
+  "classification": "UNCLASSIFIED",
+  "status": "open",
+  "opened": "2019-12-02",
+  "scenario": "FIN01-F-033",
+  "touchpoints": [
+    6,
+    10,
+    11,
+    18
+  ],
+  "origin": "synthetic",
+  "banner": "Synthetic — not a real government file",
+  "cites": [
+    "AP-FIN01-GOMS-150-2016"
+  ]
+}

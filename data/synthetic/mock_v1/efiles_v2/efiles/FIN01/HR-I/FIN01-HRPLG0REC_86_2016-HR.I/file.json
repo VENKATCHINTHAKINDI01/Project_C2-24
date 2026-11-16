@@ -1,0 +1,24 @@
+{
+  "file_no": "FIN01-HRPLG0REC/86/2016-HR.I",
+  "computer_no": "3701844",
+  "subject": "PUBLIC SERVICES – Recruitments – Filling of vacant posts through Direct Recruitment – Permission to the Recruiting Agencies – Reg.",
+  "department_code": "FIN01",
+  "section": "HR-I",
+  "section_label": "Finance (HR.I-Plg. & Policy) Department",
+  "classification": "UNCLASSIFIED",
+  "status": "decided",
+  "opened": "2016-06-23",
+  "scenario": "FIN01-CLEAN-013",
+  "touchpoints": [
+    6,
+    8,
+    10,
+    13
+  ],
+  "origin": "synthetic",
+  "banner": "Synthetic — not a real government file",
+  "cites": [
+    "AP-FIN01-GOMS-117-2016",
+    "AP-FIN01-GOMS-110-2016"
+  ]
+}

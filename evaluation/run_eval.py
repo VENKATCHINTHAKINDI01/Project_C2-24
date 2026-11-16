@@ -24,6 +24,7 @@ for p in (ROOT, ROOT / "backend"):
         sys.path.insert(0, str(p))
 
 from app.retrieval.ladder import LadderConfig  # noqa: E402
+from evaluation.harness.opposites import run_opposites  # noqa: E402
 from evaluation.harness.stack import build_stack  # noqa: E402
 from evaluation.harness.suites import Harness  # noqa: E402
 
@@ -31,22 +32,34 @@ SLOTS = ROOT / "evaluation" / "slots_v1.json"
 REPORTS = ROOT / "evaluation" / "reports"
 
 
-def run_all(slots_path: Path = SLOTS) -> dict[str, Any]:
+def run_all(
+    slots_path: Path = SLOTS, transcribe: bool = True, ocr_version: str | None = None
+) -> dict[str, Any]:
+    """`transcribe=False`: scanned pages stay held for review, as in the running app (no OCR).
+    `ocr_version`: scans are read from recorded Document AI output and confirmed by a simulated
+    reviewer (no hand transcriptions)."""
     slots = json.loads(slots_path.read_text("utf-8"))
     lc = slots["ladder_config"]
     cfg = LadderConfig(
         l2_top_k=lc["l2_top_k"], l2_min_score=lc["l2_min_score"], l3_max_hops=lc["l3_max_hops"]
     )
-    stack = build_stack(cfg)
+    stack = build_stack(cfg, transcribe=transcribe, ocr_version=ocr_version)
     h = Harness(stack, slots)
     retrieval = h.retrieval()
     conflict = h.conflict()
     leakage = h.leakage()
     touch = h.touchpoints(retrieval, conflict)
+    opposites = run_opposites()
     return {
         "meta": {
             "run_at": dt.datetime.now(dt.UTC).isoformat(timespec="seconds"),
             "corpus": "mock_v1 (SYNTHETIC)",
+            "ocr_stand_in": transcribe and not ocr_version,
+            "ocr": {
+                "mode": "documentai-recorded + simulated reviewer" if ocr_version else None,
+                "version": ocr_version,
+                "confirmed": list(stack.ocr_confirmed),
+            },
             "slots": slots["version"],
             "ladder_config": lc,
             "stack": {
@@ -62,6 +75,7 @@ def run_all(slots_path: Path = SLOTS) -> dict[str, Any]:
         "conflict": conflict,
         "leakage": leakage,
         "touchpoints": touch,
+        "opposites": opposites,
     }
 
 
@@ -82,10 +96,20 @@ def to_markdown(r: dict[str, Any]) -> str:
         f"# Evaluation report — {meta['run_at']}",
         "",
         "**SYNTHETIC mock corpus v1. Baseline on the reference stack, not on GCP.** "
-        "L2 is a keyword stand-in; thresholds are uncalibrated test values; scanned pages are "
-        "indexed from hand transcriptions standing in for Document AI + reviewer confirmation; "
-        f"type-C rules are `{meta['stack']['rules']}` (testing only).",
+        "L2 is a keyword stand-in; thresholds are uncalibrated test values; "
+        + (
+            f"**scanned pages are read by real Document AI OCR (`{meta['ocr']['version']}`, "
+            "recorded responses) and confirmed by a simulated reviewer without corrections**; "
+            if (meta.get("ocr") or {}).get("version")
+            else "scanned pages are indexed from hand transcriptions standing in for Document AI + "
+            "reviewer confirmation; "
+            if meta.get("ocr_stand_in", True)
+            else "**no OCR stand-in: scanned pages stay in review, as the app runs today**; "
+        )
+        + f"type-C rules are `{meta['stack']['rules']}` (testing only).",
         "",
+        f"- Indexed from OCR after review: "
+        f"{', '.join((meta.get('ocr') or {}).get('confirmed') or []) or 'none'}",
         f"- Indexed: {meta['stack']['indexed']} documents · from transcription: "
         f"{', '.join(meta['stack']['indexed_from_transcription']) or 'none'} · not indexed: "
         f"{', '.join(meta['stack']['not_indexed']) or 'none'}",
@@ -150,12 +174,14 @@ def to_markdown(r: dict[str, Any]) -> str:
             for t, v in con["per_type"].items()
         ],
         "",
-        "| Draft | User | Outcome | Expected | Flagged | Missed | False | Status unconfirmed |",
-        "|---|---|---|---|---|---|---|---|",
+        "| Draft | User | Outcome | Expected | Flagged | Missed | False | Uncertain "
+        "| Status unconfirmed |",
+        "|---|---|---|---|---|---|---|---|---|",
         *[
             f"| {x['draft']}{' (control)' if x['control'] else ''} | {x['user']} | {x['outcome']} "
             f"| {','.join(x['expected_types']) or '—'} | {','.join(x['flagged_types']) or '—'} "
             f"| {','.join(x['missed']) or '—'} | {','.join(x['false_flags']) or '—'} "
+            f"| {','.join(x.get('uncertain_flags', [])) or '—'} "
             f"| {','.join(x['status_unconfirmed']) or '—'} |"
             for x in con["runs"]
         ],
@@ -163,17 +189,42 @@ def to_markdown(r: dict[str, Any]) -> str:
         "## Touchpoint scenarios",
         "",
         f"{tp['summary']['run']} of {tp['summary']['scenarios']} run here, "
-        f"{tp['summary']['passed']} passed; the rest need the sandbox screen flow (P8).",
+        f"{tp['summary']['passed']} passed"
+        + (
+            "."
+            if tp["summary"]["run"] == tp["summary"]["scenarios"]
+            else "; the rest are not run yet (see each row)."
+        ),
         "",
         "| Scenario | Touchpoint | Result |",
         "|---|---|---|",
         *[
             f"| {x['id']} | {x['touchpoint']} | "
-            f"{('PASS' if x['pass'] else 'FAIL') if x['run'] else 'not run — ' + x['why']} |"
+            f"{('PASS' if x['pass'] else 'FAIL') if x['run'] else 'not run — ' + x['why']}"
+            f"{' — ' + x['note'] if x.get('note') else ''} |"
             for x in tp["scenarios"]
         ],
         "",
     ]
+    op = r.get("opposites")
+    if op:
+        lines += [
+            "## Opposite scenarios",
+            "",
+            f"{op['summary']['passed']} of {op['summary']['scenarios']} passed — "
+            f"{op['summary']['where']}; scenarios are {op['summary']['status']}. Each is the case "
+            "where the right output is the reverse of a touchpoint scenario (no access, nothing "
+            "to find, nothing wrong, an order in force).",
+            "",
+            "| Scenario | Mirrors | User | Call | Result |",
+            "|---|---|---|---|---|",
+            *[
+                f"| {x['id']} | {x['mirrors']} | {x['user']} | `{x['call']}` | "
+                f"{'PASS' if x['pass'] else 'FAIL — ' + '; '.join(x['problems'])[:200]} |"
+                for x in op["scenarios"]
+            ],
+            "",
+        ]
     return "\n".join(lines)
 
 
@@ -190,6 +241,7 @@ HEADLINE = (
     ("conflicts A/C/E/F recall", ("conflict", "summary", "deterministic_A_C_E_F", "recall")),
     ("clean-control false flags", ("conflict", "summary", "clean_control_false_flags")),
     ("touchpoints passed", ("touchpoints", "summary", "passed")),
+    ("opposite scenarios passed", ("opposites", "summary", "passed")),
 )
 
 
@@ -221,8 +273,19 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--no-write", action="store_true", help="print the summary, write no files")
     ap.add_argument("--label", default="baseline", help="report name: <date>-<label>.{md,json}")
     ap.add_argument("--compare", type=Path, help="an earlier report .json to compare against")
+    ap.add_argument(
+        "--no-ocr-stand-in",
+        action="store_true",
+        help="leave scanned pages in review, as the app runs today (no Document AI yet)",
+    )
+    ap.add_argument(
+        "--ocr-recorded",
+        metavar="VERSION",
+        help="read scans with recorded Document AI OCR of this model version "
+        "(e.g. pretrained-ocr-v2.1.1-2025-01-31) + simulated reviewer; no transcriptions",
+    )
     args = ap.parse_args(argv)
-    report = run_all()
+    report = run_all(transcribe=not args.no_ocr_stand_in, ocr_version=args.ocr_recorded)
     md = to_markdown(report)
     if args.compare:
         old = json.loads(args.compare.read_text("utf-8"))

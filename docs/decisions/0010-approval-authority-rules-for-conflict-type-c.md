@@ -33,6 +33,18 @@ no department data has arrived. The mock corpus orders state such rules explicit
 - Post levels ("Section Officer and below" vs "Assistant Secretary and above") follow ADR-0008, still provisional.
 - Filling `ProposalFacts` from note text is a later step (patterns or grounded Gemini extraction).
 
+## Addendum — rules for synthetic set v2 from real orders (13 Nov 2026, owner OK)
+- `data/ontology/authority_rules_v2.yaml`, loaded when `C2_SANDBOX_SEED=v2`. Every rule quotes a real public order
+  (G.O.Ms.22/2025 ESE, 51/2016 FIN, 74 / 99 / 32 of 2017 GAD). Status stays `mock` (= unverified): no coverage is
+  declared, every flag is an uncertain prompt, and "no flag" is never a clean pass (points 4–6 above).
+- Rule fields added: `departments`, `subject_terms`, `effective_until`, `barred` (a part of the year in which a
+  request may not be granted). Actions added: `reappropriation`, `business_allocation`.
+- Facts: the proposed body is read only when the proposal sentence names exactly one known body; a draft that points
+  to "the paras above" is read together with the file's earlier notes the officer may see.
+- Not covered on purpose: a rule the cited order does not state (FIN 81 / 88 of 2016 on G.O.Ms.110/2016).
+- Evaluation caveat: the v2 type C files were written from these orders, so recall shows correct application only.
+- Upgrade path unchanged: grounded Gemini extraction of the proposal facts, checked against the note's own words.
+
 ## Alternatives considered
 | Option | Why not |
 |---|---|

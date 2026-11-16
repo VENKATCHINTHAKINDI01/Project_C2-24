@@ -1,0 +1,1 @@
+{"prompt": "conflict_contradiction.v2", "model": "gemini-3.5-flash", "response": {"verdict": "insufficient", "quote_a": "", "quote_b": "", "explanation": "Document B does not specify which post in the Anti-Corruption Bureau can be filled for an indefinite period, making it impossible to determine if it contradicts the tenure limits specified in Document A."}}

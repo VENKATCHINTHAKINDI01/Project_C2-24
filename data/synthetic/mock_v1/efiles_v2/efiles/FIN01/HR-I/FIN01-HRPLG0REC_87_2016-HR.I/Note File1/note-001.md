@@ -1,0 +1,19 @@
+<!-- SYNTHETIC — not a real government file. Cites real public G.O.s. (C2-24 efiles_v2) -->
+<!-- green -->
+Note # 1
+Sub: Direct recruitment — notification issued by a department on its own – Reg.
+Ref:
+1. G.O.Ms.No.110, Finance (HR.1-Plg-Policy) Department, dated 17.06.2016.
+2. Receipt No. 3001/2016-HR.I, dated 15.11.2016.
+* * *
+1) It is submitted that a reference has been received from the Pay and Accounts Office, Vijayawada regarding "Direct recruitment — notification issued by a department on its own" (PUC, p.1).
+2) The orders on the subject are in G.O.Ms.No.110, Finance (HR.1-Plg-Policy) Department, dated 17.06.2016 (copy placed in References).
+3) It is proposed that the recruitment notification already issued by the Head of the Department may be ratified.
+4) Approval Requested
+   a) Approval for the proposal at the paras above.
+   b) Approval for the draft orders placed in the draft section.
+5) Submitted for orders.
+
+21/11/2016 10:36 AM
+K. SRAVANI
+ASSISTANT SECTION OFFICER

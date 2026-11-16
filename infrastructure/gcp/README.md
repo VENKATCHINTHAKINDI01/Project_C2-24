@@ -22,17 +22,23 @@ Install the CLI locally: `brew install --cask google-cloud-sdk`, then `gcloud au
 
 ```bash
 cd infrastructure/gcp
-cp config.env.example config.env        # fill PROJECT_ID, REGION
+cp config.env.example config.env        # fill PROJECT_ID, REGION (config.env is git-ignored)
 gcloud config set project <PROJECT_ID>
 
+./00_access_check.sh                      # READ-ONLY: who am I, roles, billing, org policies -> access_check.out.txt
 ./01_apis.sh                              # dry run: prints commands
 APPLY=1 ./01_apis.sh                      # executes
 APPLY=1 ./02_service_accounts.sh
 APPLY=1 ./03_storage.sh
-APPLY=1 ./08_upload_public_corpus.sh       # public G.O. corpus -> raw bucket public-go/ (ADR-0006)
+# 08_upload_public_corpus.sh: NOT now — the old public corpus is to be archived and re-collected
+# (owner decision, 9 Nov 2026); upload the new collection when it is ready
 APPLY=1 ./04_bigquery.sh
 APPLY=1 ./07_artifact_registry.sh
 I_ACCEPT_COST=1 APPLY=1 ./05_cloudsql.sh  # bills while idle
+# then, from backend/: env -u VIRTUAL_ENV uv run python ../infrastructure/gcp/12_cloudsql_schema.py  (dry run; APPLY=1 creates tables + grants)
+# knowledge graph on GCP (ADR-0023), after 12 has been applied:
+./13_backend_image.sh                     # Cloud Build -> Artifact Registry (allowlisted context; BUILD_REGION=global if the regional pool is refused)
+./14_graph_job.sh                         # Cloud Run Job c2-graph-build; APPLY=1 RUN=1 runs it, LIMIT=50 for a trial
 I_ACCEPT_COST=1 APPLY=1 ./06_spanner.sh   # bills while idle; create when P1/P3 graph work starts
 ./verify.sh                               # read-only evidence; paste into PROGRESS.md
 ```

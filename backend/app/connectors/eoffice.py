@@ -37,6 +37,41 @@ class OfficerContext(_Frozen):
     handled_files: frozenset[str] = frozenset()  # from the movement trail
 
 
+class NoteRef(_Frozen):
+    """A note on the file as the e-Office numbers it — metadata only, no text (touchpoint 7)."""
+
+    note_id: str  # the e-Office's own note identifier, used for its previous-note reference link
+    note_no: int
+    paragraph_from: int
+    confirmed: bool  # Green Note; Yellow Notes (drafts) are never offered as references
+
+
+class PageRef(_Frozen):
+    """A correspondence page range on the file — metadata only (touchpoint 7)."""
+
+    correspondence_id: str
+    page_from: int
+    page_to: int
+    title: str
+    canonical_id: str | None = None  # when the page is an order C2-24 has indexed
+
+
+class MovementRef(_Frozen):
+    """One movement of the file as e-Office records it (touchpoint 12): who sent it to whom,
+    when, and the remarks typed when sending. Metadata the officer sees on the file page."""
+
+    seq: int
+    from_user: str
+    from_post: str | None
+    to_user: str
+    to_post: str | None
+    sent_at: dt.datetime
+    due_on: dt.date | None = None
+    priority: str = "normal"
+    remarks: str = ""
+    sent_back: bool = False
+
+
 class FileContext(_Frozen):
     """The open file, metadata only. Note/correspondence text is fetched via ingestion, scoped."""
 
@@ -49,6 +84,27 @@ class FileContext(_Frozen):
     movement_trail: tuple[str, ...]  # user_ids the file has passed through, oldest first
     previous_references: tuple[str, ...] = ()
     later_references: tuple[str, ...] = ()
+    notes: tuple[NoteRef, ...] = ()
+    pages: tuple[PageRef, ...] = ()
+    movements: tuple[MovementRef, ...] = ()  # oldest first (touchpoints 12, 17, 19)
+    state: str = "open"  # open | parked | closed
+    created_on: dt.date | None = None
+    created_by: str | None = None
+
+
+class OfficerFile(_Frozen):
+    """An open file the officer works on (assigned, or it passed through them), metadata only —
+    for the officer's digest (ADR-0034). `with_officer`: the latest movement sent it to them."""
+
+    computer_no: str
+    file_no: str
+    subject: str
+    with_officer: bool
+    since: dt.datetime | None = None  # when it reached them (latest movement), if with them
+    due_on: dt.date | None = None
+    priority: str = "normal"
+    sent_back: bool = False
+    state: str = "open"  # open | parked | closed (section files, touchpoint 19)
 
 
 class ReceiptContext(_Frozen):
@@ -66,6 +122,8 @@ class ReceiptContext(_Frozen):
     department: str
     dealing_section: str
     put_in_file: str | None = None  # file Computer No. once put in a file
+    # the letter uploaded with the receipt (scan or native), as a source URI ingestion knows
+    attachment_uri: str | None = None
 
 
 class EventKind(StrEnum):
@@ -116,6 +174,26 @@ class DraftReceipt(_Frozen):
     status: str = "draft"  # the connector never returns anything but a draft
 
 
+class DraftOutcomeKind(StrEnum):
+    CONFIRMED = "confirmed"  # the officer confirmed the Yellow Note in e-Office (Green, signed)
+    DISCARDED = "discarded"  # the officer threw the draft away
+
+
+class DraftOutcome(_Frozen):
+    """What the officer did in e-Office with a draft the assistant wrote (plan §9.2, ADR-0031).
+    Numbers and IDs only — the e-Office keeps the text; C2-24 records how much was changed."""
+
+    draft_id: str
+    kind: DraftKind
+    computer_no: str
+    request_id: str | None  # the C2-24 output the draft came from
+    user_id: str  # the officer who acted (never the assistant)
+    outcome: DraftOutcomeKind
+    note_id: str | None = None  # the Green Note it became, when confirmed
+    edit_share: float | None = Field(default=None, ge=0.0, le=1.0)
+    at: dt.datetime
+
+
 class SourceArtefact(_Frozen):
     """A document the e-Office holds, with the access tags the e-Office records for it (plan §11.3
     'Events in'). Handed to the normal ingestion pipeline; the tags are source-system metadata."""
@@ -159,6 +237,20 @@ class EOfficeConnector(Protocol):
     def open_files(self) -> frozenset[str]:
         """e-File numbers of files that are open (not closed) — reconciliation notifies only
         these (plan §7.2, touchpoint 4)."""
+        ...
+
+    def officer_files(self, user_id: str) -> tuple[OfficerFile, ...]:
+        """Open files assigned to the officer or that passed through them, within their reach;
+        unknown officers get none (plan §11.3 'context in'; ADR-0034)."""
+        ...
+
+    def section_files(self, user_id: str) -> tuple[OfficerFile, ...]:
+        """Files of the officer's own dealing section (open, parked and closed) within their
+        reach, for the section handover (touchpoint 19). No section, or unknown officer: none."""
+        ...
+
+    def file_computer_no(self, file_no: str, user_id: str) -> str | None:
+        """The Computer No. of a file the officer can reach, by file number; else None (TP5)."""
         ...
 
     def documents(self) -> list[SourceArtefact]:

@@ -1,0 +1,35 @@
+{
+  "file_no": "ESE01-SERV20TRF/23/2017-SER.II",
+  "computer_no": "3402947",
+  "subject": "The Andhra Pradesh Teachers (Regulation of Transfers) Rules – Reg.",
+  "department_code": "ESE01",
+  "section": "SERVICES-II",
+  "section_label": "School Education (Services.II) Department",
+  "classification": "RESTRICTED",
+  "status": "reopened",
+  "opened": "2017-12-25",
+  "scenario": "ESE01-F-088",
+  "touchpoints": [
+    6,
+    10,
+    11,
+    14,
+    17
+  ],
+  "origin": "synthetic",
+  "banner": "Synthetic — not a real government file",
+  "cites": [
+    "AP-ESE01-GOMS-32-2017"
+  ],
+  "consultations": [
+    {
+      "with": "GADSER",
+      "uo_no": "GAD01-SERA0SER/513/2018-SER.A",
+      "department": "General Administration (Ser.A)",
+      "sent": "2017-12-29",
+      "returned": "2018-01-08",
+      "conditional": true,
+      "correspondence": "R-002.md"
+    }
+  ]
+}

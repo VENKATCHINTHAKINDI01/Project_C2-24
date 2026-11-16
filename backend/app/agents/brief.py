@@ -80,8 +80,10 @@ def approval_brief(
     rules: AuthorityRules,
     windows: Iterable[ActionWindow],
     departments: DepartmentTable,
+    awaiting_review: Iterable[DocumentAccessTags] = (),
 ) -> ApprovalBrief:
-    """`documents`: the indexed documents; only those the officer may see are used."""
+    """`documents`: the indexed documents; only those the officer may see are used.
+    `awaiting_review`: tags of records held in review (never shown; see `conflict.citations`)."""
     by_id = {d.canonical_id: d for d in documents}
 
     def visible(cid: str) -> bool:
@@ -122,6 +124,7 @@ def approval_brief(
             policy=ctx.policy,
             classification=ctx.classification,
             windows=windows,
+            awaiting_review=awaiting_review,
         )
         for ref in meta.references:
             if ref.canonical_id is None or ref.raw.startswith("file:"):

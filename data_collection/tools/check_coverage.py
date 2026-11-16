@@ -88,8 +88,8 @@ def main():
         "run tools/run_batches.sh for FIN01, GAD01, ESE01")
 
     y26 = [d for d, j in docs.items() if str(j.get("date", "")) >= "2026"]
-    row("2026 orders (latest rules)", "PASS" if y26 else "GAP", f"{len(y26)}; mirror ends 2025-12-12",
-        "APUTF Latest GOs + GOIR by hand")
+    row("2026 orders (latest rules)", "N/A", f"{len(y26)}; out of scope: corpus frozen as of 31-12-2025 (scope.yaml as_of)",
+        "not collected (owner decision)")
 
     good = [d for d, j in docs.items() if len(j["_ocr"]) >= 500]
     row("OCR text present", "PASS" if len(good) == len(docs) else "PARTIAL", f"{len(good)}/{len(docs)} with ≥500 chars",
@@ -104,7 +104,8 @@ def main():
         "GOIR by hand (no PDF in mirror / duplicate numbers)")
 
     # e-Office layer: never public — synthetic seed
-    roots = (st, sd)
+    v2 = pathlib.Path(__file__).resolve().parents[2] / "data" / "synthetic" / "mock_v1" / "efiles_v2"   # set v2 (ADR-0020), in the repo
+    roots = (st, sd, v2)
     g = lambda pat: [p for r in roots for p in r.glob(pat)]
     ef = g("efiles/**/file.json")
     notes = g("efiles/**/Note File*/note-*.md")
@@ -114,17 +115,24 @@ def main():
     mov = [p for p in g("efiles/**/movements.json") if json.loads(p.read_text())]
     gtp = st / "ground-truth" / "efiles_conflicts.json"
     gts = json.loads(gtp.read_text()) if gtp.exists() else []
+    gt2 = v2 / "ground_truth" / "efiles_v2_conflicts.json"
+    gts += json.loads(gt2.read_text()) if gt2.exists() else []
     row("e-Office files + notes (synthetic)", "PASS" if ef and notes else "GAP", f"{len(ef)} files, {len(notes)} notes (seed + generated)",
         "Not public — synthetic (seed now, Step 8 generator)")
     row("Receipts / drafts / links (synthetic)", "PASS" if rec and dfa else "GAP",
         f"{len(rec)} receipts, {len(dfa)} drafts, {len(lnk)} files with links", "Not public — Step 8 generator")
     kinds = sorted({x["type"] for x in gts})
     row("Planted conflicts on real orders (synthetic e-files)", "PASS" if len(kinds) >= 3 else ("PARTIAL" if gts else "GAP"),
-        f"{len(gts)} planted, types {', '.join(kinds)}; B/C/E/G still only in mock seed", "generate_efiles.py")
+        f"{len(gts)} planted, types {', '.join(kinds)}", "render_efiles_v2.py (set v2)")
     row("Movements (synthetic)", "PASS" if mov else "GAP", f"{len(mov)} files with movements", "Not public — synthetic")
     offs = [r / "directory" / "officers.json" for r in roots if (r / "directory" / "officers.json").exists()]
-    row("Officers, sections, access scopes (synthetic)", "PASS" if offs else "GAP",
-        " + ".join(f"{len(json.loads(o.read_text()))} ({o.parent.parent.name})" for o in offs), "Not public — synthetic")
+    ev = [f"{len(json.loads(o.read_text()))} ({o.parent.parent.name})" for o in offs]
+    oy, am = v2 / "directory" / "officers.yaml", v2 / "access_matrix.csv"
+    if oy.exists() and not any(o.parent.parent == v2 for o in offs):
+        ev.append(f"{len(re.findall(r'^ *- *[{]? *id:', oy.read_text(), re.M))} officers (efiles_v2)"
+                  + (", access matrix present" if am.exists() else ""))
+    row("Officers, sections, access scopes (synthetic)", "PASS" if offs or oy.exists() else "GAP", " + ".join(ev)
+        + (", access matrix present" if am.exists() else ""), "Not public — synthetic")
 
     w = max(len(r[0]) for r in rows)
     for need, status, ev, src in rows:

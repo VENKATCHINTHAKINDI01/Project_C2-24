@@ -1,7 +1,7 @@
 // Thin client for the sandbox + assist API. Sign-in is SIMULATED with a header (sandbox only,
 // ADR-0012). Errors keep the server's neutral wording; nothing is retried with less scope.
 import type {
-  Brief, DraftReceipt, FilePage, FileSoFar, LinkSuggestions, Notices, ReceiptReview, ReceiptRow, FileRow, Me, PresendReport, Profile, ReferenceResult, SearchResult,
+  Brief, ChatTurn, ClosingRemarks, Diarise, Handover, Movements, PreviousRefs, SinceDecision, DfaPreview, DocumentInfo, Highlights, OcrReviewDetail, OcrReviewItem, OcrReviewResult, ChatEvent, Digest, DraftReceipt, MonitorData, PassageContext, FeedbackIn, FilePage, FileRow, FileSoFar, FirstCut, LinkSuggestions, Me, NoteReferenceSuggestion, NoteReferences, Notices, PresendReport, Profile, ReceiptReview, ReceiptRow, ReferenceResult, SearchResult,
 } from "./types";
 
 export const SANDBOX_USER_HEADER = "X-Sandbox-User";
@@ -33,7 +33,31 @@ export function createApi(userId: string | null, fetchFn: Fetch = (i, init) => f
     }
     return (await res.json()) as T;
   }
+  /** A stored source file as a Blob, so the sign-in header is sent (no URL carries access). */
+  async function blob(path: string): Promise<Blob> {
+    const res = await fetchFn(path, { method: "GET", headers: headersFor(userId) });
+    if (!res.ok) {
+      let detail = res.statusText || "Request failed";
+      try { detail = ((await res.json()) as { detail?: string }).detail ?? detail; } catch { /* keep */ }
+      throw new ApiError(res.status, detail);
+    }
+    return res.blob();
+  }
+  const doc = (cid: string) => `/assist/documents/${encodeURIComponent(cid)}`;
+  const draftPath = (computerNo: string, draftId: string) =>
+    `/sandbox/files/${encodeURIComponent(computerNo)}/drafts/${encodeURIComponent(draftId)}`;
   return {
+    ocrQueue: () => call<{ items: OcrReviewItem[] }>("/assist/review/ocr"),
+    ocrItem: (itemId: string) => call<OcrReviewDetail>(`/assist/review/ocr/${encodeURIComponent(itemId)}`),
+    ocrScan: (itemId: string) => blob(`/assist/review/ocr/${encodeURIComponent(itemId)}/scan`),
+    ocrConfirm: (itemId: string, reason: string, correctedText: string | null) =>
+      call<OcrReviewResult>(`/assist/review/ocr/${encodeURIComponent(itemId)}/confirm`, { reason, corrected_text: correctedText }),
+    ocrReject: (itemId: string, reason: string) =>
+      call<OcrReviewResult>(`/assist/review/ocr/${encodeURIComponent(itemId)}/reject`, { reason }),
+    highlights: (computerNo: string, notes: { note_id: string; text: string }[]) =>
+      call<Highlights>("/assist/highlights", { computer_no: computerNo, notes }),
+    documentInfo: (canonicalId: string) => call<DocumentInfo>(doc(canonicalId)),
+    documentFile: (canonicalId: string, kind: "preview" | "download") => blob(`${doc(canonicalId)}/${kind}`),
     profiles: () => call<{ banner: string; profiles: Profile[] }>("/sandbox/profiles"),
     me: () => call<Me>("/sandbox/me"),
     files: () => call<{ banner: string; files: FileRow[] }>("/sandbox/files"),
@@ -47,6 +71,14 @@ export function createApi(userId: string | null, fetchFn: Fetch = (i, init) => f
         computer_no: computerNo, kind: "suggested_reference",
         body: `Link file ${fileNo} as a read-only reference (precedent).`, citations, request_id: requestId,
       }),
+    noteReference: (computerNo: string, text: string) =>
+      call<NoteReferences>("/assist/note-reference", { computer_no: computerNo, text }),
+    insertReference: (computerNo: string, s: NoteReferenceSuggestion, requestId: string) =>
+      call<DraftReceipt>("/assist/draft", {
+        computer_no: computerNo, kind: "suggested_reference",
+        body: `Please see ${s.insert_text} (${s.target_id}).`,
+        citations: [s.target_id, ...(s.source ? [s.source] : [])], request_id: requestId,
+      }),
     receipts: () => call<{ banner: string; receipts: ReceiptRow[] }>("/sandbox/receipts"),
     receipt: (computerNo: string) =>
       call<{ banner: string; receipt: ReceiptRow }>(`/sandbox/receipts/${encodeURIComponent(computerNo)}`),
@@ -56,8 +88,89 @@ export function createApi(userId: string | null, fetchFn: Fetch = (i, init) => f
     letterArrives: (computerNo: string) =>
       call<{ event_id: string; kind: string }>(`/sandbox/receipts/${encodeURIComponent(computerNo)}/arrive`, {}),
     brief: (computerNo: string) => call<Brief>("/assist/brief", { computer_no: computerNo }),
+    movements: (computerNo: string) => call<Movements>("/assist/movements", { computer_no: computerNo }),
+    sinceDecision: (computerNo: string) =>
+      call<SinceDecision>("/assist/since-decision", { computer_no: computerNo }),
+    handover: () => call<Handover>("/assist/handover"),
+    diarise: (computerNo: string) => call<Diarise>("/assist/diarise", { computer_no: computerNo }),
+    previousRefs: (subject: string) => call<PreviousRefs>("/assist/previous-references", { subject }),
+    closingRemarks: (computerNo: string) => call<ClosingRemarks>("/assist/closing-remarks", { computer_no: computerNo }),
+    createFile: (subject: string, previousReferences: string[]) =>
+      call<{ file: FileRow & { previous_references: string[] } }>("/sandbox/files", { subject, previous_references: previousReferences }),
+    closeFile: (computerNo: string, remarks: string) =>
+      call<{ file: FileRow }>(`/sandbox/files/${encodeURIComponent(computerNo)}/close`, { remarks }),
+    dfa: (computerNo: string) => call<DfaPreview>("/assist/dfa", { computer_no: computerNo }),
+    firstCut: (computerNo: string) => call<FirstCut>("/assist/first-cut", { computer_no: computerNo }),
+    createDfa: (computerNo: string, body: string, citations: string[], requestId: string) =>
+      call<DraftReceipt>("/assist/draft", {
+        computer_no: computerNo, kind: "dfa_draft", body, citations, request_id: requestId,
+      }),
     search: (query: string) => call<SearchResult>("/assist/search", { query }),
+    chat: (message: string, sessionId: string | null, computerNo?: string) =>
+      call<ChatTurn>("/assist/chat", {
+        message,
+        ...(sessionId ? { session_id: sessionId } : {}),
+        ...(computerNo ? { computer_no: computerNo } : {}),
+      }),
+    /** The same turn as `chat`, streamed (ADR-0033). Resolves with the final answer. */
+    chatStream: async (
+      message: string, sessionId: string | null, computerNo: string | undefined,
+      onEvent: (e: ChatEvent) => void, signal?: AbortSignal,
+    ): Promise<ChatTurn> => {
+      const res = await fetchFn("/assist/chat/stream", {
+        method: "POST",
+        signal,
+        headers: headersFor(userId, true),
+        body: JSON.stringify({
+          message,
+          ...(sessionId ? { session_id: sessionId } : {}),
+          ...(computerNo ? { computer_no: computerNo } : {}),
+        }),
+      });
+      if (!res.ok || !res.body) {
+        let detail = res.statusText || "Request failed";
+        try { detail = ((await res.json()) as { detail?: string }).detail ?? detail; } catch { /* keep */ }
+        throw new ApiError(res.status, detail);
+      }
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = "";
+      for (;;) {
+        const { value, done } = await reader.read();
+        buf += decoder.decode(value ?? new Uint8Array(), { stream: !done });
+        let cut: number;
+        while ((cut = buf.indexOf("\n\n")) >= 0) {
+          const block = buf.slice(0, cut);
+          buf = buf.slice(cut + 2);
+          const data = block.split("\n").find((l) => l.startsWith("data: "));
+          if (!data) continue;
+          const e = JSON.parse(data.slice(6)) as ChatEvent;
+          onEvent(e);
+          if (e.type === "done") return e.answer;
+          if (e.type === "error") throw new ApiError(503, e.message);
+        }
+        if (done) throw new ApiError(502, "The answer stopped before it was complete.");
+      }
+    },
     reference: (text: string) => call<ReferenceResult>("/assist/reference", { text }),
+    docContext: (canonicalId: string, quote: string) =>
+      call<PassageContext>(`${doc(canonicalId)}/context?quote=${encodeURIComponent(quote)}`),
+    digest: (days = 7) => call<Digest>(`/assist/digest?days=${days}`),
+    roles: () => call<{ monitoring: boolean }>("/assist/me/roles"),
+    monitor: (days = 14) => call<MonitorData>(`/assist/monitor?days=${days}`),
+    reviewAlert: (alertId: string, action: "reviewed" | "escalated", reason?: "expected_activity") =>
+      call<{ alert_id: string; status: string }>(
+        `/assist/monitor/alerts/${encodeURIComponent(alertId)}/review`,
+        reason ? { action, reason } : { action },
+      ),
+    feedback: (body: FeedbackIn) => call<{ request_id: string; recorded: boolean }>("/assist/feedback", body),
+    // The officer's own e-Office actions on their drafts (sandbox; simulated signature, no DSC).
+    saveDraft: (computerNo: string, draftId: string, text: string) =>
+      call<{ draft_id: string; versions: number }>(`${draftPath(computerNo, draftId)}/save`, { text }),
+    confirmDraft: (computerNo: string, draftId: string) =>
+      call<{ draft_id: string; note_id: string; state: "green" }>(`${draftPath(computerNo, draftId)}/confirm`, {}),
+    discardDraft: (computerNo: string, draftId: string) =>
+      call<{ draft_id: string; status: "discarded" }>(`${draftPath(computerNo, draftId)}/discard`, {}),
     insertYellowNote: (computerNo: string, body: string, citations: string[], requestId: string) =>
       call<DraftReceipt>("/assist/draft", {
         computer_no: computerNo, kind: "yellow_note", body, citations, request_id: requestId,

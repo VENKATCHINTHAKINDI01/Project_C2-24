@@ -27,6 +27,7 @@ FILES = {f["computer_no"]: f for f in SEED["files"]}
 RECEIPTS = {r["computer_no"] for r in SEED["receipts"]}
 NOTES = {n["note_id"] for n in SEED["notes"]}
 CORE = {2, 3, 4, 6, 7, 8, 9, 10, 11, 13, 14, 15, 20}
+EXTENDED = {1, 5, 12, 16, 17, 18, 19}  # added 15 Nov 2026 (ADR-0038)
 
 
 def _docs_in_file(computer_no: str) -> set[str]:
@@ -38,8 +39,8 @@ def _list(value: object) -> list[str]:
     return value if isinstance(value, list) else []
 
 
-def test_every_core_touchpoint_has_a_scenario_and_ids_are_unique() -> None:
-    assert {s["touchpoint"] for s in SCENARIOS} == CORE
+def test_every_touchpoint_has_a_scenario_and_ids_are_unique() -> None:
+    assert {s["touchpoint"] for s in SCENARIOS} == CORE | EXTENDED == set(range(1, 21))
     ids = [s["id"] for s in SCENARIOS]
     assert len(ids) == len(set(ids))
     assert DATA["synthetic"] is True and "never read" in DATA["evaluation_only"]

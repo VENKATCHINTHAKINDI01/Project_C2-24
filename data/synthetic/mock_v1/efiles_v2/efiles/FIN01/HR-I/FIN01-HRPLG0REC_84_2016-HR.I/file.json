@@ -1,0 +1,23 @@
+{
+  "file_no": "FIN01-HRPLG0REC/84/2016-HR.I",
+  "computer_no": "3686006",
+  "subject": "Public Services - Human Resources – Transfers and Postings of Employees – Guidelines / Instructions – Reg.",
+  "department_code": "FIN01",
+  "section": "HR-I",
+  "section_label": "Finance (HR.I-Plg. & Policy) Department",
+  "classification": "RESTRICTED",
+  "status": "open",
+  "opened": "2016-10-13",
+  "scenario": "FIN01-CLEAN-016",
+  "touchpoints": [
+    6,
+    8,
+    13
+  ],
+  "origin": "synthetic",
+  "banner": "Synthetic — not a real government file",
+  "cites": [
+    "AP-FIN01-GOMS-123-2016",
+    "AP-FIN01-GOMS-102-2016"
+  ]
+}

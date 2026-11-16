@@ -1,0 +1,94 @@
+[
+  {
+    "note": 1,
+    "from": "V03",
+    "name": "M. Jyothirmayi",
+    "designation": "Section Officer",
+    "at": "22/03/2025 10:34 AM",
+    "sent_to": "V05",
+    "remarks": "for approval"
+  },
+  {
+    "note": 2,
+    "from": "V05",
+    "name": "P. Uma Maheswari",
+    "designation": "Assistant Secretary",
+    "at": "22/03/2025 02:57 PM",
+    "sent_to": "V06",
+    "remarks": "for approval"
+  },
+  {
+    "note": 3,
+    "from": "V06",
+    "name": "G. Srinivasa Murthy",
+    "designation": "Joint Secretary",
+    "at": "24/03/2025 10:34 AM",
+    "sent_to": "V03",
+    "remarks": "returned for discussion"
+  },
+  {
+    "note": 4,
+    "from": "V03",
+    "name": "M. Jyothirmayi",
+    "designation": "Section Officer",
+    "at": "24/03/2025 03:06 PM",
+    "sent_to": "V06",
+    "remarks": "for approval"
+  },
+  {
+    "note": 5,
+    "from": "V06",
+    "name": "G. Srinivasa Murthy",
+    "designation": "Joint Secretary",
+    "at": "24/03/2025 04:05 PM",
+    "sent_to": "V07",
+    "remarks": "for approval"
+  },
+  {
+    "note": 6,
+    "from": "V07",
+    "name": "A. Lakshmi Prasanna",
+    "designation": "Principal Secretary to Government",
+    "at": "25/03/2025 10:32 AM",
+    "sent_to": "V03",
+    "remarks": "returned"
+  },
+  {
+    "note": null,
+    "from": "V03",
+    "name": "M. Jyothirmayi",
+    "designation": "Section Officer",
+    "at": "25/03/2025",
+    "sent_to": "GAD01/CABINET-II",
+    "external": true,
+    "returned": "21/04/2025",
+    "remarks": "Cabinet memorandum sent to General Administration (Cabinet.II) Department (U.O.)"
+  },
+  {
+    "note": 7,
+    "from": "V03",
+    "name": "M. Jyothirmayi",
+    "designation": "Section Officer",
+    "at": "21/04/2025 03:13 PM",
+    "sent_to": "V05",
+    "remarks": "for approval"
+  },
+  {
+    "note": 8,
+    "from": "V05",
+    "name": "P. Uma Maheswari",
+    "designation": "Assistant Secretary",
+    "at": "21/04/2025 04:00 PM",
+    "sent_to": "V07",
+    "remarks": "for approval"
+  },
+  {
+    "note": 9,
+    "from": "V07",
+    "name": "A. Lakshmi Prasanna",
+    "designation": "Principal Secretary to Government",
+    "at": "21/04/2025 05:14 PM",
+    "sent_to": null,
+    "remarks": "approved"
+  }
+]

@@ -1,0 +1,23 @@
+{
+  "file_no": "GAD01-CABN0BR/166/2020-CABINET.II",
+  "computer_no": "4435364",
+  "subject": "Group of Ministers constituted – Formation of Working Committee to advise the Group of Ministers constituted to examine the matter of regularisation of services – Reg.",
+  "department_code": "GAD01",
+  "section": "CABINET-II",
+  "section_label": "General Administration (Cabinet.II) Department",
+  "classification": "UNCLASSIFIED",
+  "status": "decided",
+  "opened": "2020-10-07",
+  "scenario": "GAD01-D-052",
+  "touchpoints": [
+    3,
+    5,
+    9
+  ],
+  "origin": "synthetic",
+  "banner": "Synthetic — not a real government file",
+  "cites": [
+    "AP-GAD01-GORT-2740-2019",
+    "AP-GAD01-GORT-2657-2019"
+  ]
+}

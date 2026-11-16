@@ -59,3 +59,19 @@ Cloud SQL tables (users, documents, file_assignments, policy) must carry the sam
 
 ## Mentor input (if any)
 —
+
+## Addendum — papers inside an e-File are never "public" (13 Nov 2026; security fix, reported to the owner)
+- **Found:** on synthetic set v2, 102 of 203 files are marked UNCLASSIFIED. The policy's public shortcut made their
+  note sheets, drafts and correspondence readable by every officer: 4,182 officer × document disclosures against the
+  v2 access matrix (e.g. an open-file notice named two Cabinet.II files to a Finance ASO). mock_v1 has no UNCLASSIFIED
+  file papers, so the v1 leakage harness could not see it.
+- **Rule now:** the public shortcut applies only to a published instrument (`file_no` is empty). A paper inside an
+  e-File follows the file's reach (department, clearance, section / scope, assignment, movement), whatever its marking.
+  Same rule in `policy.check` and in the pushed-down filter `Scope.admits`. Policy version `2026-11-13-mock` (cached
+  answers keyed by the old version are not reused).
+- **Why without waiting for a decision:** CLAUDE.md §2.4 ("never more than the officer's e-Office search scope
+  allows") and §4.7; the change only narrows access (fails closed). [To confirm] with the department like the rest of
+  the access model.
+- **Tests:** `test_eoffice_seed_v2.py`: every v2 file paper × every officer against the access matrix (0 disclosures;
+  the test fails with 4,182 on the old rule), and the scope filter agrees. v1 leakage harness unchanged (0 / 1,142).
+

@@ -9,6 +9,12 @@ is then re-submitted as its hand transcription (`ground_truth/text/Dxx.txt`) —
 "Document AI read it and a reviewer confirmed the text". This is the ONE place ground truth feeds
 the stack; the report lists which documents it affected.
 
+Alternative, real OCR (`ocr_version`): held scans are read from the recorded Document AI responses
+(`data/synthetic/mock_v1/ocr/documentai/<version>/`, no GCP calls) and confirmed by a SIMULATED
+reviewer through the production path (`confirm_extraction`), with no corrections. A scan whose
+OCR text still fails a pipeline check (e.g. an unreadable reference) stays held, as it would in
+the app. No ground truth feeds the stack in this mode.
+
 Access profiles come from the synthetic sandbox users (`tests/unit/mock_access.py`, the same
 fixture the unit tests use). The independent oracle for leakage is `access_matrix.csv`.
 """
@@ -24,11 +30,13 @@ from app.config import REPO_ROOT, load_hierarchy
 from app.identifiers.resolver import DepartmentTable, load_departments
 from app.ingestion.detect import detect_file
 from app.ingestion.extract import extract_native
+from app.ingestion.ocr import OcrEngine, RecordedOcr, load_recorded, version_dir
 from app.ingestion.pipeline import (
     IngestionStores,
     IngestResult,
     IngestStatus,
     SourceDocument,
+    confirm_extraction,
     ingest,
 )
 from app.retrieval.ladder import InMemoryKeywordIndex, LadderConfig
@@ -52,6 +60,9 @@ class Stack:
     transcribed: tuple[str, ...] = ()  # doc ids indexed from the hand transcription
     not_indexed: tuple[str, ...] = ()  # doc ids missing even after the stand-in
     arrived: dict[str, IngestResult] = field(default_factory=dict)  # replay arrivals
+    transcribe: bool = True
+    ocr_version: str | None = None  # real recorded Document AI OCR instead of transcriptions
+    ocr_confirmed: tuple[str, ...] = ()  # doc ids indexed from OCR after simulated review
 
     def tags(self, cid: str) -> DocumentAccessTags | None:
         node = self.stores.graph.node(cid)
@@ -83,6 +94,8 @@ def build_stack(
     holdback: frozenset[str] = frozenset(),
     open_files: frozenset[str] = frozenset(),
     arrivals: tuple[str, ...] = (),
+    transcribe: bool = True,
+    ocr_version: str | None = None,
 ) -> Stack:
     """Replays (e.g. TP04): `holdback` doc ids are left out; `arrivals` are then ingested last,
     in order, and their results kept in `Stack.arrived`. `open_files` feeds reconciliation."""
@@ -96,6 +109,11 @@ def build_stack(
     missing: list[str] = []
     arrived: dict[str, IngestResult] = {}
     last: list[IngestResult] = []
+    ocr_confirmed: list[str] = []
+    engine: OcrEngine | None = None
+    if ocr_version:
+        cache = corpus / "ocr" / "documentai"
+        engine = RecordedOcr(load_recorded(version_dir(cache, ocr_version)), ocr_version)
 
     def run(src: SourceDocument, data: bytes) -> str | None:
         res = ingest(
@@ -106,7 +124,27 @@ def build_stack(
             hierarchy=hier,
             confidence_threshold=None,
             open_files=open_files,
+            ocr=engine,
         )
+        if (
+            engine is not None
+            and res.status is IngestStatus.HELD
+            and res.version in stores.ocr_drafts
+        ):
+            res = confirm_extraction(  # SIMULATED reviewer: confirms the OCR draft as read
+                src,
+                data,
+                reviewer="EVAL-REVIEWER (simulated)",
+                reason="evaluation: OCR draft accepted without correction",
+                at=T0,
+                stores=stores,
+                departments=depts,
+                hierarchy=hier,
+                confidence_threshold=None,
+                open_files=open_files,
+            )
+            if res.status is IngestStatus.INDEXED:
+                ocr_confirmed.append(src.tags.doc_id)
         last[:] = [res]
         if res.status is IngestStatus.INDEXED and res.canonical_id:
             return res.canonical_id
@@ -122,7 +160,13 @@ def build_stack(
         data = path.read_bytes()
         cid = run(_source(row, f"mock://{row['file']}", path.name), data)
         if cid:
-            text_of[cid] = extract_native(data, detect_file(path)).native_text
+            text_of[cid] = (
+                stores.text_of.get(last[0].version)
+                or extract_native(data, detect_file(path)).native_text
+            )
+        elif not transcribe or engine is not None:  # no stand-in: the scan stays in review
+            missing.append(did)
+            continue
         else:  # stand-in for Document AI + reviewer-confirmed text (see module docstring)
             text = (corpus / "ground_truth" / "text" / f"{did}.txt").read_text("utf-8")
             cid = run(
@@ -153,4 +197,7 @@ def build_stack(
         transcribed=tuple(transcribed),
         not_indexed=tuple(missing),
         arrived=arrived,
+        transcribe=transcribe,
+        ocr_version=ocr_version,
+        ocr_confirmed=tuple(ocr_confirmed),
     )

@@ -1,0 +1,894 @@
+{
+ "summary": {
+  "questions": 24,
+  "mode": "saved answers only",
+  "scans_confirmed_by_simulated_reviewer": 8,
+  "model": "gemini-3.5-flash",
+  "expected_answered": 19,
+  "expected_record_in_evidence_package": 18,
+  "answered_with_checked_citation": 16,
+  "answered_on_key": 15,
+  "not_run": 1,
+  "expected_no_answer": 5,
+  "no_answer_kept": 5,
+  "statements_removed_by_citation_check": 0,
+  "forbidden_records_named": 0
+ },
+ "rows": [
+  {
+   "id": "Q01",
+   "user": "U01",
+   "expected_status": "answered",
+   "status": "answered",
+   "engine": "gemini-3.5-flash@recorded",
+   "statements": [
+    "A spouse-ground transfer request for Smt. P. Sandhya Rani, a Senior Assistant, has been approved."
+   ],
+   "quotes": [
+    "8. Approved."
+   ],
+   "review_needed": 0,
+   "removed": 0,
+   "cited": [
+    "D19"
+   ],
+   "expected": [
+    "D17",
+    "D18",
+    "D19"
+   ],
+   "on_key": true,
+   "package": [
+    "D01",
+    "D03",
+    "D04",
+    "D17",
+    "D18",
+    "D19",
+    "D26",
+    "D27"
+   ],
+   "expected_in_package": true,
+   "forbidden_named": [],
+   "message": null
+  },
+  {
+   "id": "Q02",
+   "user": "U02",
+   "expected_status": "answered",
+   "status": "answered",
+   "engine": "gemini-3.5-flash@recorded",
+   "statements": [
+    "Smt. P. Sandhya Rani's request for transfer to Regional Office, Rajahmundry on spouse grounds was approved on 27/05/2025.",
+    "Sri K. Venkata Ramana's request for transfer to Regional Office, Kurnool on spouse grounds was not considered on 30/05/2025 in view of a pending enquiry."
+   ],
+   "quotes": [
+    "Approved.",
+    "Not considered in view of the pending enquiry."
+   ],
+   "review_needed": 0,
+   "removed": 0,
+   "cited": [
+    "D19",
+    "D20"
+   ],
+   "expected": [
+    "D17",
+    "D18",
+    "D19",
+    "D20"
+   ],
+   "on_key": true,
+   "package": [
+    "D03",
+    "D04",
+    "D17",
+    "D18",
+    "D19",
+    "D20",
+    "D26",
+    "D27"
+   ],
+   "expected_in_package": true,
+   "forbidden_named": [],
+   "message": null
+  },
+  {
+   "id": "Q03",
+   "user": "U01",
+   "expected_status": "answered",
+   "status": "answered",
+   "engine": "gemini-3.5-flash@recorded",
+   "statements": [
+    "Under the guidelines in G.O.Ms.No.31 dated 12-05-2025, spouse cases where both spouses are State Government employees are given preference subject to vacancy availability.",
+    "The guidelines state that employees retiring on or before 31-05-2027 are not to be disturbed except upon their request.",
+    "Transfer requests for employees facing pending or contemplated disciplinary proceedings will not be considered until the conclusion of those proceedings.",
+    "The guidelines also mandate that no relaxation of the ceiling shall be made without the prior concurrence of the Finance Department."
+   ],
+   "quotes": [
+    "Spouse cases, where both spouses are State Government employees, shall be given preference subject to availability of vacancy.",
+    "Employees retiring on or before 31-05-2027 shall not be disturbed except on request.",
+    "Requests for transfer of employees against whom disciplinary proceedings are pending or contemplated shall not be considered until the conclusion of such proceedings.",
+    "No relaxation of this ceiling shall be made without the prior concurrence of the Finance Department."
+   ],
+   "review_needed": 0,
+   "removed": 0,
+   "cited": [
+    "D04"
+   ],
+   "expected": [
+    "D04",
+    "D05"
+   ],
+   "on_key": true,
+   "package": [
+    "D01",
+    "D03",
+    "D04",
+    "D11",
+    "D17",
+    "D18",
+    "D19",
+    "D27"
+   ],
+   "expected_in_package": true,
+   "forbidden_named": [],
+   "message": null
+  },
+  {
+   "id": "Q04",
+   "user": "U07",
+   "expected_status": "answered",
+   "status": "answered",
+   "engine": "gemini-3.5-flash@recorded",
+   "statements": [
+    "According to the guidelines, transfers in any category shall not exceed 20% of the cadre strength of that category."
+   ],
+   "quotes": [
+    "Transfers in any category shall not exceed 20% of the cadre strength of that category."
+   ],
+   "review_needed": 0,
+   "removed": 0,
+   "cited": [
+    "D01"
+   ],
+   "expected": [
+    "D01",
+    "D02"
+   ],
+   "on_key": true,
+   "package": [
+    "D01",
+    "D02",
+    "D03",
+    "D04",
+    "D08",
+    "D12",
+    "D13",
+    "D14"
+   ],
+   "expected_in_package": true,
+   "forbidden_named": [],
+   "message": null
+  },
+  {
+   "id": "Q05",
+   "user": "U03",
+   "expected_status": "answered",
+   "status": "not_run",
+   "engine": null,
+   "statements": [],
+   "quotes": [],
+   "review_needed": 0,
+   "removed": 0,
+   "cited": [],
+   "expected": [
+    "D13",
+    "D14"
+   ],
+   "on_key": false,
+   "package": [
+    "D04",
+    "D07",
+    "D10",
+    "D12",
+    "D13",
+    "D14",
+    "D24",
+    "D28"
+   ],
+   "expected_in_package": true,
+   "forbidden_named": [],
+   "message": "No answer was written: the answer engine is unavailable. Records found are listed."
+  },
+  {
+   "id": "Q06",
+   "user": "U03",
+   "expected_status": "answered",
+   "status": "answered",
+   "engine": "gemini-3.5-flash@recorded",
+   "statements": [
+    "According to G.O.Ms.No.27, works costing above Rs.1.00 crore, including emergency works, can be sanctioned by the Government only.",
+    "According to Circular Memo No.USD01-WRKS0/9/2023, the Commissioner, Urban Services, may accord administrative sanction for emergency works up to Rs.1.50 crore per work.",
+    "A note file dated 24/09/2026 states that the Commissioner may accord administrative sanction for emergency works up to Rs.1.50 crore per work."
+   ],
+   "quotes": [
+    "Government only.",
+    "administrative sanction for emergency works up to Rs.1.50 crore per work.",
+    "may accord administrative sanction for emergency works up to Rs.1.50 crore per work."
+   ],
+   "review_needed": 0,
+   "removed": 0,
+   "cited": [
+    "D13",
+    "D14",
+    "D28"
+   ],
+   "expected": [
+    "D14",
+    "D16"
+   ],
+   "on_key": true,
+   "package": [
+    "D02",
+    "D12",
+    "D13",
+    "D14",
+    "D15",
+    "D24",
+    "D25",
+    "D28"
+   ],
+   "expected_in_package": true,
+   "forbidden_named": [],
+   "message": null
+  },
+  {
+   "id": "Q07",
+   "user": "U01",
+   "expected_status": "answered",
+   "status": "answered",
+   "engine": "gemini-3.5-flash@recorded",
+   "statements": [
+    "Under G.O.Ms.No.31, clearance of the Vigilance section is mandatory for transfer requests.",
+    "G.O.Ms.No.31 mandates that no relaxation of the transfer ceiling shall be made without the prior concurrence of the Finance Department.",
+    "Under G.O.Ms.No.31, the ban on transfers was relaxed only for the period from 15-05-2025 to 31-05-2025.",
+    "According to Standing Order No.2/2020 of the department, transfer requests received outside the period of relaxation shall be kept pending for consideration during the next general transfers.",
+    "Under G.O.Ms.No.19, transfers and postings of staff within a Secretariat Department shall be ordered by the Secretary to Government of that Department."
+   ],
+   "quotes": [
+    "Clearance of the Vigilance section is mandatory, as per the reference 3rd read above.",
+    "No relaxation of this ceiling shall be made without the prior concurrence of the Finance Department.",
+    "The ban on transfers is relaxed for the period from 15-05-2025 to 31-05-2025.",
+    "As per para (e) of Standing Order No.2/2020 of this Department (Flag B), requests received outside the period of relaxation shall be kept pending for consideration during the next general transfers.",
+    "Transfers and postings of Section Officers, Assistant Section Officers and other staff within a Secretariat Department shall be ordered by the Secretary to Government of that Department."
+   ],
+   "review_needed": 0,
+   "removed": 0,
+   "cited": [
+    "D04",
+    "D09",
+    "D18"
+   ],
+   "expected": [
+    "D04",
+    "D03",
+    "D09",
+    "D11",
+    "D26",
+    "D18"
+   ],
+   "on_key": true,
+   "package": [
+    "D01",
+    "D02",
+    "D03",
+    "D04",
+    "D09",
+    "D17",
+    "D18",
+    "D27"
+   ],
+   "expected_in_package": true,
+   "forbidden_named": [],
+   "message": null
+  },
+  {
+   "id": "Q08",
+   "user": "U03",
+   "expected_status": "answered",
+   "status": "answered",
+   "engine": "gemini-3.5-flash@recorded",
+   "statements": [
+    "File No. USD01-WRKS0/30/2026-WORKS contains a proposal to accord administrative sanction for Rs.1.30 crore for the emergency restoration of a storm water drain at Ward No.21, Seetharampuram Municipal Corporation.",
+    "Under Circular Memo No.USD01-WRKS0/9/2023, Dt.11-07-2023, the Commissioner, Urban Services, may accord administrative sanction for emergency works up to Rs.1.50 crore per work.",
+    "Under G.O.Ms.No.27, Dated: 06-08-2024, works costing above Rs.1.00 crore, including emergency works, can only be sanctioned by the Government.",
+    "Under G.O.Ms.No.27, Dated: 06-08-2024, the Commissioner may accord administrative sanction for emergency works up to Rs.1.00 crore per work, subject to ratification by the Government within thirty (30) days.",
+    "G.O.Ms.No.14, Dated: 18-03-2021, which is superseded, delegated powers to the Commissioner, Urban Services, to accord administrative sanction up to Rs.50.00 lakhs per work."
+   ],
+   "quotes": [
+    "The Commissioner, Urban Services, has submitted (Flag A) that a storm water drain at Ward No.21, Seetharampuram Municipal Corporation was breached in the heavy rains of 18-09-2026, and has proposed to accord administrative sanction for Rs.1.30 crore for emergency restoration.",
+    "In order to avoid delays, it is clarified that the Commissioner, Urban Services, may accord administrative sanction for emergency works up to Rs.1.50 crore per work.",
+    "Works (including emergency works) costing above Rs.1.00 crore – Government only.",
+    "Emergency works: the Commissioner may accord administrative sanction up to Rs.1.00 crore per work, subject to ratification by the Government within thirty (30) days.",
+    "Commissioner, Urban Services – up to Rs.50.00 lakhs per work."
+   ],
+   "review_needed": 0,
+   "removed": 0,
+   "cited": [
+    "D12",
+    "D13",
+    "D14",
+    "D28"
+   ],
+   "expected": [
+    "D13",
+    "D14",
+    "D25"
+   ],
+   "on_key": true,
+   "package": [
+    "D04",
+    "D08",
+    "D12",
+    "D13",
+    "D14",
+    "D24",
+    "D25",
+    "D28"
+   ],
+   "expected_in_package": true,
+   "forbidden_named": [],
+   "message": null
+  },
+  {
+   "id": "Q09",
+   "user": "U01",
+   "expected_status": "answered",
+   "status": "answered",
+   "engine": "gemini-3.5-flash@recorded",
+   "statements": [
+    "In file USD01-14/6/2026-ESTT.I, it is suggested that reference to the Finance Department may not be necessary to continue the outsourced Data Entry Operators since the continuation is on the same terms.",
+    "Under G.O.Ms.No.40, which has a status of not established, no existing engagement shall be extended or continued without the prior concurrence of the Finance Department and the approval of the Government.",
+    "Furthermore, G.O.Rt.No.1184, which is expired, states that any continuation of contract and outsourcing services beyond 31-03-2026 shall require fresh orders of the Government."
+   ],
+   "quotes": [
+    "Since the continuation is on the same terms, reference to the Finance Department may not be necessary.",
+    "Government hereby order that no services shall be contracted or outsourced, and no existing engagement shall be extended or continued, without the prior concurrence of the Finance Department and the approval of the Government.",
+    "Any continuation beyond 31-03-2026 shall require fresh orders of the Government."
+   ],
+   "review_needed": 0,
+   "removed": 0,
+   "cited": [
+    "D06",
+    "D08",
+    "D29"
+   ],
+   "expected": [
+    "D08",
+    "D06"
+   ],
+   "on_key": true,
+   "package": [
+    "D06",
+    "D07",
+    "D08",
+    "D17",
+    "D18",
+    "D19",
+    "D27",
+    "D29"
+   ],
+   "expected_in_package": true,
+   "forbidden_named": [],
+   "message": null
+  },
+  {
+   "id": "Q10",
+   "user": "U01",
+   "expected_status": "no_supported_answer",
+   "status": "no_answer",
+   "engine": "gemini-3.5-flash@recorded",
+   "statements": [],
+   "quotes": [],
+   "review_needed": 0,
+   "removed": 0,
+   "cited": [],
+   "expected": [],
+   "on_key": false,
+   "package": [
+    "D04",
+    "D10",
+    "D11",
+    "D17",
+    "D18",
+    "D19",
+    "D27"
+   ],
+   "expected_in_package": false,
+   "forbidden_named": [],
+   "message": "No sufficiently supported answer was found in the authorised records."
+  },
+  {
+   "id": "Q11",
+   "user": "U01",
+   "expected_status": "answered",
+   "status": "no_answer",
+   "engine": "gemini-3.5-flash@recorded",
+   "statements": [],
+   "quotes": [],
+   "review_needed": 0,
+   "removed": 0,
+   "cited": [],
+   "expected": [
+    "D19"
+   ],
+   "on_key": false,
+   "package": [
+    "D03",
+    "D04",
+    "D11",
+    "D17",
+    "D18",
+    "D19",
+    "D26",
+    "D27"
+   ],
+   "expected_in_package": true,
+   "forbidden_named": [],
+   "message": "No sufficiently supported answer was found in the authorised records."
+  },
+  {
+   "id": "Q12",
+   "user": "U03",
+   "expected_status": "no_supported_answer",
+   "status": "no_answer",
+   "engine": "gemini-3.5-flash@recorded",
+   "statements": [],
+   "quotes": [],
+   "review_needed": 0,
+   "removed": 0,
+   "cited": [],
+   "expected": [],
+   "on_key": false,
+   "package": [
+    "D01",
+    "D02",
+    "D03",
+    "D05",
+    "D06",
+    "D07",
+    "D08",
+    "D10"
+   ],
+   "expected_in_package": false,
+   "forbidden_named": [],
+   "message": "No sufficiently supported answer was found in the authorised records."
+  },
+  {
+   "id": "Q13",
+   "user": "U02",
+   "expected_status": "answered",
+   "status": "answered",
+   "engine": "gemini-3.5-flash@recorded",
+   "statements": [
+    "Government has noted that some employees with pending vigilance enquiries or disciplinary proceedings were transferred or relieved without the knowledge of the Vigilance wing, thereby hampering the enquiries.",
+    "All Departments are instructed that no employee against whom a vigilance enquiry or disciplinary proceeding is pending or contemplated shall be transferred or relieved without the prior clearance of the Vigilance section of the Department.",
+    "Every note proposing the transfer of an employee shall specifically record the Vigilance clearance status.",
+    "Under the Urban Services Department's Standing Order No.2/2020, the dealing assistant must verify and record the Vigilance clearance status in the transfer note.",
+    "Under G.O.Ms.No.31, transfer requests of employees with pending or contemplated proceedings shall not be considered until their conclusion, and clearance of the Vigilance section is mandatory."
+   ],
+   "quotes": [
+    "It has been brought to the notice of the Government that in some cases employees against whom vigilance enquiries or disciplinary proceedings were pending were transferred or relieved without the knowledge of the Vigilance wing, thereby hampering the enquiries.",
+    "All Departments are therefore instructed that no employee against whom a vigilance enquiry or disciplinary proceeding is pending or contemplated shall be transferred or relieved without the prior clearance of the Vigilance section of the Department.",
+    "Every note proposing the transfer of an employee shall specifically record the Vigilance clearance status.",
+    "The dealing assistant shall verify and record in the note: (a) the station period of the employee; (b) the number of transfers already effected in the category against the ceiling prescribed in the transfer guidelines in force; (c) the Vigilance clearance status; and (d)",
+    "or contemplated shall not be considered until the conclusion of such proceedings. Clearance of the Vigilance section is mandatory, as per the reference 3rd read above."
+   ],
+   "review_needed": 0,
+   "removed": 0,
+   "cited": [
+    "D04",
+    "D10",
+    "D11"
+   ],
+   "expected": [
+    "D20"
+   ],
+   "on_key": false,
+   "package": [
+    "D04",
+    "D06",
+    "D10",
+    "D11",
+    "D17",
+    "D19",
+    "D20",
+    "D29"
+   ],
+   "expected_in_package": true,
+   "forbidden_named": [],
+   "message": null
+  },
+  {
+   "id": "Q14",
+   "user": "U05",
+   "expected_status": "no_supported_answer",
+   "status": "no_answer",
+   "engine": "gemini-3.5-flash@recorded",
+   "statements": [],
+   "quotes": [],
+   "review_needed": 0,
+   "removed": 0,
+   "cited": [],
+   "expected": [],
+   "on_key": false,
+   "package": [
+    "D10",
+    "D11",
+    "D15",
+    "D20",
+    "D21",
+    "D24",
+    "D28"
+   ],
+   "expected_in_package": false,
+   "forbidden_named": [],
+   "message": "No sufficiently supported answer was found in the authorised records."
+  },
+  {
+   "id": "Q15",
+   "user": "U06",
+   "expected_status": "answered",
+   "status": "answered",
+   "engine": "gemini-3.5-flash@recorded",
+   "statements": [
+    "The Vigilance & Enforcement wing issued a report on suspected cartelisation in drain works contracts in three Urban Local Bodies, 2023–25.",
+    "The Vigilance & Enforcement wing conducted a confidential analysis of 46 drain works contracts awarded during 2023–25 in three Urban Local Bodies.",
+    "The wing reported that in 31 of the 46 contracts, the same four bidders participated, and the lowest bid was within 0.5% of the estimate in 27 cases, indicating possible bid rotation.",
+    "The wing recommended mandatory e-procurement analytics for works above Rs.25 lakhs and rotation of officers handling tender evaluation."
+   ],
+   "quotes": [
+    "Report of the Vigilance & Enforcement wing on suspected cartelisation in drain works contracts in three Urban Local Bodies, 2023–25.",
+    "The Vigilance & Enforcement wing undertook a confidential analysis of 46 drain works contracts awarded during 2023–25 in three Urban Local Bodies.",
+    "In 31 of the 46 contracts, the same four bidders participated, and the lowest bid was within 0.5% of the estimate in 27 cases, indicating possible bid rotation.",
+    "procurement analytics for works above Rs.25 lakhs, and (iii) rotation of officers handling tender evaluation."
+   ],
+   "review_needed": 0,
+   "removed": 0,
+   "cited": [
+    "D23"
+   ],
+   "expected": [
+    "D23"
+   ],
+   "on_key": true,
+   "package": [
+    "D10",
+    "D15",
+    "D20",
+    "D21",
+    "D23",
+    "D24",
+    "D28"
+   ],
+   "expected_in_package": true,
+   "forbidden_named": [],
+   "message": null
+  },
+  {
+   "id": "Q16",
+   "user": "U07",
+   "expected_status": "no_supported_answer",
+   "status": "no_answer",
+   "engine": "gemini-3.5-flash@recorded",
+   "statements": [],
+   "quotes": [],
+   "review_needed": 0,
+   "removed": 0,
+   "cited": [],
+   "expected": [],
+   "on_key": false,
+   "package": [
+    "D01",
+    "D03",
+    "D04",
+    "D05",
+    "D07",
+    "D08",
+    "D10",
+    "D13"
+   ],
+   "expected_in_package": false,
+   "forbidden_named": [],
+   "message": "No sufficiently supported answer was found in the authorised records."
+  },
+  {
+   "id": "Q17",
+   "user": "U01",
+   "expected_status": "answered",
+   "status": "answered",
+   "engine": "gemini-3.5-flash@recorded",
+   "statements": [
+    "Under G.O.Ms.No.31 of 2025, requests for the transfer of employees against whom disciplinary proceedings are pending or contemplated shall not be considered until the conclusion of those proceedings."
+   ],
+   "quotes": [
+    "Requests for transfer of employees against whom disciplinary proceedings are pending or contemplated shall not be considered until the conclusion of such proceedings."
+   ],
+   "review_needed": 0,
+   "removed": 0,
+   "cited": [
+    "D04"
+   ],
+   "expected": [
+    "D04"
+   ],
+   "on_key": true,
+   "package": [
+    "D01",
+    "D02",
+    "D03",
+    "D04",
+    "D09",
+    "D10",
+    "D19",
+    "D27"
+   ],
+   "expected_in_package": true,
+   "forbidden_named": [],
+   "message": null
+  },
+  {
+   "id": "Q18",
+   "user": "U01",
+   "expected_status": "answered",
+   "status": "answered",
+   "engine": "gemini-3.5-flash@recorded",
+   "statements": [
+    "According to a department note, para 2(v) of G.O.Ms.No.88, which is superseded, states that spouse cases shall be given preference subject to availability of vacancy."
+   ],
+   "quotes": [
+    "spouse cases shall be given preference subject to availability of vacancy."
+   ],
+   "review_needed": 0,
+   "removed": 0,
+   "cited": [
+    "D03",
+    "D27"
+   ],
+   "expected": [
+    "D03",
+    "D04"
+   ],
+   "on_key": true,
+   "package": [
+    "D01",
+    "D02",
+    "D03",
+    "D04",
+    "D09",
+    "D17",
+    "D18",
+    "D27"
+   ],
+   "expected_in_package": true,
+   "forbidden_named": [],
+   "message": null
+  },
+  {
+   "id": "Q19",
+   "user": "U03",
+   "expected_status": "answered",
+   "status": "no_answer",
+   "engine": null,
+   "statements": [],
+   "quotes": [],
+   "review_needed": 0,
+   "removed": 0,
+   "cited": [],
+   "expected": [
+    "D16",
+    "D14"
+   ],
+   "on_key": false,
+   "package": [],
+   "expected_in_package": false,
+   "forbidden_named": [],
+   "message": "No sufficiently supported answer was found in the authorised records."
+  },
+  {
+   "id": "Q20",
+   "user": "U01",
+   "expected_status": "answered",
+   "status": "answered",
+   "engine": "gemini-3.5-flash@recorded",
+   "statements": [
+    "According to the expired G.O.Rt.No.1184, any continuation of outsourcing services beyond 31-03-2026 requires fresh orders of the Government.",
+    "An unestablished draft note suggests that reference to the Finance Department may not be necessary for the continuation since it is on the same terms.",
+    "An unestablished order states that no existing engagement shall be extended or continued without the prior concurrence of the Finance Department and the approval of the Government.",
+    "An expired circular memo states that no services shall be contracted, outsourced, or continued without the prior concurrence of the Finance Department."
+   ],
+   "quotes": [
+    "Any continuation beyond 31-03-2026 shall require fresh orders of the Government.",
+    "Since the continuation is on the same terms, reference to the Finance Department may not be necessary.",
+    "Government hereby order that no services shall be contracted or outsourced, and no existing engagement shall be extended or continued, without the prior concurrence of the Finance Department and the approval of the Government.",
+    "Government have ordered that no services shall be contracted or outsourced, or continued, without the prior concurrence of the Finance Department."
+   ],
+   "review_needed": 0,
+   "removed": 0,
+   "cited": [
+    "D06",
+    "D07",
+    "D08",
+    "D29"
+   ],
+   "expected": [
+    "D08",
+    "D06",
+    "D07"
+   ],
+   "on_key": true,
+   "package": [
+    "D06",
+    "D07",
+    "D08",
+    "D09",
+    "D18",
+    "D19",
+    "D27",
+    "D29"
+   ],
+   "expected_in_package": true,
+   "forbidden_named": [],
+   "message": null
+  },
+  {
+   "id": "Q21",
+   "user": "U01",
+   "expected_status": "answered",
+   "status": "answered",
+   "engine": "gemini-3.5-flash@recorded",
+   "statements": [
+    "For the 2025 general transfers, employees who have completed five (5) years of service at a station as on 30-04-2025 shall be transferred compulsorily.",
+    "The station period for the 2025 transfers is computed with reference to the total continuous service.",
+    "Periods of leave not exceeding six months shall be counted towards the station period, while periods of deputation outside the Department shall not be counted.",
+    "Where an employee has been transferred within the same headquarters town, the service at both offices shall be treated as service at one station."
+   ],
+   "quotes": [
+    "Employees who have completed five (5) years of service at a station as on 30-04-2025 shall be transferred compulsorily.",
+    "The station period shall be computed with reference to the total continuous service at a",
+    "Periods of leave not exceeding six months shall be counted towards the station period. Periods of deputation outside the Department shall not be counted.",
+    "Where an employee has been transferred within the same headquarters town, the service at both offices shall be treated as service at one station."
+   ],
+   "review_needed": 0,
+   "removed": 0,
+   "cited": [
+    "D04",
+    "D05"
+   ],
+   "expected": [
+    "D05",
+    "D04"
+   ],
+   "on_key": true,
+   "package": [
+    "D01",
+    "D02",
+    "D03",
+    "D04",
+    "D05",
+    "D11",
+    "D19",
+    "D27"
+   ],
+   "expected_in_package": true,
+   "forbidden_named": [],
+   "message": null
+  },
+  {
+   "id": "Q22",
+   "user": "U03",
+   "expected_status": "answered",
+   "status": "answered",
+   "engine": "gemini-3.5-flash@recorded",
+   "statements": [
+    "The abstract estimate for the construction of the storm water drain in Ward No.14 of Seetharampuram Municipal Corporation allocates Rs.4.20 lakhs for earthwork excavation.",
+    "The estimate allocates Rs.61.35 lakhs for 860 m of RCC drain (1.2m x 1.0m).",
+    "The estimate allocates Rs.9.80 lakhs for 4 culvert crossings.",
+    "The estimate allocates Rs.3.15 lakhs for the shifting of utilities."
+   ],
+   "quotes": [
+    "1 Earthwork excavation 4.20",
+    "2 RCC drain (1.2m x 1.0m), 860 m 61.35",
+    "3 Culvert crossings (4 nos.) 9.80",
+    "4 Shifting of utilities 3.15"
+   ],
+   "review_needed": 0,
+   "removed": 0,
+   "cited": [
+    "D15"
+   ],
+   "expected": [
+    "D15"
+   ],
+   "on_key": true,
+   "package": [
+    "D07",
+    "D12",
+    "D13",
+    "D14",
+    "D15",
+    "D24",
+    "D25",
+    "D28"
+   ],
+   "expected_in_package": true,
+   "forbidden_named": [],
+   "message": null
+  },
+  {
+   "id": "Q23",
+   "user": "U01",
+   "expected_status": "no_supported_answer",
+   "status": "no_answer",
+   "engine": "gemini-3.5-flash@recorded",
+   "statements": [],
+   "quotes": [],
+   "review_needed": 0,
+   "removed": 0,
+   "cited": [],
+   "expected": [],
+   "on_key": false,
+   "package": [
+    "D03",
+    "D04",
+    "D06",
+    "D07",
+    "D09",
+    "D10",
+    "D11",
+    "D29"
+   ],
+   "expected_in_package": false,
+   "forbidden_named": [],
+   "message": "No sufficiently supported answer was found in the authorised records."
+  },
+  {
+   "id": "Q24",
+   "user": "U02",
+   "expected_status": "answered",
+   "status": "answered",
+   "engine": "gemini-3.5-flash@recorded",
+   "statements": [
+    "Under Standing Order No.2/2020 of the Urban Services Department, while the Deputy Secretary may recommend transfers of staff working in the Department and its regional offices, orders must be passed only by the Secretary to Government."
+   ],
+   "quotes": [
+    "The Deputy Secretary may recommend, but orders shall be passed only by the Secretary to Government."
+   ],
+   "review_needed": 0,
+   "removed": 0,
+   "cited": [
+    "D11"
+   ],
+   "expected": [
+    "D04",
+    "D09",
+    "D11"
+   ],
+   "on_key": true,
+   "package": [
+    "D03",
+    "D04",
+    "D09",
+    "D11",
+    "D17",
+    "D18",
+    "D19",
+    "D27"
+   ],
+   "expected_in_package": true,
+   "forbidden_named": [],
+   "message": null
+  }
+ ]
+}

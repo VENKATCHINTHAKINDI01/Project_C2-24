@@ -1,0 +1,245 @@
+"""Draft for approval (DFA) — touchpoint 14 (plan §11.5): the deterministic parts of draft
+proceedings, put up with the file. Nothing here is written by a model.
+
+- Abstract: proposed from the file's subject ("… – Reg." → "… – Orders – Issued.").
+- "Read the following": the orders the draft note cites, plus the orders in force on the proposal's
+  subject (L1 current-rule template; subject term from the proposal's action). Each is followed
+  along its supersession chain to the latest order the officer may see; a cited order that was
+  superseded is listed as its successor ("in place of …"). Orders not found, repealed, expired or
+  not yet in force are left out and named in `left_out`. "Current" is not claimed for an order
+  whose status the officer's records can't confirm (owner rule, 3 Nov 2026): it is listed with
+  `status_confirmed=False`.
+- Order paragraphs: NOT drafted (that is Gemini's job, GCP). The body says so in place.
+- Open points: the pre-send check's flags travel with the draft, so the approver sees them.
+The officer edits and clicks "Create DFA draft" (a draft via the connector); C2-24 never signs,
+issues or dispatches.
+"""
+
+from __future__ import annotations
+
+import datetime as dt
+import re
+from collections.abc import Callable, Iterable
+
+from pydantic import BaseModel, ConfigDict
+
+from app.agents.intents import ORDER_TYPES
+from app.agents.tools import (
+    ToolContext,
+    current_rule_ladder,
+    status_covered,
+    visible_document,
+    visible_facts,
+)
+from app.auth.models import DocumentAccessTags
+from app.auth.policy import check
+from app.conflict.deterministic import ConflictFlag
+from app.conflict.procedural import Action
+from app.identifiers.canonical import InvalidCanonicalIdError, lookup_keys, parse_canonical_id
+from app.ingestion.metadata import DocumentMetadata
+from app.temporal.engine import Status, status_as_of
+
+# The proposal's action → the word its orders carry in their subject (same vocabulary the facts
+# reader uses to recognise the action in a note).
+SUBJECT_TERMS: dict[Action, tuple[str, ...]] = {
+    Action.TRANSFER: ("transfer",),
+    Action.WORKS_SANCTION: ("works",),
+    Action.OUTSOURCING: ("outsourcing",),
+}
+ORDER_PARAGRAPHS_PENDING = (
+    "[Order paragraphs: to be written by the officer. Model drafting (Gemini) is not available "
+    "in this sandbox.]"
+)
+_MAX_CHAIN = 10
+
+
+class _Frozen(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+
+class ReadItem(_Frozen):
+    canonical_id: str
+    doc_type: str
+    subject: str
+    issue_date: dt.date | None
+    in_place_of: tuple[str, ...] = ()  # cited orders this one supersedes in the list
+    cited_in_note: bool
+    status_confirmed: bool  # False: the officer's records can't confirm it is still in force
+
+
+class LeftOut(_Frozen):
+    cited: str  # canonical ID or the note's raw words
+    reason: str
+
+
+class DfaPreview(_Frozen):
+    file_no: str
+    draft_note: str | None
+    abstract: str
+    read_list: tuple[ReadItem, ...]
+    left_out: tuple[LeftOut, ...]
+    flags: tuple[ConflictFlag, ...]
+    caveats: tuple[str, ...]
+    body: str
+    citations: tuple[str, ...]
+
+
+def abstract_from_subject(subject: str) -> str:
+    s = re.sub(r"\s*[–-]\s*Reg\.?\s*$", "", subject.strip())
+    return f"{s} – Orders – Issued."
+
+
+def _fmt(d: dt.date | None) -> str:
+    return d.strftime("%d-%m-%Y") if d else "date not recorded"
+
+
+def _resolve(ctx: ToolContext, cid: str, known: Iterable[str]) -> str | None:
+    """A cited ID to the one visible record it names (exact, undated, or the single dated one)."""
+    try:
+        for k in lookup_keys(cid):
+            if visible_document(ctx, k) is not None:
+                return k
+        base = parse_canonical_id(cid).base_id
+    except InvalidCanonicalIdError:
+        return None
+    same = [k for k in known if _base(k) == base and visible_document(ctx, k) is not None]
+    return same[0] if len(same) == 1 else None
+
+
+def _base(cid: str) -> str | None:
+    try:
+        return parse_canonical_id(cid).base_id
+    except InvalidCanonicalIdError:
+        return None
+
+
+def governing_orders(
+    ctx: ToolContext, meta: DocumentMetadata | None, action: Action | None
+) -> tuple[tuple[ReadItem, ...], tuple[LeftOut, ...]]:
+    """The orders that govern a proposal, as the officer's records show them (see module doc):
+    cited + in force on the action's subject, each followed to its latest visible version."""
+    left_out: list[LeftOut] = []
+    cited: list[tuple[str, str]] = []  # (raw, visible canonical ID)
+    for ref in meta.references if meta else ():
+        if ref.raw.startswith("file:"):
+            continue
+        hit = _resolve(ctx, ref.canonical_id, ctx.instruments) if ref.canonical_id else None
+        if hit is None:
+            left_out.append(
+                LeftOut(
+                    cited=ref.canonical_id or ref.raw.strip(),
+                    reason="not found in the records available to you",
+                )
+            )
+        else:
+            cited.append((ref.raw, hit))
+
+    found: list[str] = [c for _, c in cited]
+    if action is not None and action in SUBJECT_TERMS:
+        res = current_rule_ladder(ctx, SUBJECT_TERMS[action])
+        found += [d.canonical_id for d in res.documents if d.doc_type in ORDER_TYPES]
+
+    inst, rels = visible_facts(ctx, set(found))
+    items: dict[str, ReadItem] = {}
+    cited_ids = {c for _, c in cited}
+    for cid in dict.fromkeys(found):
+        here, hops = cid, 0
+        reason = None
+        while hops < _MAX_CHAIN and here in inst:
+            st = status_as_of(here, ctx.as_of, inst, rels)
+            if st.status is Status.SUPERSEDED and st.by:
+                here, hops = st.by, hops + 1
+                continue
+            if st.status is Status.REPEALED:
+                reason = f"repealed{' by ' + st.by if st.by else ''}"
+            elif st.status is Status.EXPIRED:
+                reason = "no longer in force on the proposal date"
+            elif st.status is Status.NOT_YET_EFFECTIVE:
+                reason = "not yet in force on the proposal date"
+            break
+        if reason:
+            if cid in cited_ids:
+                left_out.append(LeftOut(cited=cid, reason=reason))
+            continue
+        doc = visible_document(ctx, here)
+        if doc is None:
+            continue
+        prev = items.get(here)
+        replaced = (cid,) if (cid != here and cid in cited_ids) else ()
+        items[here] = ReadItem(
+            canonical_id=here,
+            doc_type=doc.doc_type,
+            subject=doc.subject,
+            issue_date=doc.issue_date,
+            in_place_of=tuple(dict.fromkeys((*(prev.in_place_of if prev else ()), *replaced))),
+            cited_in_note=(here in cited_ids) or bool(prev and prev.cited_in_note),
+            status_confirmed=status_covered(ctx, doc),
+        )
+    read_list = tuple(
+        sorted(items.values(), key=lambda i: (i.issue_date or dt.date.min, i.canonical_id))
+    )
+    return read_list, tuple(left_out)
+
+
+def draft_for_approval(
+    *,
+    ctx: ToolContext,
+    file_no: str,
+    subject: str,
+    draft_note: str | None,
+    meta: DocumentMetadata | None,
+    action: Action | None,
+    flags: Iterable[ConflictFlag],
+    awaiting_review: Iterable[DocumentAccessTags] = (),
+    label: Callable[[str], str] | None = None,
+) -> DfaPreview:
+    """`meta`/`action`: read from the file's latest note the officer may see (None: no note)."""
+    read_list, left_out = governing_orders(ctx, meta, action)
+    caveats: list[str] = []
+    if any(not i.status_confirmed for i in read_list):
+        caveats.append(
+            "Some orders are listed as the latest version in your records; whether they are "
+            "still current could not be confirmed from the records available to you."
+        )
+    if any(
+        check(ctx.user_id, t, ctx.store, ctx.policy, ctx.classification).allowed
+        for t in awaiting_review
+    ):
+        caveats.append(
+            "Some records you may see are awaiting review (for example scans not yet read); "
+            "orders among them are not in this list."
+        )
+    flags = tuple(flags)
+    abstract = abstract_from_subject(subject)
+    name = label or (lambda c: c)
+    lines = [
+        "DRAFT FOR APPROVAL — prepared with C2-24 Assist; not approved, signed or issued.",
+        "",
+        "ABSTRACT",
+        abstract,
+        "",
+        "Read the following:",
+        *[
+            f"{n}. {name(i.canonical_id)}, dated {_fmt(i.issue_date)} — {i.subject}"
+            + (f" (in place of {', '.join(i.in_place_of)})" if i.in_place_of else "")
+            for n, i in enumerate(read_list, 1)
+        ],
+        "",
+        "ORDER:",
+        ORDER_PARAGRAPHS_PENDING,
+    ]
+    if flags or left_out:
+        lines += ["", "Open points for the approving officer (from the pre-send check):"]
+        lines += [f"- {f.type.value}: {f.explanation}" for f in flags]
+        lines += [f"- Not listed: {x.cited} — {x.reason}." for x in left_out]
+    return DfaPreview(
+        file_no=file_no,
+        draft_note=draft_note,
+        abstract=abstract,
+        read_list=read_list,
+        left_out=tuple(left_out),
+        flags=flags,
+        caveats=tuple(caveats),
+        body="\n".join(lines),
+        citations=tuple(i.canonical_id for i in read_list),
+    )

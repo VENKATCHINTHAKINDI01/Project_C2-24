@@ -1,12 +1,13 @@
 # Access policy parameters (plan §5.1, §11.4; ADR-0009). MOCK — [To confirm] with the department.
-# A document at `public_classification` is visible to everyone. Otherwise ALL of:
+# A PUBLISHED instrument (not part of an e-File) at `public_classification` is visible to everyone. A paper inside an
+# e-File (note sheet, draft, correspondence) is never public, whatever its marking (13 Nov 2026). Otherwise ALL of:
 #   same department; clearance >= classification; and one of
 #   - department-wide: role_rank >= department_wide_min_role_rank AND a search scope in department_wide_scopes
 #     (rank and e-Office search privilege must BOTH allow it — owner decision, 3 Nov 2026);
 #   - same section AND a search scope in section_scopes;
 #   - the file is assigned to the officer, or (if handled_files_grant_access) has passed through them.
 # post_hierarchy / individual scopes give file-level reach only until the reporting tree is confirmed (ADR-0008).
-version: "2026-11-03-mock"
+version: "2026-11-13-mock"
 status: mock
 public_classification: UNCLASSIFIED
 department_wide_min_role_rank: 3        # Deputy Secretary or above — [To confirm]

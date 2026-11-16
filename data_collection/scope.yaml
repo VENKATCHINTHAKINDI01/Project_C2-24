@@ -1,7 +1,7 @@
 # C2-24 data collection scope — edit this, the tools read it.
 # Department codes as in the GOIR department list (checked 16 Oct 2026): FIN01, GAD01, ESE01.
 
-# DECISIONS (16 Oct 2026): Finance, School Education, GAD · 2018–2025 (corpus as of 31-12-2025) · all G.O.(Ms) that pass the filters (estimate 16 Oct: 645 = FIN01 246, GAD01 264, ESE01 135; ~550 real rules) plus cited orders · 100 synthetic e-files
+# DECISIONS (16 Oct 2026; 12 Nov 2026: start widened to 2016): Finance, School Education, GAD · 2016–2025 (corpus as of 31-12-2025) · all G.O.(Ms) that pass the filters (estimate 16 Oct: 645 = FIN01 246, GAD01 264, ESE01 135; ~550 real rules) plus cited orders · 100 synthetic e-files
 # with real department names and synthetic content · no official department data is coming: collect public data,
 # generate what cannot be found (every claim backed by a quote from a real order).
 departments:
@@ -11,7 +11,7 @@ departments:
     verified: true
   GAD01:
     name: GENERAL ADMINISTRATION
-    aliases: ["General Administration", "GENERAL ADMINISTRATION", "G.A.", "G.A"]
+    aliases: ["General Administration", "GENERAL ADMINISTRATION", "G.A.", "G.A", "GA"]   # GA: "GA(SC.F) Department" (13 Nov 2026)
     verified: true
   USD01:                        # SYNTHETIC department used only by the seed / mock corpus
     name: URBAN SERVICES
@@ -19,10 +19,10 @@ departments:
     synthetic: true
   ESE01:                        # confirmed from the GOIR department list, 16 Oct 2026
     name: SCHOOL EDUCATION
-    aliases: ["School Education", "SCHOOL EDUCATION"]
+    aliases: ["School Education", "SCHOOL EDUCATION", "School Edn"]   # "School Edn.(Ser.II) Dept." (13 Nov 2026)
     verified: true
 
-from_date: 2018-01-01
+from_date: 2016-01-01        # widened from 2018 (owner, 12 Nov 2026)
 to_date: 2025-12-12           # last day the Internet Archive mirror carries (seen 14 Oct 2026)
 archive_latest: 2025-12-12
 # The corpus is frozen AS OF this date: answers say "as of 31-12-2025"; no 2026 orders are collected;
@@ -30,7 +30,7 @@ archive_latest: 2025-12-12
 as_of: 2025-12-31
 # Orders held back from the corpus and ingested live in the demo ("new order arrives -> open files flagged").
 # Pick with tools/find_holdback.py after the 2025 batch; they are moved to staging/holdback/.
-demo_holdback: []
+demo_holdback: [AP-GAD01-GOMS-139-2025]
 order_types: [Ms]               # decided 16 Oct 2026: Ms only (filtered Rt orders are almost all individual cases); Rt only when cited
 per_department_limit: 300          # cap only; above every department's estimate, so nothing that passes is dropped
 

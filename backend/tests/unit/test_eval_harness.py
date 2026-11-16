@@ -53,7 +53,7 @@ def test_every_golden_question_and_conflict_type_is_reported(report: dict[str, A
     assert set(report["conflict"]["per_type"]) == set("ABCDEFG")
     for t in "BDG":  # not built yet: reported as such, never silently dropped
         assert not report["conflict"]["per_type"][t]["implemented"]
-    assert report["touchpoints"]["summary"]["scenarios"] == 17
+    assert report["touchpoints"]["summary"]["scenarios"] == 24  # 17 core + 7 extended (ADR-0038)
 
 
 def test_no_false_flags_on_clean_controls_and_never_clear_on_mock_rules(

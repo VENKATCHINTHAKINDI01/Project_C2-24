@@ -30,7 +30,7 @@ from app.auth.models import AccessPolicy, StatusCoverage
 from app.auth.policy import ScopeError, check, scope_for
 from app.auth.store import AuthzStore
 from app.config import Classification, Hierarchy
-from app.graph.repository import InMemoryGraphRepository
+from app.graph.repository import WalkableGraph
 from app.retrieval.ladder import (
     HybridRetriever,
     LadderConfig,
@@ -74,7 +74,7 @@ class ToolContext:
     as_of: dt.date
     index: ScopedRetriever
     l2: HybridRetriever
-    graph: InMemoryGraphRepository
+    graph: WalkableGraph
     cfg: LadderConfig
     store: AuthzStore
     policy: AccessPolicy
@@ -97,6 +97,7 @@ class ToolResult(_Frozen):
     documents: tuple[DocRef, ...] = ()
     status: str | None = None
     by: str | None = None  # the visible order that superseded / repealed it
+    since: dt.date | None = None  # from when (the date `by` took effect for this order)
     current_version: str | None = None
     precedence: Precedence | None = None
     ladder_level: str | None = None
@@ -242,6 +243,7 @@ def check_document_status(ctx: ToolContext, canonical_id: str) -> ToolResult:
                 documents=(_ref(doc),),
                 status=st.status.value,
                 by=st.by,
+                since=st.since,
                 message=CURRENT_UNCONFIRMED,
                 ladder_level="L0+L3",
             )
@@ -258,6 +260,7 @@ def check_document_status(ctx: ToolContext, canonical_id: str) -> ToolResult:
         documents=(_ref(doc),),
         status=st.status.value,
         by=st.by,
+        since=st.since,
         current_version=current if st.status is not Status.IN_FORCE else canonical_id,
         ladder_level="L0+L3",
     )
@@ -324,3 +327,28 @@ def _two_ids(args: dict[str, Any]) -> tuple[str, str]:
     if len(slots.canonical_ids) != 2 or set(args) != {"canonical_ids"}:
         raise ToolError("exactly two canonical IDs expected")
     return slots.canonical_ids[0], slots.canonical_ids[1]
+
+
+# ---- public, scoped helpers for other assist modules (same checks as the tools above) ----------
+
+
+def visible_document(ctx: ToolContext, canonical_id: str) -> IndexedDocument | None:
+    """The record, only if this officer may see it (L0 within scope + re-check)."""
+    return _visible(ctx, canonical_id)
+
+
+def visible_facts(
+    ctx: ToolContext, ids: set[str]
+) -> tuple[dict[str, Instrument], list[TemporalRelation]]:
+    """Temporal facts restricted to records this officer may see."""
+    return _visible_facts(ctx, ids)
+
+
+def status_covered(ctx: ToolContext, doc: IndexedDocument) -> bool:
+    """Whether the officer's scope covers everything that could change this order's status."""
+    return _status_covered(ctx, doc)
+
+
+def current_rule_ladder(ctx: ToolContext, terms: tuple[str, ...]) -> LadderResult:
+    """The current-rule template (L1 structured filter) with the given subject terms."""
+    return _ladder(ctx, Intent.CURRENT_RULE, IntentSlots(terms=terms))

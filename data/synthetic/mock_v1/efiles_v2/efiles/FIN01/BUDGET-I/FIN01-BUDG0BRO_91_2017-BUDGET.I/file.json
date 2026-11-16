@@ -1,0 +1,26 @@
+{
+  "file_no": "FIN01-BUDG0BRO/91/2017-BUDGET.I",
+  "computer_no": "3741439",
+  "subject": "Budget 2016-17 – Budget Authorisation for April 2016 and Guidelines for issue of – Reg.",
+  "department_code": "FIN01",
+  "section": "BUDGET-I",
+  "section_label": "Finance (Budget.I) Department",
+  "classification": "CONFIDENTIAL",
+  "status": "decided",
+  "opened": "2017-02-17",
+  "scenario": "FIN01-D-060",
+  "touchpoints": [
+    3,
+    5,
+    9,
+    15,
+    20
+  ],
+  "origin": "synthetic",
+  "banner": "Synthetic — not a real government file",
+  "cites": [
+    "AP-FIN01-GOMS-63-2016",
+    "AP-FIN01-GOMS-51-2016"
+  ],
+  "received_by": "U.O. Note"
+}

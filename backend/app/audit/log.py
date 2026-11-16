@@ -57,3 +57,13 @@ class AuditLog:
 
     def events(self) -> tuple[AuditEvent, ...]:
         return tuple(self._events)
+
+    def refused_since(self, since: dt.datetime) -> tuple[AuditEvent, ...]:
+        """Refused requests ("denied" / "not_available") from `since` on, for the monitoring
+        pad's alerts (ADR-0036)."""
+        with self._lock:
+            return tuple(
+                e
+                for e in self._events
+                if e.at >= since and e.outcome in ("denied", "not_available")
+            )

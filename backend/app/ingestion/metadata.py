@@ -18,7 +18,7 @@ from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict
 
-from app.identifiers.canonical import parse_canonical_id
+from app.identifiers.canonical import InvalidCanonicalIdError, parse_canonical_id
 from app.identifiers.resolver import (
     DepartmentTable,
     Unresolved,
@@ -42,6 +42,7 @@ class DocType(StrEnum):
     NOTING_DRAFT = "Noting (draft proposal)"
     REPORT = "Report"
     ANNEXURE = "Annexure"
+    GAZETTE = "Gazette Notification"
     UNKNOWN = "Unknown"
 
 
@@ -91,6 +92,9 @@ class DocumentMetadata(_Frozen):
     subject: str | None
     department_source: str | None = None  # "text" | "source_system" (ADR-0011)
     valid_until: dt.date | None = None  # the order's OWN end date, read from its subject
+    # The date the order says it takes effect ("with effect from 01.07.2016", "shall come into force
+    # from …"); None when it states none or several. Not the issue date (data collection item 2).
+    stated_effective_from: dt.date | None = None
     file_no: str | None = None
     computer_no: str | None = None
     references: tuple[Reference, ...] = ()
@@ -110,6 +114,140 @@ _OWN_SO = re.compile(
     r"^\s*(Standing\s+Order\s+No\.?\s*\d+\s*/\s*\d{4}(?:.*?Dated\s*:?\s*\d{1,2}[-./]\d{1,2}[-./]\d{2,4})?)",
     re.I | re.M,
 )
+# OCR of a two-column header often puts the number and "Dated:" on separate lines, in either order
+# (seen on real Document AI output, 11 Nov 2026). Rejoined only for finding the own reference.
+_NUMBER_ONLY = re.compile(
+    r"^\s*(?:G\.?\s*O\.?\s*\(?\s*(?:Ms|Rt|P)\s*\)?\.?\s*No\.?\s*\d+"
+    r"|(?:Circular\s+Memo|Memo|Rc)\.?\s*No\.?\s*\S+?/\d+/\d{4}(?:-\d+)?"
+    r"|Standing\s+Order\s+No\.?\s*\d+\s*/\s*\d{4}),?\s*$",
+    re.I,
+)
+_DATED_ONLY = re.compile(r"^\s*Dated\s*:?\s*\d{1,2}[-./]\d{1,2}[-./]\d{2,4}\s*$", re.I)
+
+
+def _join_split_header(text: str) -> str:
+    """A number line alone and a "Dated:" line alone, adjacent (blank lines aside, either order),
+    become one line "<number> Dated: <date>". Nothing else changes."""
+    lines = text.splitlines()
+    for i, line in enumerate(lines):
+        if not _NUMBER_ONLY.match(line):
+            continue
+        near = [j for j in (i - 1, i + 1, i - 2, i + 2) if 0 <= j < len(lines)]
+        for j in near:
+            between = lines[min(i, j) + 1 : max(i, j)]
+            if _DATED_ONLY.match(lines[j]) and not any(b.strip() for b in between):
+                lines[i] = f"{line.strip().rstrip(',')} {lines[j].strip()}"
+                lines[j] = ""
+                break
+    return "\n".join(lines)
+
+
+# The own line as real orders print it beyond the strict form above (corpus v2, 13 Nov 2026):
+# "G.O. Ms. No.:117 Dated: 23.06.2016", "G.O.M s.No.141 Dated:16.08.2017",
+# "G.O.Ms.No.175  Date:27.11.2017", "G.O.Ms.No. 63 Dated: 18th April 2016", "Dated:-14.09.2021".
+# Read into the strict form, then resolved as before.
+_OWN_GO_LOOSE = re.compile(
+    r"^\s*G\.?\s*O\.?\s*\(?\s*(?P<kind>M\s?s|Rt|P)\s*\)?\.?\s*No\.?\s*[:.]?\s*"
+    r"(?P<num>\d+)[ \t,.]*"
+    r"(?:[ \t]*\S{0,3}[ \t]+)?Dat(?:ed|e)\s*[.:]?\s*-?\s*"
+    r"(?P<date>\d{1,2}\s*[-./]\s*\d{1,2}\s*[-./]\s*\d{4}"
+    r"|\d{1,2}\s*(?:st|nd|rd|th)?\s+[A-Za-z]{3,9}\.?,?\s+\d{4})",
+    re.I | re.M,
+)
+_MONTHS = {
+    m: i
+    for i, m in enumerate(
+        ("jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"), 1
+    )
+}
+
+
+def _loose_own_line(header: str) -> str | None:
+    """The own G.O. line in the strict form "G.O.Ms.No.117 Dated: 23.06.2016", or None."""
+    m = _OWN_GO_LOOSE.search(header)
+    if not m:
+        return None
+    raw = re.sub(r"\s+", "", m["date"]) if re.match(r"\d+\s*[-./]", m["date"]) else m["date"]
+    if w := re.fullmatch(
+        r"(\d{1,2})\s*(?:st|nd|rd|th)?\s+([A-Za-z]{3,9})\.?,?\s+(\d{4})", raw.strip()
+    ):
+        mon = _MONTHS.get(w.group(2)[:3].lower())
+        if mon is None:
+            return None
+        raw = f"{int(w.group(1)):02d}.{mon:02d}.{w.group(3)}"
+    kind = {"ms": "Ms", "rt": "Rt", "p": "P"}[re.sub(r"\s", "", m["kind"]).lower()]
+    return f"G.O.{kind}.No.{m['num']} Dated: {raw}"
+
+
+# Gazette masthead (AP e-Gazette): "W.No.3 AMARAVATI, THURSDAY, JANUARY 27, 2022 G.648" with its
+# part line ("PART I EXTRAORDINARY", "RULES SUPPLEMENT TO PART I", "PART I - NOTIFICATIONS ...").
+# Own ID: AP-GAZ-GAZETTE-<E|W><RS?><part>-<G. number>-<year> (ADR-0007). Part or edition not printed
+# → no ID (review).
+_GAZ_MAST = re.compile(
+    r"^\s*(?P<weekly>W\.\s*)?No\.\s*\d+\s+AMARAVATI,\s*[A-Z]+,\s*(?P<mon>[A-Z]+)\s+(?P<day>\d{1,2}),\s*"
+    r"(?P<year>(?:19|20)\d{2})\s+G\.\s*(?P<gno>\d+)\s*$",
+    re.M,
+)
+_GAZ_PART = re.compile(
+    r"\b(?P<rs>RULES\s+SUPPLEMENT\s+TO\s+)?PART\s*(?P<part>I{1,3}V?|IV(?:-[AB])?)\b"
+    r"(?P<extra>\s*EXTRAORDINARY)?"
+)
+
+
+def _gazette(text: str) -> tuple[str, dt.date] | None:
+    """(canonical ID, date of issue) when page 1 carries a gazette masthead with a readable part."""
+    head = text[:1500]
+    m = _GAZ_MAST.search(head)
+    if not m or not re.search(r"Registered\s+No\.|ANDHRA\s+PRADESH\s+GAZETTE", head, re.I):
+        return None
+    around = head[max(0, m.start() - 300) : m.end() + 200]
+    p = _GAZ_PART.search(around)
+    mon = _MONTHS.get(m["mon"][:3].lower())
+    if not p or mon is None:
+        return None
+    extraordinary = bool(p["extra"]) or "EXTRAORDINARY" in around
+    if extraordinary == bool(m["weekly"]):
+        return None  # edition unclear (weekly number on an extraordinary issue, or neither printed)
+    code = ("E" if extraordinary else "W") + ("RS" if p["rs"] else "") + p["part"]
+    try:
+        issued = dt.date(int(m["year"]), mon, int(m["day"]))
+    except ValueError:
+        return None
+    return f"AP-GAZ-GAZETTE-{code}-{int(m['gno'])}-{m['year']}", issued
+
+
+def _gazette_instrument(text: str) -> str | None:
+    """A gazette ranks as what it notifies (hierarchy.yaml, [To confirm]): "… Rules, <year>" →
+    statutory rules; otherwise the instrument printed on its own line under the masthead — a
+    circular memo (e.g. Gazette 3644/2024 notifies Finance Cir.Memo 25/2023) or a G.O.(Ms).
+    None when the notification names neither (no level is guessed)."""
+    head = text[:2500]
+    if re.search(r"\bRules,?\s*(?:19|20)\d{2}\b", head, re.I):
+        return _GAZETTE_RULES
+    if re.search(r"^\s*Circular\s*\.?\s*Memo\s*\.?\s*No\b", head, re.I | re.M):
+        return "CIRCULAR_MEMO"
+    if re.search(r"^\s*G\.?\s*O\.?\s*\(?\s*Ms\s*\)?\.?\s*No\b", head, re.I | re.M):
+        return "GO_MS"
+    return None
+
+
+GAZETTE_DEPARTMENT = "GAZ"  # department code of gazette notifications (masthead IDs)
+
+
+def with_printed_masthead(text: str, page1_layer: str) -> str | None:
+    """A gazette scan whose OCR text lost or scrambled the masthead (part line, G. number), while
+    the PDF's own text layer on page 1 prints it (e.g. Gazettes 3644/2024, 1905/2023): the text
+    with that layer in front, so the masthead rule can read it. Only when the text itself gives no
+    gazette ID and the layer gives one; otherwise None (nothing changes, nothing is guessed)."""
+    if _gazette(text) is not None or _gazette(page1_layer) is None:
+        return None
+    return f"{page1_layer.strip()}\n{text}"
+
+
+_GAZETTE_RULES = (
+    "RULES"  # a gazette that notifies "… Rules, <year>": statutory rules (hierarchy level 3)
+)
+
 _FILE = re.compile(
     r"File\s+No\.?\s*(?P<file>[A-Z]{2,6}\d{2}-[A-Z0-9]+/\d+/\d{4}-[A-Z][A-Z0-9.]*[A-Z0-9])(?:\s*\(Computer\s+No\.?\s*(?P<cno>\d+)\))?",
     re.I,
@@ -119,16 +257,79 @@ _FILE_CITE = re.compile(
 )
 _SIGN_DATE = re.compile(r"(?:^|/)\s*(\d{2}/\d{2}/\d{4})\s+\d{1,2}:\d{2}\s*[AP]M", re.I | re.M)
 _AS_ON = re.compile(r"\bAs\s+on\s+(\d{1,2}[-./]\d{1,2}[-./]\d{4})", re.I)
-_HEADING = re.compile(r"^[^a-z\n]*\bDEPARTMENT\b[^a-z\n]*$", re.M)
+# A department heading is upper case; the section in brackets may not be:
+# "FINANCE (HR-5-Pension, GPF) DEPARTMENT".
+_HEADING = re.compile(r"^[^a-z\n(]*(?:\([^)\n]*\)[^a-z\n(]*)*\bDEPARTMENT\b[^a-z\n]*$", re.M)
 _DATE = re.compile(r"(?:Dated|Dt)\s*[.:]?\s*(\d{1,2}[-./]\d{1,2}[-./]\d{2,4})", re.I)
 _ORD = re.compile(r"(\d{1,2})(?:st|nd|rd|th)", re.I)
-_REF_LINE = re.compile(r"^\s*(\d{1,2})\s*[.)]\s+(.+)$")
+_ORD_WORDS = {
+    "first": 1,
+    "second": 2,
+    "third": 3,
+    "fourth": 4,
+    "fifth": 5,
+    "sixth": 6,
+    "seventh": 7,
+    "eighth": 8,
+    "ninth": 9,
+    "tenth": 10,
+    "eleventh": 11,
+    "twelfth": 12,
+}
+
+
+def _operative(text: str) -> str:
+    """The operative part: from the "ORDER:" heading (not "BY ORDER AND IN THE NAME …")."""
+    op = re.search(r"^\s*(?:O\s*R\s*D\s*E\s*R|ORDER)\s*[:.\-]|^\s*NOTIFICATION\s*$", text, re.M)
+    return text[op.end() :] if op else (text.split("ORDER", 1)[1] if "ORDER" in text else text)
+
+
+def _suffix(n: int) -> str:
+    return {1: "st", 2: "nd", 3: "rd"}.get(n, "th")
+
+
+def _norm_ordinals(text: str) -> str:
+    """'1 st' / '1 s t' (OCR) and 'first' … 'seventh' read above → '1st' …, for _ORD."""
+    t = re.sub(
+        r"\b(\d{1,2})\s+(s\s?t|n\s?d|r\s?d|t\s?h)\b",
+        lambda m: m[1] + m[2].replace(" ", ""),
+        text,
+    )
+
+    def word(m: re.Match[str]) -> str:
+        n = _ORD_WORDS[m[1].lower()]
+        return f"{n}{_suffix(n)}"
+
+    return re.sub(
+        r"\b(first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth|eleventh|twelfth)"
+        r"(?=\s+(?:read|cited)\b)",
+        word,
+        t,
+        flags=re.I,
+    )
+
+
+_REF_LINE = re.compile(r"^\s*(?:Ref\s*[:.-]*\s*)?(\d{1,2})\s*[.)]+\s*(?=\S)(.+)$")
 _ORDER_CITE = re.compile(
-    r"G\.?\s*O\.?\s*\(?\s*(?:Ms|Rt)\s*\)?\.?\s*No\.?\s*\d+(?:(?!G\.?\s*O\.|Memo|Rc\.|Standing|File)[^\n]){0,120}?(?:Dt|Dated)[.:\s]*\d{1,2}[-./]\d{1,2}[-./]\d{2,4}"
+    r"G\.?\s*O\.?\s*\(?\s*(?:Ms|Rt|P)\s*\)?\.?\s*No\.?\s*\d+(?:(?!G\.?\s*O\.|Memo|Rc\.|Standing|File)[^\n]){0,120}?(?:Dt|Dated)[.:\s]*\d{1,2}[-./]\d{1,2}[-./]\d{2,4}"
     r"|(?:Circular\s+Memo|Memo|Rc)\.?\s*No\.?\s*[A-Z0-9()\-.]+/\d+/\d{4}(?:-\d+)?(?:(?!G\.?\s*O\.|Memo|Rc\.|Standing|File)[^\n]){0,120}?(?:Dt|Dated)[.:\s]*\d{1,2}[-./]\d{1,2}[-./]\d{2,4}"
     r"|Standing\s+Order\s+No\.?\s*\d+\s*/\s*\d{4}",
     re.I,
 )
+# A gazette cited in a note: "A.P. Gazette (Extraordinary / PART I) No.3880, dated 19.02.2024" or
+# "(Weekly / Rules Supplement to Part I) No.648, dated 24.01.2022". Resolved to the masthead ID
+# (AP-GAZ-GAZETTE-<E|W><RS?><part>-<G. number>-<year>) only when edition and part are both printed.
+_GAZ_CITE = re.compile(
+    r"A\.?\s*P\.?\s+Gazette\s*\(\s*(?P<ed>Extraordinary|Weekly)\s*/\s*"
+    r"(?P<rs>Rules\s+Supplement\s+to\s+)?Part\s*(?P<part>I{1,3}V?|IV(?:-[AB])?)\s*\)\s*"
+    r"No\.?\s*(?P<no>\d+)\s*,?\s*(?:Dt|Dated)[.:\s]*\d{1,2}[-./]\d{1,2}[-./](?P<year>(?:19|20)\d{2})",
+    re.I,
+)
+
+
+def _gazette_cite(m: re.Match[str]) -> str:
+    code = ("E" if m["ed"].lower().startswith("e") else "W") + ("RS" if m["rs"] else "")
+    return f"AP-GAZ-GAZETTE-{code}{m['part'].upper()}-{int(m['no'])}-{m['year']}"
 
 
 _SUPERSESSION = re.compile(
@@ -152,7 +353,9 @@ def _subject(text: str) -> str | None:
     m = re.search(r"ABSTRACT\s*\n(?P<s>.+?)\n\s*-{5,}", text, re.S)
     if not m:  # no rule line: the abstract ends at the department heading
         m = re.search(
-            r"ABSTRACT\s*\n(?P<s>.+?)\n(?=[^a-z\n]*\bDEPARTMENT\b[^a-z\n]*\n)", text, re.S
+            r"ABSTRACT\s*\n(?P<s>.+?)\n(?=[^a-z\n(]*(?:\([^)\n]*\)[^a-z\n(]*)*\bDEPARTMENT\b[^a-z\n]*\n)",
+            text,
+            re.S,
         )
     if not m:
         m = re.search(
@@ -204,9 +407,52 @@ def _valid_until(subject: str | None, doc_type: DocType) -> dt.date | None:
     return ends.pop() if len(ends) == 1 else None
 
 
+_WEF = re.compile(
+    r"(?:with\s+effect\s+from|w\.\s*e\.\s*f\.?|(?:shall\s+)?come\s+into\s+force\s+(?:with\s+effect\s+)?"
+    r"(?:from|on)|take\s+effect\s+(?:from|on))\s*:?\s*(?:the\s+)?"
+    r"(?P<d>\d{1,2}\s*[-./]\s*\d{1,2}\s*[-./]\s*(?:19|20)\d{2}"
+    r"|\d{1,2}\s*(?:st|nd|rd|th)?\s+(?:day\s+of\s+)?[A-Za-z]{3,9},?\s+(?:19|20)\d{2})",
+    re.I,
+)
+
+
+def _wef_date(raw: str) -> dt.date | None:
+    raw = re.sub(r"\s+", " ", raw).strip()
+    if m := re.fullmatch(r"(\d{1,2})\s*[-./]\s*(\d{1,2})\s*[-./]\s*(\d{4})", raw):
+        try:
+            return dt.date(int(m[3]), int(m[2]), int(m[1]))
+        except ValueError:
+            return None
+    if m := re.fullmatch(
+        r"(\d{1,2})\s*(?:st|nd|rd|th)?\s+(?:day of\s+)?([A-Za-z]{3,9}),?\s+(\d{4})", raw
+    ):
+        mon = _MONTHS.get(m[2][:3].lower())
+        try:
+            return dt.date(int(m[3]), mon, int(m[1])) if mon else None
+        except ValueError:
+            return None
+    return None
+
+
+def _stated_effective_from(subject: str | None, body: str) -> dt.date | None:
+    """The subject's "with effect from" date; else the operative text's own commencement
+    ("These orders shall come into force with effect from …"). Several different dates → None:
+    an order listing dates for different categories states no single one (never guessed)."""
+    for part in (subject or "", body):
+        dates = {d for m in _WEF.finditer(re.sub(r"\s+", " ", part)) if (d := _wef_date(m["d"]))}
+        if len(dates) == 1:
+            return dates.pop()
+        if dates:
+            return None
+    return None
+
+
 def _read_list(text: str) -> list[tuple[int, str]]:
     m = re.search(
-        r"Read the following\s*:?\s*\n(?P<b>.+?)\n\s*(?:\*\s*\*|ORDER\s*:)", text, re.S | re.I
+        r"Read the following\s*[:.]?\s*-?\s*\n(?P<b>.+?)\n\s*"
+        r"(?:\*\s*\*|<>|&\s*&|#\s*#|ORDER\s*[:.-]|O\s+R\s+D\s+E\s+R\b|NOTIFICATION\b)",
+        text,
+        re.S | re.I,
     )
     if m:
         items: list[tuple[int, str]] = []
@@ -219,12 +465,26 @@ def _read_list(text: str) -> list[tuple[int, str]]:
                 sep = "" if re.search(r"\d-$", prev) and re.match(r"\d", line.strip()) else " "
                 items[-1] = (n, f"{prev}{sep}{line.strip()}")
         return items
+    # "Read:-" with a single unnumbered entry (e.g. G.O.Rt.No.2740/2019 GA: "Read:- G.O.Rt.No.2657,
+    # G.A (Cabinet.I) Department, Dated.26.11.2019."): position 1, only when it names one order
+    one = re.search(
+        r"^[ \t]*Read\s*[:.]?\s*-?[ \t]*\n(?P<b>.+?)\n\s*(?:ORDER\s*[:.-]|O\s+R\s+D\s+E\s+R\b)",
+        text,
+        re.S | re.M,
+    )
+    if one:
+        body = re.sub(r"\s+", " ", one.group("b")).strip()
+        if body and not _REF_LINE.match(body) and len(re.findall(r"\bNo\s*\.", body, re.I)) == 1:
+            return [(1, body)]
     ref = re.search(r"^\s*Ref\s*:\s*(?P<r>.+?)(?=\n\s*(?:\*|1\.)|\n\n)", text, re.S | re.M)
     return [(1, re.sub(r"\s+", " ", ref.group("r")).strip())] if ref else []
 
 
 def _sentences_with(body: str, pattern: str) -> list[str]:
     flat = re.sub(r"\s+", " ", body)
+    flat = re.sub(
+        r"\b(No|Dt|dt|Rc|Lr|Ms|Rt)\.\s+(?=[\dA-Z(])", r"\1.", flat
+    )  # "No. 34": no full stop
     return [
         s.strip()
         for s in re.split(r"(?<=[.;:])\s+(?=\(?[A-Z0-9])", flat)
@@ -250,17 +510,31 @@ def extract_metadata(
     dept_from_source = False
     file_m = _FILE.search(text)
     own_raw: str | None = None
-    for rx in (_OWN_GO, _OWN_MEMO, _OWN_SO):
-        if m := rx.search(text):
-            own_raw = re.sub(r"\s+", " ", m.group(1)).strip()
-            break
+    header = _join_split_header(text)
+    gazette = _gazette(text)
+    if gazette is None:
+        for rx in (_OWN_GO, _OWN_MEMO, _OWN_SO):
+            if m := rx.search(header):
+                own_raw = re.sub(r"\s+", " ", m.group(1)).strip()
+                break
+        loose = _OWN_GO_LOOSE.search(header)
+        strict = _OWN_GO.search(header)
+        if loose and (own_raw is None or (strict is not None and loose.start() < strict.start())):
+            own_raw = _loose_own_line(
+                header
+            )  # the earlier line is the order's own (body lines follow)
 
     canonical: str | None = None
     issue: dt.date | None = None
     typ: str | None = None
-    if own_raw:
+    if gazette is not None:
+        canonical, issue = gazette
+        typ, dept = "GAZETTE", GAZETTE_DEPARTMENT
+    elif own_raw:
         r = resolve_reference(own_raw, departments, dept)
-        if r.unresolved is Unresolved.NO_DEPARTMENT and dept is None and source_department:
+        # the gazette folder's tag is not a department: never borrow it for an order's own number
+        borrow = source_department and source_department != GAZETTE_DEPARTMENT
+        if r.unresolved is Unresolved.NO_DEPARTMENT and dept is None and borrow:
             r = resolve_reference(own_raw, departments, source_department)
             dept_from_source = r.canonical_id is not None
         canonical, issue, typ = r.canonical_id, r.issue_date, r.doc_type
@@ -279,6 +553,8 @@ def extract_metadata(
         dept = dept or file_dept
         signed = [_date(d.replace("/", "-")) for d in _SIGN_DATE.findall(text)]
         issue = max((d for d in signed if d), default=None)  # date of the latest note
+    elif typ == "GAZETTE":
+        doc_type = DocType.GAZETTE
     elif own_raw is None and re.search(r"^\s*Report\s+of\b", text, re.M | re.I):
         doc_type, typ, dept = DocType.REPORT, "RPT", dept or file_dept
         if dm := _DATE.search(text):
@@ -323,6 +599,8 @@ def extract_metadata(
                     position=None, raw=re.sub(r"\s+", " ", m.group(0)), canonical_id=r.canonical_id
                 )
             )
+        for m in _GAZ_CITE.finditer(flat_text):
+            refs.append(Reference(position=None, raw=m.group(0), canonical_id=_gazette_cite(m)))
         own_file = file_m.group("file") if file_m else None
         for m in _FILE_CITE.finditer(flat_text):
             if m.group("file") != own_file:  # another e-file: resolved against the file index later
@@ -349,12 +627,17 @@ def extract_metadata(
         doc_type=doc_type,
         canonical_id=canonical,
         raw_reference=own_raw or (f"File No.{file_m.group('file')}" if file_m else None),
-        instrument=INSTRUMENT_FOR_TYPE.get(typ or ""),
+        instrument=_gazette_instrument(text)
+        if typ == "GAZETTE"
+        else INSTRUMENT_FOR_TYPE.get(typ or ""),
         issue_date=issue,
         department=dept,
         subject=subject,
         department_source=None if dept is None else "source_system" if dept_from_source else "text",
         valid_until=_valid_until(subject, doc_type),
+        stated_effective_from=_stated_effective_from(subject, _operative(text))
+        if doc_type in _DATED_TYPES or doc_type is DocType.GAZETTE
+        else None,
         file_no=file_m.group("file") if file_m else None,
         computer_no=file_m.group("cno") if file_m else None,
         references=tuple(refs),
@@ -363,13 +646,57 @@ def extract_metadata(
     )
 
 
+# Real orders often name the earlier order by number rather than by its place in the Read list
+# ("in supersession of the orders issued in G.O.Ms.No.230 …", "the following amendments to the
+# guidelines issued in G.O.Ms.No.25 …"). Such a number counts only when it matches exactly one
+# order of the Read list (corpus v2, 13 Nov 2026).
+_GO_NUM = re.compile(r"G\.?\s*O\.?\s*\(?\s*(?:Ms|Rt|P)\s*\)?\.?\s*No\.?\s*[:.]?\s*(\d+)", re.I)
+_SUPERSEDE_ONLY = re.compile(
+    r"in supersession of(?:(?!\bhereby\b|\bGovernment\b).){0,120}?\bread above\b", re.I
+)
+_SUPERSEDE_NUM = re.compile(
+    r"in supersession of(?:(?!\bhereby\b|\bGovernment\b|\bGovernor\b|\bread above\b).){0,200}", re.I
+)
+# DR / DA orders "revise" an earlier order's rate ("raising it … from 12.052% to 15.196%")
+_CHANGE_VERB = re.compile(
+    r"\b(?:amend\w*|modif\w*|substitut\w*|replac\w*|revis\w*|enhanc\w*|rais(?:e|ed|ing))\b", re.I
+)
+_CHANGE_SUBJECT = re.compile(
+    r"\b(?:Amendments?|Modifi\w*|Modified|Substitution|Replacement|Revised|Revision|Enhancement)\b",
+    re.I,
+)
+_OWN_CHANGE = re.compile(
+    r"hereby\s+(?:make|makes|issue|issues)\s+the\s+following\s+(?:amendments?|modifications?)", re.I
+)
+
+
+def _number_of(cid: str | None) -> int | None:
+    if not cid:
+        return None
+    try:
+        return parse_canonical_id(cid).number
+    except InvalidCanonicalIdError:
+        return None  # an ID the resolver could not form validly is never matched
+
+
+def _by_number(sentence: str, refs: list[Reference]) -> list[Reference]:
+    """Read-list orders named by number in `sentence`; a number two listed orders share → none."""
+    out: list[Reference] = []
+    for m in _GO_NUM.finditer(sentence):
+        n = int(m.group(1))
+        same = [r for r in refs if r.position is not None and _number_of(r.canonical_id) == n]
+        if len(same) == 1 and same[0] not in out:
+            out.append(same[0])
+    return out
+
+
 def _relations(
     text: str, refs: list[Reference], doc_type: DocType, subject: str | None, is_note: bool
 ) -> list[RelationCandidate]:
     by_pos = {r.position: r for r in refs if r.position is not None}
     out: list[RelationCandidate] = []
     explicit_targets: set[int] = set()
-    body = text.split("ORDER", 1)[1] if "ORDER" in text else text
+    body = _norm_ordinals(_operative(text))
 
     def add(kind: RelKind, ref: Reference, explicit: bool, evidence: str) -> None:
         out.append(
@@ -388,12 +715,54 @@ def _relations(
             if n in by_pos:
                 add(RelKind.SUPERSEDES, by_pos[n], True, m.group(0))
                 explicit_targets.add(n)
+    if not is_note and len(by_pos) == 1 and not explicit_targets:
+        # "In supersession of the orders issued in the G.O. read above": no ordinal is needed
+        # (or printed) when the Read list has a single entry
+        m1 = _SUPERSEDE_ONLY.search(flat)
+        ((pos, only),) = by_pos.items()
+        if m1 and not _ORD.search(m1.group(0)):
+            add(RelKind.SUPERSEDES, only, True, m1.group(0))
+            explicit_targets.add(pos)
+    if not is_note:
+        for m in _SUPERSEDE_NUM.finditer(flat):
+            for ref in _by_number(m.group(0), refs):
+                if ref.position is not None and ref.position not in explicit_targets:
+                    add(RelKind.SUPERSEDES, ref, True, m.group(0))
+                    explicit_targets.add(ref.position)
     if doc_type is DocType.AMENDMENT:
         for sentence in _sentences_with(body, r"amendment"):
             for n in (int(x) for x in _ORD.findall(sentence)):
-                if n in by_pos and n not in explicit_targets:
+                if n in by_pos and n not in explicit_targets and by_pos[n].canonical_id:
                     add(RelKind.AMENDS, by_pos[n], True, sentence)
                     explicit_targets.add(n)
+    changes_by_title = doc_type in (DocType.AMENDMENT, DocType.GAZETTE) or bool(
+        subject and _CHANGE_SUBJECT.search(subject)
+    )
+    if not is_note:
+        for sentence in _sentences_with(body, _CHANGE_VERB.pattern):
+            if not (changes_by_title or _OWN_CHANGE.search(sentence)):
+                continue
+            if doc_type is DocType.GAZETTE and not _CHANGE_SUBJECT.search(text[:2500]):
+                continue
+            own = _OWN_CHANGE.search(sentence)
+            # "hereby make the following amendments to the … Rules issued in G.O.Ms.No.20, as
+            # amended in G.O.Ms.No.130 …": the order changed is the first one named after the phrase
+            named = _by_number(sentence[own.end() :], refs)[:1] if own else []
+            targets = (named or _by_number(sentence, refs)) + [
+                by_pos[n]
+                for n in (int(x) for x in _ORD.findall(sentence))
+                if n in by_pos and by_pos[n].canonical_id
+            ]
+            for ref in targets:
+                if ref.position is not None and ref.position not in explicit_targets:
+                    add(RelKind.AMENDS, ref, True, sentence)
+                    explicit_targets.add(ref.position)
+        orders = [r for r in refs if r.position is not None and r.canonical_id]
+        if changes_by_title and not explicit_targets and len(orders) == 1:
+            # an amendment / modification whose Read list names exactly one order: that order is
+            # the one changed. Inferred from the title, so a candidate (explicit=False) for review.
+            add(RelKind.AMENDS, orders[0], False, subject or "amendment by title")
+            explicit_targets.add(orders[0].position or 0)
     if doc_type is DocType.CLARIFICATION and 1 in by_pos and len(by_pos) == 1:
         add(RelKind.CLARIFIES, by_pos[1], True, subject or "clarification")
         explicit_targets.add(1)
@@ -408,3 +777,35 @@ def _relations(
             continue  # letters / unresolvable mentions: kept in `references`, not as edges
         add(RelKind.CITES if is_note else RelKind.REFERENCES, ref, True, ref.raw)
     return out
+
+
+class CitationSpan(_Frozen):
+    """Where one citation sits in a text, as offsets into that text (ADR-0015 highlights)."""
+
+    kind: str  # "order" (G.O. / memo / circular / standing order) or "efile"
+    start: int
+    end: int  # exclusive
+    raw: str  # whitespace collapsed, as `extract_metadata` records it; e-File: the file number
+
+
+def citation_spans(text: str) -> list[CitationSpan]:
+    """The order and e-File citations in a note, located in the original text (plan §4.4).
+
+    Uses the same patterns as `extract_metadata`, run over the whitespace-collapsed text (citations
+    wrap across lines), with each collapsed position mapped back to the original offset."""
+    flat: list[str] = []
+    origin: list[int] = []
+    for m in re.finditer(r"\s+|\S", text):
+        flat.append(" " if m.group(0).isspace() else m.group(0))
+        origin.append(m.start())
+    s = "".join(flat)
+
+    def span(kind: str, a: int, b: int, raw: str) -> CitationSpan:
+        return CitationSpan(kind=kind, start=origin[a], end=origin[b - 1] + 1, raw=raw)
+
+    out = [span("order", m.start(), m.end(), m.group(0)) for m in _ORDER_CITE.finditer(s)]
+    out += [
+        span("efile", m.start("file"), m.end("file"), m.group("file"))
+        for m in _FILE_CITE.finditer(s)
+    ]
+    return sorted(out, key=lambda c: c.start)

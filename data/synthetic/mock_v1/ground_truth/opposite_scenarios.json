@@ -1,0 +1,446 @@
+{
+  "synthetic": true,
+  "status": "draft — owner review",
+  "evaluation_only": "Ground truth for the evaluation harness only; app code never reads it (CLAUDE.md §9.2).",
+  "written": "2026-11-06, before the first run; each expectation is derived from the corpus facts named in `basis` (access_matrix.csv, conflicts.json, documents_index.csv, eoffice/seed.json), not from system output.",
+  "purpose": "The opposite of each touchpoint scenario: where the correct output is the reverse — no access, nothing to find, nothing wrong, an order still in force. Run through the sandbox HTTP API as the officer would see it. The sandbox has no OCR: scans (D01, D02, D09, D11, D13, D15, D16, D22) stay in review, so no expectation here depends on a scan's text.",
+  "vocabulary": {
+    "same_as_unknown": "status code and body (request_id removed) identical to the same call for a record that does not exist — never confirm existence (CLAUDE.md §4.7); with 'path', the same GET on that path instead (ADR-0014 documents)",
+    "never_docs": "corpus documents whose canonical ID must not appear anywhere in the response",
+    "must_docs": "corpus documents whose canonical ID must appear",
+    "flag_types": "the exact set of flag types (implemented A/C/E/F only)",
+    "certain_flags": "the exact set of flag types reported as certain",
+    "empty": "response fields that must be empty lists",
+    "equals": "response field → required value (dotted path)",
+    "not_equals": "response field → value it must not have",
+    "no_in_place_of": "no listed order is marked as replacing a cited order"
+  },
+  "scenarios": [
+    {
+      "id": "OPP-02",
+      "mirrors": "TP02-a",
+      "user": "U03",
+      "call": [
+        "POST",
+        "/assist/receipt",
+        {
+          "computer_no": "9100010"
+        }
+      ],
+      "expect": {
+        "same_as_unknown": {
+          "computer_no": "9999999"
+        }
+      },
+      "basis": "Receipt 9100010 is in the Estt.I inbox (seed); U03 is the Works SO."
+    },
+    {
+      "id": "OPP-04",
+      "mirrors": "TP04",
+      "user": "U03",
+      "replay": "tp04",
+      "arrive": "9100009",
+      "call": [
+        "GET",
+        "/assist/notices",
+        null
+      ],
+      "expect": {
+        "empty": [
+          "notices"
+        ],
+        "never_docs": [
+          "D27"
+        ]
+      },
+      "basis": "The only open file citing 88/2022 is 2894562 (D27); access_matrix: D27 DENY for U03."
+    },
+    {
+      "id": "OPP-06a",
+      "mirrors": "TP06",
+      "user": "U03",
+      "call": [
+        "POST",
+        "/assist/first-cut",
+        {
+          "computer_no": "2894562"
+        }
+      ],
+      "expect": {
+        "same_as_unknown": {
+          "computer_no": "9999999"
+        }
+      },
+      "basis": "File 2894562 is RESTRICTED Estt.I; access_matrix: D27 DENY for U03."
+    },
+    {
+      "id": "OPP-06b",
+      "mirrors": "TP06",
+      "user": "U03",
+      "call": [
+        "POST",
+        "/assist/first-cut",
+        {
+          "computer_no": "2899017"
+        }
+      ],
+      "expect": {
+        "no_in_place_of": true,
+        "never_docs": [
+          "D03",
+          "D11",
+          "D17",
+          "D18",
+          "D19",
+          "D20",
+          "D21",
+          "D22",
+          "D23",
+          "D27"
+        ],
+        "not_equals": {
+          "flags.*.type": "A"
+        }
+      },
+      "basis": "D28 cites no superseded order (conflicts.json in=D28: G, C, D — no A); D11, D17–D23, D27 DENY for U03; a Works note gets no transfer orders."
+    },
+    {
+      "id": "OPP-07a",
+      "mirrors": "TP07",
+      "user": "U04",
+      "call": [
+        "POST",
+        "/assist/note-reference",
+        {
+          "computer_no": "2601155",
+          "text": "budget for stationery",
+          "as_of": "2025-07-21"
+        }
+      ],
+      "expect": {
+        "empty": [
+          "suggestions"
+        ],
+        "equals": {
+          "matched_by": "none"
+        }
+      },
+      "basis": "No paragraph of D21 concerns stationery or budget."
+    },
+    {
+      "id": "OPP-07b",
+      "mirrors": "TP07",
+      "user": "U04",
+      "call": [
+        "POST",
+        "/assist/note-reference",
+        {
+          "computer_no": "2601155",
+          "text": "the earlier proposal for a preliminary enquiry",
+          "as_of": "2025-04-08"
+        }
+      ],
+      "expect": {
+        "empty": [
+          "suggestions"
+        ]
+      },
+      "basis": "seed: Note #1 of 2601155 was signed 09-04-2025; on 08-04-2025 there is no earlier note to refer to."
+    },
+    {
+      "id": "OPP-07c",
+      "mirrors": "TP07",
+      "user": "U01",
+      "call": [
+        "POST",
+        "/assist/note-reference",
+        {
+          "computer_no": "2601155",
+          "text": "the earlier proposal for a preliminary enquiry"
+        }
+      ],
+      "expect": {
+        "same_as_unknown": {
+          "computer_no": "9999999"
+        }
+      },
+      "basis": "File 2601155 is CONFIDENTIAL Vigilance; access_matrix: D21 DENY for U01."
+    },
+    {
+      "id": "OPP-08",
+      "mirrors": "TP08",
+      "user": "U01",
+      "call": [
+        "POST",
+        "/assist/file-so-far",
+        {
+          "computer_no": "2601155"
+        }
+      ],
+      "expect": {
+        "same_as_unknown": {
+          "computer_no": "9999999"
+        }
+      },
+      "basis": "access_matrix: D21, D22 DENY for U01."
+    },
+    {
+      "id": "OPP-09",
+      "mirrors": "TP09",
+      "user": "U01",
+      "call": [
+        "POST",
+        "/assist/link-suggestions",
+        {
+          "computer_no": "2894562"
+        }
+      ],
+      "expect": {
+        "must_docs": [
+          "D17",
+          "D18",
+          "D19"
+        ],
+        "never_docs": [
+          "D20",
+          "D21",
+          "D22",
+          "D23",
+          "D24",
+          "D25"
+        ]
+      },
+      "basis": "TP09 is the Works SO; the Estt.I SO's precedents are the transfer files D17–D19 (ALLOW for U01); D20–D25 DENY for U01."
+    },
+    {
+      "id": "OPP-10a",
+      "mirrors": "TP10",
+      "user": "U01",
+      "call": [
+        "POST",
+        "/assist/reference",
+        {
+          "text": "G.O.Ms.No.31/2025 para 2(v)"
+        }
+      ],
+      "expect": {
+        "not_equals": {
+          "status": "superseded"
+        },
+        "equals": {
+          "by": null,
+          "successor_clause": null,
+          "cited_clause.clause_id": "AP-FIN01-GOMS-31-2025#para-2.v"
+        }
+      },
+      "basis": "relations: nothing in the corpus supersedes G.O.Ms.No.31/2025 (D04)."
+    },
+    {
+      "id": "OPP-10b",
+      "mirrors": "TP10",
+      "user": "U03",
+      "call": [
+        "POST",
+        "/assist/reference",
+        {
+          "text": "Standing Order No.2/2020"
+        }
+      ],
+      "expect": {
+        "same_as_unknown": {
+          "text": "Standing Order No.9/2020"
+        }
+      },
+      "basis": "D11 (Standing Order No.2/2020) is RESTRICTED Estt.I; access_matrix: D11 DENY for U03. No Standing Order No.9/2020 exists."
+    },
+    {
+      "id": "OPP-11a",
+      "mirrors": "TP11-a",
+      "user": "U01",
+      "call": [
+        "POST",
+        "/assist/presend",
+        {
+          "computer_no": "2629410"
+        }
+      ],
+      "expect": {
+        "flag_types": [],
+        "not_equals": {
+          "outcome": "conflicts_found"
+        }
+      },
+      "basis": "D19 (2025 approval, file 2629410) has no entry in conflicts.json: it relies on 31/2025 inside its relaxation window.",
+      "revised": "2026-11-06 after the first run: originally also expected outcome 'clear'. That cannot hold under two owner decisions — 'current' is not confirmed without full coverage (3 Nov 2026), and the type-C rules are mock, so authority is never confirmed. The first run returned no flags and 'review_needed' (status unconfirmed for 31/2025; authority not verifiable). The opposite of TP11-a is 'no conflict flagged', kept as is."
+    },
+    {
+      "id": "OPP-11b",
+      "mirrors": "TP11-b",
+      "user": "U03",
+      "call": [
+        "POST",
+        "/assist/presend",
+        {
+          "computer_no": "2003377"
+        }
+      ],
+      "expect": {
+        "certain_flags": []
+      },
+      "basis": "D24 (2023 drain file) is the clean control: no entry in conflicts.json. It cites the 2023 Works circular D13, a scan held in the sandbox, so an E flag may appear but only as uncertain (ADR-0013)."
+    },
+    {
+      "id": "OPP-13",
+      "mirrors": "TP13",
+      "user": "U01",
+      "call": [
+        "POST",
+        "/assist/brief",
+        {
+          "computer_no": "2894562"
+        }
+      ],
+      "expect": {
+        "never_docs": [
+          "D20",
+          "D21",
+          "D22",
+          "D23",
+          "D24",
+          "D25"
+        ]
+      },
+      "basis": "TP13's Secretary sees the confidential 2025 rejection D20; access_matrix: D20 DENY for U01."
+    },
+    {
+      "id": "OPP-14",
+      "mirrors": "TP14",
+      "user": "U01",
+      "call": [
+        "POST",
+        "/assist/dfa",
+        {
+          "computer_no": "2881930"
+        }
+      ],
+      "expect": {
+        "no_in_place_of": true,
+        "never_docs": [
+          "D03",
+          "D04",
+          "D20",
+          "D21",
+          "D22",
+          "D23"
+        ],
+        "must_docs": [
+          "D08"
+        ]
+      },
+      "basis": "D29 (outsourcing continuation) relies on G.O.Rt.No.1184 (D08), which nothing supersedes; it is not a transfer case, so the transfer orders 88/2022 and 31/2025 do not apply."
+    },
+    {
+      "id": "OPP-15",
+      "mirrors": "TP15-a",
+      "user": "U01",
+      "call": [
+        "POST",
+        "/assist/search",
+        {
+          "query": "that 2023 drain case"
+        }
+      ],
+      "expect": {
+        "never_docs": [
+          "D21",
+          "D22",
+          "D23",
+          "D24",
+          "D25",
+          "D28"
+        ]
+      },
+      "basis": "The 2023 drain case is D24, RESTRICTED Works; access_matrix: D24, D25, D28 DENY for U01."
+    },
+    {
+      "id": "OPP-16",
+      "mirrors": "ADR-0014 preview",
+      "user": "U01",
+      "call": [
+        "GET",
+        "/assist/documents/AP-USD01-NOTE-USD01WRKS0-18-2023/preview",
+        null
+      ],
+      "expect": {
+        "same_as_unknown": {
+          "path": "/assist/documents/AP-USD01-NOTE-USD01WRKS0-99-2023/preview"
+        }
+      },
+      "basis": "D24 (2023 drain case, RESTRICTED Works): access_matrix DENY for U01.",
+      "written": "added 2026-11-10 with ADR-0014/0015 (document preview + citation highlights); expectation from access_matrix.csv and documents_index.csv only, written before the run"
+    },
+    {
+      "id": "OPP-17",
+      "mirrors": "ADR-0014 download",
+      "user": "U02",
+      "call": [
+        "GET",
+        "/assist/documents/AP-USD01-NOTE-USD0131-4-2025/download",
+        null
+      ],
+      "expect": {
+        "same_as_unknown": {
+          "path": "/assist/documents/AP-USD01-NOTE-USD0131-99-2025/download"
+        }
+      },
+      "basis": "D21 (Vigilance note): access_matrix DENY for U02.",
+      "written": "added 2026-11-10 with ADR-0014/0015 (document preview + citation highlights); expectation from access_matrix.csv and documents_index.csv only, written before the run"
+    },
+    {
+      "id": "OPP-18",
+      "mirrors": "ADR-0014 document details",
+      "user": "U05",
+      "call": [
+        "GET",
+        "/assist/documents/AP-USD01-RPT-USD0131-9-2025",
+        null
+      ],
+      "expect": {
+        "same_as_unknown": {
+          "path": "/assist/documents/AP-USD01-RPT-USD0131-99-2025"
+        }
+      },
+      "basis": "D23 (Vigilance report): access_matrix DENY for U05, the Deputy Secretary.",
+      "written": "added 2026-11-10 with ADR-0014/0015 (document preview + citation highlights); expectation from access_matrix.csv and documents_index.csv only, written before the run"
+    },
+    {
+      "id": "OPP-19",
+      "mirrors": "ADR-0015 highlights",
+      "user": "U03",
+      "call": [
+        "POST",
+        "/assist/highlights",
+        {
+          "computer_no": "2899017",
+          "notes": [
+            {
+              "note_id": "n1",
+              "text": "1. As per Standing Order No.2/2020, the work may be taken up."
+            }
+          ]
+        }
+      ],
+      "expect": {
+        "never_docs": [
+          "D11"
+        ],
+        "equals": {
+          "notes.*.highlights.*.canonical_id": null,
+          "notes.*.highlights.*.state": "not_found"
+        }
+      },
+      "basis": "D11 (Standing Order No.2/2020): access_matrix DENY for U03 — the citation is marked but never linked or named.",
+      "written": "added 2026-11-10 with ADR-0014/0015 (document preview + citation highlights); expectation from access_matrix.csv and documents_index.csv only, written before the run"
+    }
+  ]
+}

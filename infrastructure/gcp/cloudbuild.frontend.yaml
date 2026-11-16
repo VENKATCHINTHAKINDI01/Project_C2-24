@@ -1,0 +1,6 @@
+# Build the frontend image with Cloud Build and push it to Artifact Registry (used by 23_frontend_service.sh).
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args: ["build", "-f", "frontend/Dockerfile", "-t", "${_IMAGE}", "."]
+images: ["${_IMAGE}"]
+timeout: 1200s

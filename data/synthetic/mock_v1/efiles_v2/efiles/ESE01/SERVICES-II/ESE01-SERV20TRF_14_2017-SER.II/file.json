@@ -1,0 +1,25 @@
+{
+  "file_no": "ESE01-SERV20TRF/14/2017-SER.II",
+  "computer_no": "3331676",
+  "subject": "Exemption from compulsory transfer — teacher with eight years in the school – Reg.",
+  "department_code": "ESE01",
+  "section": "SERVICES-II",
+  "section_label": "School Education (Services.II) Department",
+  "classification": "RESTRICTED",
+  "status": "decided",
+  "opened": "2017-06-09",
+  "scenario": "ESE01-G-HG2",
+  "touchpoints": [
+    1,
+    2,
+    5,
+    10,
+    11,
+    13
+  ],
+  "origin": "synthetic",
+  "banner": "Synthetic — not a real government file",
+  "cites": [
+    "AP-ESE01-GOMS-32-2017"
+  ]
+}

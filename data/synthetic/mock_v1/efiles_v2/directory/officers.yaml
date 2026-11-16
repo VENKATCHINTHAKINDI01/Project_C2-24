@@ -1,0 +1,63 @@
+# SYNTHETIC officers for efiles_v2 (ADR-0020). Names are invented; they are NOT real officials.
+# The structure is real and public:
+#   - post ladder and file flow: A.P. Secretariat Office Manual, ch.1 (apcooperation.nic.in/open_record.php?ID=176):
+#     ASO puts up a note -> SO revises/submits -> Assistant Secretary -> Deputy/Joint/Additional Secretary ->
+#     Secretary decides (or circulates to the Minister); "Section Officer heads a section";
+#     MCR HRD Institute, "Structure of Government" (typical department chart);
+#   - section names and signing designations: from our real G.O.s 2016-2025 (section field counts and signature
+#     blocks: e.g. FIN01 HR-I Plg & Policy 88 orders, HR-III-PENSION-GPF 28, BUDGET-I 57; GAD01 SER-A 42, CABINET-II 63,
+#     SC-F 8; ESE01 SERVICES-II 31, PROGRAM-I 14 (16 verified amendment chains), EXAMS 30).
+# 13 Nov 2026: FIN section A changed PC-TA -> HR-I (Plg & Policy) and ESE section B PROGRAM-II -> PROGRAM-I, because
+# those sections hold most of the verified real-order chains (stage 1); files stay only in staffed sections.
+# Mock, [To confirm] with the department: which sections are restricted, clearances, search scopes, and the
+# delegation that lets a Section Officer dispose of a matter.
+# search_scope (plan §11.4): Section < Section Hierarchy < Department < Global.
+# 13 Nov 2026: heads moved from Global to Department scope. The C2-24 policy (access_policy.yaml) never opens another
+# department's non-public papers, so a Global head would have been ALLOWED in access_matrix.csv but denied by the app.
+# 7 per department, one more than the earlier 6, so the real chain includes the Assistant Secretary (owner, 13 Nov 2026:
+# "use the official hierarchy").
+departments:
+  FIN01:
+    name: Finance Department
+    sections:
+      HR-I:         {label: "Finance (HR.I-Plg. & Policy) Department", subjects: [recruitment, outsourcing, contract employees, transfers, creation of posts], restricted: false}
+      HR-III:       {label: "Finance (HR.III-Pension & GPF) Department", subjects: [pension, family pension, dearness relief, GPF, gratuity], restricted: false}
+      BUDGET-I:     {label: "Finance (Budget.I) Department", subjects: [budget release, vote on account, re-appropriation], restricted: true}
+    head: {designation: "Principal Secretary to Government", seen_as: ["PRINCIPAL SECRETARY", "SPECIAL CHIEF SECRETARY"]}
+  GAD01:
+    name: General Administration Department
+    sections:
+      SER-A:        {label: "General Administration (Ser.A) Department", subjects: [service rules, recruitment, seniority, deputation], restricted: false}
+      CABINET-II:   {label: "General Administration (Cabinet.II) Department", subjects: [business rules, allocation of business, creation of departments], restricted: false}
+      SC-F:         {label: "General Administration (SC.F) Department", subjects: [Anti-Corruption Bureau, disciplinary cases], restricted: true}
+    head: {designation: "Secretary to Government (Services)", seen_as: ["SECRETARY TO GOVERNMENT (SER.)", "SECRETARY TO GOVERNMENT"]}
+  ESE01:
+    name: School Education Department
+    sections:
+      SERVICES-II:  {label: "School Education (Services.II) Department", subjects: [teacher transfers, teacher service rules, promotions], restricted: false}
+      PROGRAM-I:    {label: "School Education (Prog.I) Department", subjects: [Right to Education rules, schemes, school programmes], restricted: false}
+      EXAMS:        {label: "School Education (Exams) Department", subjects: [public examinations, question papers, results], restricted: true}
+    head: {designation: "Principal Secretary to Government", seen_as: ["PRINCIPAL SECRETARY", "SPECIAL CHIEF SECRETARY"]}
+
+officers:   # user_id, invented name, post, rank (1 ASO .. 6 head), department, section(s), search scope, clearance (mock)
+  - {id: V01, name: "K. Sravani",          post: "Assistant Section Officer", rank: 1, dept: FIN01, sections: [HR-I],             scope: Section,           clearance: RESTRICTED}
+  - {id: V02, name: "B. Narendra Babu",    post: "Section Officer",           rank: 2, dept: FIN01, sections: [HR-I],             scope: Section Hierarchy, clearance: RESTRICTED}
+  - {id: V03, name: "M. Jyothirmayi",      post: "Section Officer",           rank: 2, dept: FIN01, sections: [HR-III],            scope: Section Hierarchy, clearance: RESTRICTED}
+  - {id: V04, name: "T. Rajasekhar",       post: "Section Officer",           rank: 2, dept: FIN01, sections: [BUDGET-I],          scope: Section Hierarchy, clearance: CONFIDENTIAL}
+  - {id: V05, name: "P. Uma Maheswari",    post: "Assistant Secretary",       rank: 3, dept: FIN01, sections: [HR-I, HR-III],     scope: Section Hierarchy, clearance: CONFIDENTIAL}
+  - {id: V06, name: "G. Srinivasa Murthy", post: "Joint Secretary",           rank: 5, dept: FIN01, sections: [HR-I, HR-III, BUDGET-I], scope: Department, clearance: CONFIDENTIAL}
+  - {id: V07, name: "A. Lakshmi Prasanna", post: "Principal Secretary to Government", rank: 6, dept: FIN01, sections: [ALL], scope: Department, clearance: SECRET}
+  - {id: V08, name: "D. Vamsi Krishna",    post: "Assistant Section Officer", rank: 1, dept: GAD01, sections: [SER-A],             scope: Section,           clearance: RESTRICTED}
+  - {id: V09, name: "N. Hymavathi",        post: "Section Officer",           rank: 2, dept: GAD01, sections: [SER-A],             scope: Section Hierarchy, clearance: RESTRICTED}
+  - {id: V10, name: "R. Chandra Sekhar",   post: "Section Officer",           rank: 2, dept: GAD01, sections: [CABINET-II],        scope: Section Hierarchy, clearance: RESTRICTED}
+  - {id: V11, name: "S. Manjula",          post: "Section Officer",           rank: 2, dept: GAD01, sections: [SC-F],              scope: Section Hierarchy, clearance: CONFIDENTIAL}
+  - {id: V12, name: "Y. Koteswara Rao",    post: "Assistant Secretary",       rank: 3, dept: GAD01, sections: [SER-A, CABINET-II], scope: Section Hierarchy, clearance: CONFIDENTIAL}
+  - {id: V13, name: "V. Padmaja",          post: "Joint Secretary",           rank: 5, dept: GAD01, sections: [SER-A, CABINET-II, SC-F], scope: Department, clearance: CONFIDENTIAL}
+  - {id: V14, name: "J. Ravindra Nath",    post: "Secretary to Government (Services)", rank: 6, dept: GAD01, sections: [ALL], scope: Department, clearance: SECRET}
+  - {id: V15, name: "L. Bhargavi",         post: "Assistant Section Officer", rank: 1, dept: ESE01, sections: [SERVICES-II],       scope: Section,           clearance: RESTRICTED}
+  - {id: V16, name: "Ch. Venkata Ramana",  post: "Section Officer",           rank: 2, dept: ESE01, sections: [SERVICES-II],       scope: Section Hierarchy, clearance: RESTRICTED}
+  - {id: V17, name: "K. Sujatha",          post: "Section Officer",           rank: 2, dept: ESE01, sections: [PROGRAM-I],        scope: Section Hierarchy, clearance: RESTRICTED}
+  - {id: V18, name: "P. Mohan Krishna",    post: "Section Officer",           rank: 2, dept: ESE01, sections: [EXAMS],             scope: Section Hierarchy, clearance: CONFIDENTIAL}
+  - {id: V19, name: "E. Sarada Devi",      post: "Assistant Secretary",       rank: 3, dept: ESE01, sections: [SERVICES-II, PROGRAM-I], scope: Section Hierarchy, clearance: CONFIDENTIAL}
+  - {id: V20, name: "B. Suresh Kumar",     post: "Joint Secretary",           rank: 5, dept: ESE01, sections: [SERVICES-II, PROGRAM-I, EXAMS], scope: Department, clearance: CONFIDENTIAL}
+  - {id: V21, name: "M. Annapurna",        post: "Principal Secretary to Government", rank: 6, dept: ESE01, sections: [ALL], scope: Department, clearance: SECRET}

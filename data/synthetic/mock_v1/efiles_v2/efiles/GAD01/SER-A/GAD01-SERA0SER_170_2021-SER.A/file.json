@@ -1,0 +1,23 @@
+{
+  "file_no": "GAD01-SERA0SER/170/2021-SER.A",
+  "computer_no": "4467040",
+  "subject": "Public Services –State and Subordinate Services –Prescription of minimum service for promotion / appointment by recruitment by transfer to next higher class, category of grade – Ad-hoc Rule re – Reg.",
+  "department_code": "GAD01",
+  "section": "SER-A",
+  "section_label": "General Administration (Ser.A) Department",
+  "classification": "RESTRICTED",
+  "status": "decided",
+  "opened": "2020-12-23",
+  "scenario": "GAD01-E-045",
+  "touchpoints": [
+    7,
+    10,
+    11,
+    15
+  ],
+  "origin": "synthetic",
+  "banner": "Synthetic — not a real government file",
+  "cites": [
+    "AP-GAD01-GOMS-627-1983"
+  ]
+}

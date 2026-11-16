@@ -1,0 +1,24 @@
+{
+  "file_no": "FIN01-HRPEN0PEN/137/2024-HR.III",
+  "computer_no": "4105713",
+  "subject": "Counting of contract service towards qualifying service for pension – Reg.",
+  "department_code": "FIN01",
+  "section": "HR-III",
+  "section_label": "Finance (HR.III-Pension & GPF) Department",
+  "classification": "RESTRICTED",
+  "status": "decided",
+  "opened": "2024-03-07",
+  "scenario": "FIN01-B-HB4",
+  "touchpoints": [
+    1,
+    2,
+    10,
+    11,
+    13
+  ],
+  "origin": "synthetic",
+  "banner": "Synthetic — not a real government file",
+  "cites": [
+    "AP-GAZ-GAZETTE-EI-3644-2024"
+  ]
+}

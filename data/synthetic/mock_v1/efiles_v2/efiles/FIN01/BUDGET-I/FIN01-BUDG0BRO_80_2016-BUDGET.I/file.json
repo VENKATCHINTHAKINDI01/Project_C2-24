@@ -1,0 +1,26 @@
+{
+  "file_no": "FIN01-BUDG0BRO/80/2016-BUDGET.I",
+  "computer_no": "3654330",
+  "subject": "Additional funds requested in the second quarter – Reg.",
+  "department_code": "FIN01",
+  "section": "BUDGET-I",
+  "section_label": "Finance (Budget.I) Department",
+  "classification": "CONFIDENTIAL",
+  "status": "decided",
+  "opened": "2016-08-13",
+  "scenario": "FIN01-C-HC4",
+  "touchpoints": [
+    4,
+    6,
+    10,
+    11,
+    13,
+    20
+  ],
+  "origin": "synthetic",
+  "banner": "Synthetic — not a real government file",
+  "cites": [
+    "AP-FIN01-GOMS-51-2016"
+  ],
+  "received_by": "U.O. Note"
+}

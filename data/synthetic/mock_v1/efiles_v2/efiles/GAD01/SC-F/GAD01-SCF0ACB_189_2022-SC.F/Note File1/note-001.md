@@ -1,0 +1,20 @@
+<!-- SYNTHETIC — not a real government file. Cites real public G.O.s. (C2-24 efiles_v2) -->
+<!-- green -->
+Note # 1
+Sub: Public Services – Andhra Pradesh Anti-Corruption Service Rules – Reg.
+Ref:
+1. A.P. Gazette (Weekly / Rules Supplement to Part I) No.648, dated 24.01.2022.
+2. G.O.Ms.No.34, General Administration (SC.F) Department, dated 15.04.2020.
+3. Receipt No. 4327/2022-SC.F, dated 05.09.2022.
+* * *
+1) It is submitted that a reference has been received from the Vigilance Commission regarding "Public Services – Andhra Pradesh Anti-Corruption Service Rules" (PUC, p.1).
+2) The orders on the subject are in A.P. Gazette (Weekly / Rules Supplement to Part I) No.648, dated 24.01.2022, G.O.Ms.No.34, General Administration (SC.F) Department, dated 15.04.2020 (copies placed in References). No earlier file on the subject is available in the section.
+3) It is proposed that the request may be rejected, as it is not covered by the orders cited above.
+4) Approval Requested
+   a) Approval for the proposal at the paras above.
+   b) Approval for the draft orders placed in the draft section.
+5) Submitted for orders.
+
+12/09/2022 10:25 AM
+S. MANJULA
+SECTION OFFICER

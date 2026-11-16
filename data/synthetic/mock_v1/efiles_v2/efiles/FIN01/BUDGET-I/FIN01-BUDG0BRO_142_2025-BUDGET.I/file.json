@@ -1,0 +1,26 @@
+{
+  "file_no": "FIN01-BUDG0BRO/142/2025-BUDGET.I",
+  "computer_no": "4145308",
+  "subject": "Finance Department- Budget 2023-24- Comprehensive Budget Release Order (CBRO) & Budget Distribution – Reg.",
+  "department_code": "FIN01",
+  "section": "BUDGET-I",
+  "section_label": "Finance (Budget.I) Department",
+  "classification": "CONFIDENTIAL",
+  "status": "reopened",
+  "opened": "2025-03-08",
+  "scenario": "FIN01-F-009",
+  "touchpoints": [
+    4,
+    6,
+    10,
+    11,
+    17,
+    20
+  ],
+  "origin": "synthetic",
+  "banner": "Synthetic — not a real government file",
+  "cites": [
+    "AP-FIN01-GOMS-45-2023"
+  ],
+  "received_by": "U.O. Note"
+}

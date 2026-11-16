@@ -1,0 +1,189 @@
+{
+  "suite": "ocr-accuracy",
+  "corpus": "mock_v1 (SYNTHETIC)",
+  "run_at": "2026-11-11T16:15:41+00:00",
+  "documents": [
+    {
+      "doc": "D01",
+      "file": "documents/01_Finance_HR/D01_FIN01-GOMS-62-2019_scan.pdf",
+      "pages": [
+        1,
+        2
+      ],
+      "engine": "documentai:recorded:pretrained-ocr-v2.1.1-2025-01-31",
+      "page_confidence": {
+        "1": 0.9895,
+        "2": 0.9845
+      },
+      "min_confidence": 0.9845,
+      "languages": [
+        "en"
+      ],
+      "wer": 0.315,
+      "recall": 1.0,
+      "char_similarity": 0.8696,
+      "canonical_id_ocr": "AP-FIN01-GOMS-62-2019",
+      "canonical_id_truth": "AP-FIN01-GOMS-62-2019",
+      "canonical_id_match": true
+    },
+    {
+      "doc": "D02",
+      "file": "documents/01_Finance_HR/D02_FIN01-GOMS-71-2019_scan.pdf",
+      "pages": [
+        1
+      ],
+      "engine": "documentai:recorded:pretrained-ocr-v2.1.1-2025-01-31",
+      "page_confidence": {
+        "1": 0.9825
+      },
+      "min_confidence": 0.9825,
+      "languages": [
+        "en"
+      ],
+      "wer": 0.4405,
+      "recall": 0.9702,
+      "char_similarity": 0.8308,
+      "canonical_id_ocr": "AP-FIN01-GOMS-71-2019",
+      "canonical_id_truth": "AP-FIN01-GOMS-71-2019",
+      "canonical_id_match": true
+    },
+    {
+      "doc": "D09",
+      "file": "documents/02_GAD_Services/D09_GAD01-GOMS-19-2018_scan.pdf",
+      "pages": [
+        1
+      ],
+      "engine": "documentai:recorded:pretrained-ocr-v2.1.1-2025-01-31",
+      "page_confidence": {
+        "1": 0.9872
+      },
+      "min_confidence": 0.9872,
+      "languages": [
+        "en"
+      ],
+      "wer": 0.3268,
+      "recall": 0.9869,
+      "char_similarity": 0.8837,
+      "canonical_id_ocr": "AP-GAD01-GOMS-19-2018",
+      "canonical_id_truth": "AP-GAD01-GOMS-19-2018",
+      "canonical_id_match": true
+    },
+    {
+      "doc": "D11",
+      "file": "documents/03_Urban_Services/Estt/D11_USD01-SO-2-2020_scan.pdf",
+      "pages": [
+        1
+      ],
+      "engine": "documentai:recorded:pretrained-ocr-v2.1.1-2025-01-31",
+      "page_confidence": {
+        "1": 0.9892
+      },
+      "min_confidence": 0.9892,
+      "languages": [
+        "en"
+      ],
+      "wer": 0.1481,
+      "recall": 0.9907,
+      "char_similarity": 0.9316,
+      "canonical_id_ocr": "AP-USD01-SO-2-2020",
+      "canonical_id_truth": "AP-USD01-SO-2-2020",
+      "canonical_id_match": true
+    },
+    {
+      "doc": "D13",
+      "file": "documents/03_Urban_Services/Works/D13_USD01-CIRMEMO-USD01WRKS0-9-2023_photo.jpg",
+      "pages": [
+        1
+      ],
+      "engine": "documentai:recorded:pretrained-ocr-v2.1.1-2025-01-31",
+      "page_confidence": {
+        "1": 0.9743
+      },
+      "min_confidence": 0.9743,
+      "languages": [
+        "en",
+        "fi"
+      ],
+      "wer": 0.3945,
+      "recall": 0.945,
+      "char_similarity": 0.8171,
+      "canonical_id_ocr": "AP-USD01-CIRMEMO-USD01WRKS0-9-2023-D20230711",
+      "canonical_id_truth": "AP-USD01-CIRMEMO-USD01WRKS0-9-2023-D20230711",
+      "canonical_id_match": true
+    },
+    {
+      "doc": "D15",
+      "file": "documents/03_Urban_Services/Works/D15_USD01-GORT-233-2024_mixed.pdf",
+      "pages": [
+        2
+      ],
+      "engine": "documentai:recorded:pretrained-ocr-v2.1.1-2025-01-31",
+      "page_confidence": {
+        "2": 0.9853
+      },
+      "min_confidence": 0.9853,
+      "languages": [
+        "en"
+      ],
+      "wer": 0.6885,
+      "recall": 0.8634,
+      "char_similarity": 0.6456,
+      "canonical_id_ocr": "AP-USD01-GORT-233-2024",
+      "canonical_id_truth": "AP-USD01-GORT-233-2024",
+      "canonical_id_match": true
+    },
+    {
+      "doc": "D16",
+      "file": "documents/03_Urban_Services/Works/D16_USD01-RC-USD01WRKS0-22-2025_photo.jpg",
+      "pages": [
+        1
+      ],
+      "engine": "documentai:recorded:pretrained-ocr-v2.1.1-2025-01-31",
+      "page_confidence": {
+        "1": 0.967
+      },
+      "min_confidence": 0.967,
+      "languages": [
+        "en",
+        "lo",
+        "te"
+      ],
+      "wer": 0.087,
+      "recall": 0.9783,
+      "char_similarity": 0.9653,
+      "canonical_id_ocr": null,
+      "canonical_id_truth": "AP-USD01-RC-USD01WRKS0-22-2025-D20250602",
+      "canonical_id_match": false
+    },
+    {
+      "doc": "D22",
+      "file": "documents/03_Urban_Services/Vigilance/D22_USD01-NOTE-USD0131-4-2025-R1_scan.pdf",
+      "pages": [
+        1
+      ],
+      "engine": "documentai:recorded:pretrained-ocr-v2.1.1-2025-01-31",
+      "page_confidence": {
+        "1": 0.984
+      },
+      "min_confidence": 0.984,
+      "languages": [
+        "en"
+      ],
+      "wer": 0.218,
+      "recall": 0.9474,
+      "char_similarity": 0.9163,
+      "canonical_id_ocr": "file:USD01-31/4/2025-VIG",
+      "canonical_id_truth": "file:USD01-31/4/2025-VIG",
+      "canonical_id_match": true
+    }
+  ],
+  "summary": {
+    "files_needing_ocr": 8,
+    "ocr_run": 8,
+    "not_run": [],
+    "mean_wer": 0.3273,
+    "mean_recall": 0.9602,
+    "mean_char_similarity": 0.8575,
+    "canonical_id_match": "7/8"
+  }
+}

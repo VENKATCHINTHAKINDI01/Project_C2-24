@@ -1,0 +1,1 @@
+{"prompt": "conflict_contradiction.v1", "model": "gemini-3.5-flash", "response": {"verdict": "consistent", "quote_a": "", "quote_b": "", "explanation": "The two documents are consistent as Document A deals with the direct recruitment of vacant posts in various departments, while Document B specifies the monthly remuneration rate for outsourced data entry operators."}}

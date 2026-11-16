@@ -2,7 +2,7 @@
  "synthetic": true,
  "status": "draft — owner review",
  "evaluation_only": "Answer key for the evaluation harness. Application code must never read this file (CLAUDE.md §9.2).",
- "plan": "§11.5 core touchpoints 2,3,4,6,7,8,9,10,11,13,14,15,20; §13.1 golden case fields; §13.2 e-Office touchpoint scenarios",
+ "plan": "§11.5 touchpoints 1–20 (core 2,3,4,6,7,8,9,10,11,13,14,15,20; extended 1,5,12,16,17,18,19 added 15 Nov 2026); §13.1 golden case fields; §13.2 e-Office touchpoint scenarios",
  "fields": {
   "docs": "must be retrieved/cited",
   "forbidden_docs": "must never appear, be counted or be hinted at",
@@ -13,6 +13,42 @@
   "setup.holdback": "documents removed from every index before the scenario (replay)"
  },
  "scenarios": [
+  {
+   "id": "TP01",
+   "touchpoint": 1,
+   "touchpoint_name": "Diarising a receipt",
+   "user": "U01",
+   "as_of": "2026-10-02",
+   "context": {
+    "receipts": "all"
+   },
+   "trigger": "For each of the 10 sandbox receipts, the clerk asks for the diary fields to be pre-filled from the letter itself (3 of the letters are scans read by OCR).",
+   "expected": {
+    "docs": [],
+    "forbidden_docs": [],
+    "files": [],
+    "forbidden_files": [],
+    "flags": [],
+    "fields": [
+     "letter_ref",
+     "letter_date",
+     "sender",
+     "main_category",
+     "subject"
+    ],
+    "field_source": "the receipt's diary entry in the seed (letter ref., letter date, sender, main category, subject)",
+    "compare": "case, punctuation and dashes ignored (OCR drops dashes)",
+    "outsider": {
+     "user": "U03",
+     "receipt": "9100001",
+     "expect": "same 404 as an unknown receipt"
+    },
+    "answer_key": "Every field of every receipt equals the diary entry; scans are marked as read by OCR; nothing is guessed (a field the letter does not give stays empty)."
+   },
+   "related_questions": [],
+   "status": "draft — owner review",
+   "note": "added 15 Nov 2026 for the extended touchpoints (ADR-0038); expectations derived from the seed, documents_index.csv and relations.csv — draft, owner review"
+  },
   {
    "id": "TP02-a",
    "touchpoint": 2,
@@ -156,6 +192,36 @@
     "Q03"
    ],
    "status": "draft — owner review"
+  },
+  {
+   "id": "TP05",
+   "touchpoint": 5,
+   "touchpoint_name": "Creating a file",
+   "user": "U01",
+   "as_of": "2026-10-02",
+   "context": {
+    "subject": "Establishment – Sri X, Junior Assistant – Request for transfer on spouse grounds – Reg."
+   },
+   "trigger": "Section Officer (Estt.I) creates a new file for a spouse-ground transfer request and asks for Previous References.",
+   "expected": {
+    "docs": [],
+    "forbidden_docs": [
+     "D20"
+    ],
+    "files": [
+     "1771342",
+     "2041966",
+     "2629410"
+    ],
+    "forbidden_files": [
+     "2633187"
+    ],
+    "flags": [],
+    "answer_key": "The three decided spouse-ground transfer files of Estt.I that U01 may open (D17, D18, D19) are offered; the confidential one (D20, file 2633187) never is. The officer's chosen references are kept only if they can reach those files."
+   },
+   "related_questions": [],
+   "status": "draft — owner review",
+   "note": "added 15 Nov 2026 for the extended touchpoints (ADR-0038); expectations derived from the seed, documents_index.csv and relations.csv — draft, owner review"
   },
   {
    "id": "TP06",
@@ -410,6 +476,53 @@
    "status": "draft — owner review"
   },
   {
+   "id": "TP12",
+   "touchpoint": 12,
+   "touchpoint_name": "Initiate action",
+   "user": "U01",
+   "as_of": "2026-10-02",
+   "context": {
+    "computer_no": "1771342"
+   },
+   "trigger": "Section Officer (Estt.I) opens the movement summary of the spouse-transfer file of 2022.",
+   "expected": {
+    "docs": [
+     "D17"
+    ],
+    "forbidden_docs": [],
+    "files": [],
+    "forbidden_files": [],
+    "flags": [],
+    "movements": 4,
+    "remarks": [
+     "Submitted after Note #1",
+     "Submitted after Note #2",
+     "Submitted after Note #3",
+     "Submitted after Note #4"
+    ],
+    "notes_put_up": [
+     [
+      1
+     ],
+     [
+      2
+     ],
+     [
+      3
+     ],
+     [
+      4
+     ]
+    ],
+    "last_direction": 5,
+    "state": "closed",
+    "answer_key": "Four movements ASO → SO → AS → DS → Secretary, each with its remarks and the note put up before it (#1–#4); last direction Note #5 (Secretary); the file is closed, so no holder."
+   },
+   "related_questions": [],
+   "status": "draft — owner review",
+   "note": "added 15 Nov 2026 for the extended touchpoints (ADR-0038); expectations derived from the seed, documents_index.csv and relations.csv — draft, owner review"
+  },
+  {
    "id": "TP13",
    "touchpoint": 13,
    "touchpoint_name": "Senior opens a file",
@@ -548,6 +661,173 @@
     "Q14"
    ],
    "status": "draft — owner review"
+  },
+  {
+   "id": "TP16",
+   "touchpoint": 16,
+   "touchpoint_name": "Closing a file",
+   "user": "U06",
+   "as_of": "2026-10-02",
+   "context": {
+    "computer_no": "2601155",
+    "search": "complaint dropped after the preliminary enquiry into the drain works tenders",
+    "remarks": "Complaint dropped after the preliminary enquiry into the drain works tenders; no further action. File closed."
+   },
+   "trigger": "Secretary to Government, holding the Vigilance file, asks for closing remarks and closes the file.",
+   "expected": {
+    "docs": [],
+    "forbidden_docs": [],
+    "files": [],
+    "forbidden_files": [],
+    "flags": [],
+    "can_close": {
+     "U06": true
+    },
+    "not_holder": {
+     "user": "U01",
+     "computer_no": "2894562"
+    },
+    "joins_index": {
+     "file_no": "USD01-31/4/2025-VIG",
+     "finds": [
+      "U04"
+     ],
+     "never": [
+      "U01"
+     ]
+    },
+    "answer_key": "Closing remarks cite the last direction; the officer not holding a file cannot close it; once closed, the file's closing note sheet is indexed and found by the Vigilance SO (cleared) but never by the Estt.I SO."
+   },
+   "related_questions": [],
+   "status": "draft — owner review",
+   "note": "added 15 Nov 2026 for the extended touchpoints (ADR-0038); expectations derived from the seed, documents_index.csv and relations.csv — draft, owner review"
+  },
+  {
+   "id": "TP17",
+   "touchpoint": 17,
+   "touchpoint_name": "Reopening a file",
+   "user": "U01",
+   "as_of": "2026-10-02",
+   "context": {
+    "computer_no": "1771342"
+   },
+   "trigger": "Section Officer (Estt.I) reopens the 2022 spouse-transfer file: what was decided, and what has changed since?",
+   "expected": {
+    "docs": [
+     "D17",
+     "D03",
+     "D04"
+    ],
+    "forbidden_docs": [],
+    "files": [],
+    "forbidden_files": [],
+    "flags": [],
+    "decided_note": 5,
+    "decided_on": "2022-06-20",
+    "changed_since": [
+     {
+      "cited": "D03",
+      "change": "superseded",
+      "by": "D04"
+     }
+    ],
+    "answer_key": "Decided at Note #5 (Secretary, 20-06-2022). Since then G.O.Ms.No.88/2022, on which the file relied, was superseded by G.O.Ms.No.31/2025 (12-05-2025)."
+   },
+   "related_questions": [],
+   "status": "draft — owner review",
+   "note": "added 15 Nov 2026 for the extended touchpoints (ADR-0038); expectations derived from the seed, documents_index.csv and relations.csv — draft, owner review"
+  },
+  {
+   "id": "TP18",
+   "touchpoint": 18,
+   "touchpoint_name": "Migrated old files",
+   "user": "U04",
+   "as_of": "2026-10-02",
+   "context": {
+    "scan": "D22",
+    "search": "technical scores of two bidders altered; articles of charge framed",
+    "computer_no": "2601155"
+   },
+   "trigger": "The scanned old noting of the Vigilance file (D22, notes #6–#8) is OCR'd; the Vigilance SO reviews and confirms the text.",
+   "expected": {
+    "docs": [
+     "D22"
+    ],
+    "forbidden_docs": [],
+    "files": [],
+    "forbidden_files": [],
+    "flags": [],
+    "before_review": "not found",
+    "after_review": {
+     "finds": [
+      "U04"
+     ],
+     "never": [
+      "U01"
+     ]
+    },
+    "notes_join_chain": [
+     6,
+     7,
+     8
+    ],
+    "answer_key": "Before review the scan is not evidence; after the reviewer confirms the OCR text, the old decision ('Approved. Issue charge memo.') is searchable precedent for the cleared officer and joins the file's note chain; an officer without clearance never sees it (nor the review item)."
+   },
+   "related_questions": [],
+   "status": "draft — owner review",
+   "note": "added 15 Nov 2026 for the extended touchpoints (ADR-0038); expectations derived from the seed, documents_index.csv and relations.csv — draft, owner review"
+  },
+  {
+   "id": "TP19",
+   "touchpoint": 19,
+   "touchpoint_name": "Section reassignment",
+   "user": "U01",
+   "as_of": "2026-10-02",
+   "context": {
+    "section": "ESTT.I"
+   },
+   "trigger": "The Section Officer taking over Estt.I asks for a handover summary.",
+   "expected": {
+    "docs": [
+     "D03",
+     "D04",
+     "D08"
+    ],
+    "forbidden_docs": [
+     "D20"
+    ],
+    "files": [
+     "1311050",
+     "2620051",
+     "2881930",
+     "2894562"
+    ],
+    "decisions": [
+     "1771342",
+     "2041966",
+     "2629410"
+    ],
+    "forbidden_files": [
+     "2633187"
+    ],
+    "flags": [],
+    "no_longer_in_force": [
+     {
+      "cited": "D03",
+      "change": "superseded",
+      "by": "D04"
+     },
+     {
+      "cited": "D08",
+      "change": "expired",
+      "by": null
+     }
+    ],
+    "answer_key": "Files in hand: the four open Estt.I files; recent decisions: the three spouse-transfer files U01 may open; cited orders no longer in force: G.O.Ms.No.88/2022 (superseded by G.O.Ms.No.31/2025, cited by the 2022 and 2023 decisions and the open file 2894562) and G.O.Rt.No.1184/2025 (expired on its own end date, 31-03-2026; cited by the open file 2881930). The confidential decision (file 2633187) is neither listed nor counted."
+   },
+   "related_questions": [],
+   "status": "draft — owner review",
+   "note": "added 15 Nov 2026 for the extended touchpoints (ADR-0038); expectations derived from the seed, documents_index.csv and relations.csv — draft, owner review; 15 Nov review: D08 (expired, cited by D29 in open file 2881930) added — found by the owner's review session"
   },
   {
    "id": "TP20",

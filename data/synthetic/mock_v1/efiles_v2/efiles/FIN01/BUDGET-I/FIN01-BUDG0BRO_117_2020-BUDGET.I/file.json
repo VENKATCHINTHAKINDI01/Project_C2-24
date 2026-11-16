@@ -1,0 +1,25 @@
+{
+  "file_no": "FIN01-BUDG0BRO/117/2020-BUDGET.I",
+  "computer_no": "3947333",
+  "subject": "Budget 2019-20 – Release of full Budget – Guidelines for issue of Comprehensive Budget Release Order (CBRO) and Budget Distribution – Reg.",
+  "department_code": "FIN01",
+  "section": "BUDGET-I",
+  "section_label": "Finance (Budget.I) Department",
+  "classification": "CONFIDENTIAL",
+  "status": "decided",
+  "opened": "2020-10-01",
+  "scenario": "FIN01-D-061",
+  "touchpoints": [
+    1,
+    3,
+    5,
+    9,
+    20
+  ],
+  "origin": "synthetic",
+  "banner": "Synthetic — not a real government file",
+  "cites": [
+    "AP-FIN01-GOMS-101-2019"
+  ],
+  "received_by": "U.O. Note"
+}

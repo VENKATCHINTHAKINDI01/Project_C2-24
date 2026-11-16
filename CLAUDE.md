@@ -79,7 +79,7 @@ When sources conflict, **do not silently choose.** Stop the affected design deci
 | Cloud Storage | Raw uploaded/source documents and source artifacts |
 | Document AI | OCR and extraction, incl. scanned/image files and Telugu/English |
 | Vertex AI Embeddings | Text embeddings |
-| Vertex AI Search | Hybrid vector + keyword retrieval at ladder rung **L2**, filtered by authorization metadata |
+| BigQuery (asia-south1) + Vertex AI Embeddings | Vector + keyword retrieval at ladder rung **L2**, with the officer's scope in the query (ADR-0026, 14 Nov 2026). The plan's original choice, Vertex AI Search, has no India location and is not used |
 | Spanner Graph | Relationships and scope-constrained traversal at **L3** (supersession, amendment, reference, hierarchy/related links) |
 | BigQuery | Structured metadata and canonical-ID lookup/filter facts for **L0/L1**; supersession facts where modelled; query log, audit, analytics. Do not put all graph traversal in BigQuery by default |
 | Cloud SQL (PostgreSQL) | Application data, RBAC/ABAC tuples, LangGraph checkpointer/session memory, optional Tier-2 row-level security |
@@ -91,7 +91,7 @@ When sources conflict, **do not silently choose.** Stop the affected design deci
 
 ### 2.3 Forbidden substitutions
 - Spanner Graph is the planned graph store — **do not use Neo4j**.
-- Do not replace Vertex AI Search with another vector database without explicit approval.
+- L2 runs on BigQuery in asia-south1 (approved substitution for Vertex AI Search, ADR-0026). Do not move L2 to another store or outside the region without explicit approval.
 - Do not replace the Cloud SQL/PostgreSQL checkpointer with Redis in the PoC.
 - Do not introduce microservices as the default architecture.
 - Do not add Cloud Load Balancing, Pub/Sub, Dataflow, Apigee, Cloud Armor, Security Command Center, Terraform, full CI/CD, multi-region DR or other Tier-3 infrastructure as if it were part of the PoC. Cloud Run Jobs and simple async are the PoC-scale choices.
@@ -113,7 +113,7 @@ All rungs execute within `compute_scope(user)` and enforce the officer's authori
 
 - **L0 — Exact reference:** canonical document/clause ID lookup using fixed templates.
 - **L1 — Structured filter:** BigQuery metadata query with fixed parameterised templates; status-aware.
-- **L2 — Hybrid search:** Vertex AI Search vector + keyword, capped top-K, reranked.
+- **L2 — Hybrid search:** BigQuery vector + keyword over passages (ADR-0026), capped top-K, one fixed template.
 - **L3 — Graph expansion:** Spanner Graph, scope-constrained traversal from L0–L2 hits for supersession, amendments and related decisions. Always the final rung.
 
 The orchestrator classifies intent and fills template slots. **The LLM never generates SQL, graph queries or free-form retrieval queries.** Retrieval templates are deterministic, versioned, testable and parameterised.

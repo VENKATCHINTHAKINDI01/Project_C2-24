@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import type { Api } from "../api";
 import { FLAG_NAMES } from "../presend";
-import type { Notices, ReceiptReview, ReceiptRow } from "../types";
+import type { Diarise, DiaryPrefill, Notices, ReceiptReview, ReceiptRow } from "../types";
 
 const CHANGE: Record<string, string> = { SUPERSEDES: "supersedes", REPEALS: "repeals", AMENDS: "amends" };
 
@@ -58,6 +58,7 @@ export function ReceiptInbox({ api, open }: { api: Api; open: (computerNo: strin
 export function ReceiptView({ api, computerNo }: { api: Api; computerNo: string }) {
   const [row, setRow] = useState<ReceiptRow | null>(null);
   const [review, setReview] = useState<ReceiptReview | null>(null);
+  const [pre, setPre] = useState<Diarise | null>(null);
   const [asOf, setAsOf] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -106,7 +107,9 @@ export function ReceiptView({ api, computerNo }: { api: Api; computerNo: string 
           <label className="muted" htmlFor="asof">As of</label>
           <input id="asof" type="date" value={asOf} onChange={(e) => setAsOf(e.target.value)} title="Sandbox replay; leave empty for today" />
           <button className="primary" disabled={busy} onClick={assist}>Summarise &amp; check</button>
+          <button disabled={busy} onClick={() => { setBusy(true); setError(null); api.diarise(computerNo).then(setPre).catch((e: Error) => setError(e.message)).finally(() => setBusy(false)); }}>Pre-fill diary details</button>
         </div>
+        {pre && <PrefillCard d={pre} entry={row} />}
         {error && <p className="error">{error}</p>}
         {review && <ReceiptAssistCard r={review} />}
         <p className="footnote">Drafts only. The officer decides where the receipt goes.</p>
@@ -147,3 +150,43 @@ export function ReceiptAssistCard({ r }: { r: ReceiptReview }) {
     </section>
   );
 }
+
+const FIELDS: [keyof Pick<DiaryPrefill, "letter_ref" | "letter_date" | "sender" | "main_category" | "subject">, string][] = [
+  ["letter_ref", "Letter ref."], ["letter_date", "Letter date"], ["sender", "From"], ["main_category", "Category"], ["subject", "Subject"],
+];
+const norm = (v: string | null | undefined) => (v ?? "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+
+/** Touchpoint 1 — diary fields read from the letter itself, for the clerk to verify. Each value
+ *  shows the line it was read from; a field the letter does not give stays empty. */
+export function PrefillCard({ d, entry }: { d: Diarise; entry?: ReceiptRow | null }) {
+  if (!d.prefill) return <p className="muted">{d.message}</p>;
+  const p = d.prefill;
+  return (
+    <section className="prefill">
+      <h4>Diary details read from the letter</h4>
+      {p.from_ocr && <p className="pill warn">Read from a scan (OCR, not yet reviewed{p.ocr_confidence != null ? `, lowest page confidence ${p.ocr_confidence.toFixed(2)}` : ""}) — check every field</p>}
+      <table className="grid kv">
+        <tbody>
+          {FIELDS.map(([k, label]) => {
+            const f = p[k];
+            const diarised = entry ? (entry as unknown as Record<string, string | null>)[k] : undefined;
+            return (
+              <tr key={k}>
+                <th>{label}</th>
+                <td>
+                  {f.value ?? <span className="muted">not in the letter — fill in</span>}
+                  {f.read_from && <div className="sub">from: “{f.read_from}”</div>}
+                  {diarised !== undefined && f.value && (
+                    <div className="sub">{norm(diarised) === norm(f.value) ? "✓ same as the diary entry" : `diary entry: ${diarised ?? "—"}`}</div>
+                  )}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+      <p className="footnote">Pre-fill only: the clerk verifies and diarises. Nothing is saved by the assistant.</p>
+    </section>
+  );
+}
+

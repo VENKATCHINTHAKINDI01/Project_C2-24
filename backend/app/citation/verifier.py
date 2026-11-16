@@ -17,6 +17,7 @@ caveat instead of the generic no-answer. If nothing survives at all, the defined
 
 from __future__ import annotations
 
+import datetime as dt
 import re
 from enum import StrEnum
 
@@ -84,11 +85,36 @@ _NUM = re.compile(
 
 
 def _norm(text: str) -> str:
-    return re.sub(r"\s+", " ", text.replace("–", "-").replace("—", "-")).strip().lower()
+    """Case, dashes and whitespace only. Spaces around a hyphen are dropped, so a date or number
+    broken across a line in the source ("18-09-\n2026") matches its quote ("18-09-2026")."""
+    t = re.sub(r"\s+", " ", text.replace("–", "-").replace("—", "-")).strip().lower()
+    return re.sub(r" ?- ?", "-", t)
 
 
 def _tokens(text: str) -> list[str]:
     return [re.sub(r"\s+", "", m.group(0)) for m in _NUM.finditer(text)]
+
+
+def _date_forms(d: dt.date) -> set[str]:
+    return (
+        {f"{d:%d}{sep}{d:%m}{sep}{d:%Y}" for sep in "-./"}
+        | {f"{d.day}{sep}{d.month}{sep}{d.year}" for sep in "-./"}
+        | {f"{d:%Y}"}
+    )
+
+
+def _own_tokens(spans: list[EvidenceItem]) -> set[str]:
+    """Numbers that identify a cited record itself, from the evidence package's own fields: the
+    number and year in its canonical ID and its issue / effective dates (plan §7.2). A statement
+    may name the record it cites ("G.O.Ms.No.27 dated 06-08-2024") although the passage quoted is
+    from its body. A number of ANOTHER record is still checked against the cited text."""
+    out: set[str] = set()
+    for s in spans:
+        out |= set(re.findall(r"\d+", s.canonical_id.split("#", 1)[0]))
+        for d in (s.issue_date, s.effective_from, s.effective_to):
+            if d is not None:
+                out |= _date_forms(d)
+    return out
 
 
 def _support(claim: Claim, spans: list[EvidenceItem]) -> tuple[ClaimStatus, str, tuple[str, ...]]:
@@ -102,7 +128,8 @@ def _support(claim: Claim, spans: list[EvidenceItem]) -> tuple[ClaimStatus, str,
         )
         return mismatch, why, ()
     tokens = _tokens(claim.text)
-    missing = tuple(t for t in tokens if t.lower() not in compact)
+    own = _own_tokens(spans)
+    missing = tuple(t for t in tokens if t.lower() not in compact and t.lower() not in own)
     if missing:
         why = (
             "numbers/dates contradict the cited text"
@@ -135,6 +162,8 @@ def _judge(
         check(package.user_id, i.tags, store, policy, classification).allowed for i in spans
     ):
         return rejected("evidence no longer authorised")
+    if any(i.addressed_to_ai for i in spans):  # plan §5.5: never state anything on its word
+        return rejected("cites a passage with instructions addressed to an AI system")
     if claim.about is not None and claim.about not in {i.canonical_id for i in spans}:
         return rejected("cites a different record than the one the claim is about")
     status, reason, missing = _support(claim, spans)

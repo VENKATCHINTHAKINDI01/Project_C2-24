@@ -1,0 +1,35 @@
+{
+  "file_no": "GAD01-SERA0SER/208/2025-SER.A",
+  "computer_no": "4767962",
+  "subject": "GAD – Andhra Pradesh Public Service Commission - Direct Recruitment to various posts under State Government – Permission to the Commission to conduct Screening – Reg.",
+  "department_code": "GAD01",
+  "section": "SER-A",
+  "section_label": "General Administration (Ser.A) Department",
+  "classification": "UNCLASSIFIED",
+  "status": "decided",
+  "opened": "2025-09-03",
+  "scenario": "GAD01-CLEAN-043",
+  "touchpoints": [
+    5,
+    6,
+    8,
+    13
+  ],
+  "origin": "synthetic",
+  "banner": "Synthetic — not a real government file",
+  "cites": [
+    "AP-GAD01-GOMS-72-2025",
+    "AP-GAD01-GOMS-39-2019"
+  ],
+  "consultations": [
+    {
+      "with": "FIN",
+      "uo_no": "FIN01-FMU0MISC/238/2025-FMU-GAD-I",
+      "department": "Finance (FMU-GAD-I)",
+      "sent": "2025-09-10",
+      "returned": "2025-09-15",
+      "conditional": true,
+      "correspondence": "R-002.md"
+    }
+  ]
+}

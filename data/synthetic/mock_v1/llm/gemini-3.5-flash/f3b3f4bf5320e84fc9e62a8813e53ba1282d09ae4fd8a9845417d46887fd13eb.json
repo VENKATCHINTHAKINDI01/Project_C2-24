@@ -1,0 +1,1 @@
+{"prompt": "conflict_contradiction.v1", "model": "gemini-3.5-flash", "response": {"verdict": "insufficient", "quote_a": "", "quote_b": "", "explanation": "Document A cuts off before specifying the period of tenure or method of appointment, so it cannot be compared with Document B."}}

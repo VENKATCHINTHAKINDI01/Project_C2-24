@@ -1,0 +1,25 @@
+{
+  "file_no": "FIN01-HRPLG0REC/105/2019-HR.I",
+  "computer_no": "3852305",
+  "subject": "Engagement of outsourced staff — rate of remuneration – Reg.",
+  "department_code": "FIN01",
+  "section": "HR-I",
+  "section_label": "Finance (HR.I-Plg. & Policy) Department",
+  "classification": "UNCLASSIFIED",
+  "status": "decided",
+  "opened": "2019-01-17",
+  "scenario": "FIN01-B-HB2",
+  "touchpoints": [
+    1,
+    2,
+    9,
+    10,
+    11,
+    13
+  ],
+  "origin": "synthetic",
+  "banner": "Synthetic — not a real government file",
+  "cites": [
+    "AP-FIN01-GOMS-110-2016"
+  ]
+}

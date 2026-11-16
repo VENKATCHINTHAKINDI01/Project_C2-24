@@ -12,3 +12,30 @@ retrieval:
   l2_top_k: 10
   l2_rerank_min_score: 1.0
   l3_max_hops: 2
+# Touchpoint 7 (referencing in a note): keyword stand-in for meaning-based matching. TEST values.
+references:
+  min_terms: 2          # shared words a paragraph needs (capped at the request's own word count)
+  max_suggestions: 3
+# OCR: replay the RECORDED Document AI responses for the synthetic scans (ADR-0017, model pinned in
+# settings). No GCP calls. Scans still wait for a reviewer (the confidence gate is uncalibrated).
+ocr:
+  provider: recorded
+  # OWNER DECISION 13 Nov 2026 (ADR-0020), sandbox v2/both only: a real PUBLIC order (public://,
+  # UNCLASSIFIED) whose lowest OCR page confidence is at least this value is indexed without waiting
+  # for a reviewer. Not a calibrated gate, not a human review: listed as auto-passed. Synthetic scans
+  # and anything classified still wait for a reviewer.
+  public_auto_pass_min_confidence: 0.80
+# MOCK monitoring officer (owner request 15 Nov 2026; ADR-0035): signs in to the monitoring pad
+# (activity, questions asked, frequent questions, officers, cache). No files of their own: their
+# search scope reaches nothing beyond public orders. Clearance decides which questions' words they
+# may read (a question asked under a higher clearance is shown without its words).
+monitoring:
+  officers:
+    - user_id: M01
+      name: "Monitoring Officer (mock)"
+      post: "Monitoring Officer, C2-24 Assist"
+      role_rank: 0
+      department: GAD01
+      section: null
+      clearance: SECRET
+      search_scopes: [individual]

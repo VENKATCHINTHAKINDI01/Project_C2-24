@@ -55,5 +55,15 @@ Cloud SQL table can take over later), tests `test_id_collisions.py`. Not yet wir
 `resolve_reference(..., memo_date_tag=True)` is now the default for MEMO / CIRMEMO / RC references. Mock corpus v1 IDs
 predate this rule (no tag); lookups try the exact ID, then `CanonicalId.base_id` (`lookup_keys`).
 
+## Gazettes (owner decision, 2026-11-13)
+e-Gazette numbers repeat within one part and year (Extraordinary Part I No.914 of 2022 was published on 25 Jan 2022 by
+Law and on 7 Sep 2022 by General Administration).
+- Base ID: `AP-GAZ-GAZETTE-<part code>-<number>-<year>`.
+- As in rule 1 above, the first record keeps the base ID. Only a repeat (same base ID, different gazette file) gets
+  its **publication date**, memo-style: `AP-GAZ-GAZETTE-EI-914-2022-D20220907`. The date is printed on the gazette
+  and listed by the site, so it is evidence, not a guess. The record notes the clash (`id_note`).
+- Applied in `data_collection/tools/collect_gazette.py` (`save_row`). The same gazette file is never saved twice.
+  Rule 5 (a bare base ID is ambiguous) applies once the backend ingests gazettes.
+
 ## Mentor input (if any)
 —

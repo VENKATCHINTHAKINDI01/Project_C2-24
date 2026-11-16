@@ -1,0 +1,24 @@
+{
+  "file_no": "GAD01-SERA0SER/148/2017-SER.A",
+  "computer_no": "4292822",
+  "subject": "Ratification of transfers of Deputy Collectors ordered by another department – Reg.",
+  "department_code": "GAD01",
+  "section": "SER-A",
+  "section_label": "General Administration (Ser.A) Department",
+  "classification": "RESTRICTED",
+  "status": "decided",
+  "opened": "2017-08-30",
+  "scenario": "GAD01-C-HC1",
+  "touchpoints": [
+    5,
+    6,
+    10,
+    11,
+    13
+  ],
+  "origin": "synthetic",
+  "banner": "Synthetic — not a real government file",
+  "cites": [
+    "AP-GAD01-GOMS-74-2017"
+  ]
+}

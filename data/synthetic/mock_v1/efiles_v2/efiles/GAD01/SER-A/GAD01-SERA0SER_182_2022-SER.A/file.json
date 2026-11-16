@@ -1,0 +1,24 @@
+{
+  "file_no": "GAD01-SERA0SER/182/2022-SER.A",
+  "computer_no": "4562068",
+  "subject": "PUBLIC SERVICES –Direct Recruitment – Relaxation of upper age limit from 34 to 42 years for the ensuing recruitments through Public Service Commission and other – Reg.",
+  "department_code": "GAD01",
+  "section": "SER-A",
+  "section_label": "General Administration (Ser.A) Department",
+  "classification": "UNCLASSIFIED",
+  "status": "closed",
+  "opened": "2022-01-25",
+  "scenario": "GAD01-CLEAN-039",
+  "touchpoints": [
+    6,
+    7,
+    14,
+    16,
+    19
+  ],
+  "origin": "synthetic",
+  "banner": "Synthetic — not a real government file",
+  "cites": [
+    "AP-GAD01-GOMS-396-2016"
+  ]
+}

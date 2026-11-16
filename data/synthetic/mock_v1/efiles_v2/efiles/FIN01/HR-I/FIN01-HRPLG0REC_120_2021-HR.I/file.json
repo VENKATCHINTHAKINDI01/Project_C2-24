@@ -1,0 +1,23 @@
+{
+  "file_no": "FIN01-HRPLG0REC/120/2021-HR.I",
+  "computer_no": "3971090",
+  "subject": "Human Resources – Contract and Outsourcing Services in Government Departments – Extension of the contractual and Outsourcing services up to 31.07.2019 – Reg.",
+  "department_code": "FIN01",
+  "section": "HR-I",
+  "section_label": "Finance (HR.I-Plg. & Policy) Department",
+  "classification": "UNCLASSIFIED",
+  "status": "decided",
+  "opened": "2021-04-05",
+  "scenario": "FIN01-E-052",
+  "touchpoints": [
+    4,
+    10,
+    11,
+    15
+  ],
+  "origin": "synthetic",
+  "banner": "Synthetic — not a real government file",
+  "cites": [
+    "AP-FIN01-GORT-2501-2006"
+  ]
+}

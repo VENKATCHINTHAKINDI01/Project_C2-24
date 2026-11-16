@@ -1,0 +1,24 @@
+{
+  "file_no": "FIN01-HRPLG0REC/113/2019-HR.I",
+  "computer_no": "3915657",
+  "subject": "Public Services – Human Resources – Transfers and Postings of Employees – Guidelines /Instructions-Modification – Reg.",
+  "department_code": "FIN01",
+  "section": "HR-I",
+  "section_label": "Finance (HR.I-Plg. & Policy) Department",
+  "classification": "RESTRICTED",
+  "status": "reopened",
+  "opened": "2019-11-29",
+  "scenario": "FIN01-CLEAN-027",
+  "touchpoints": [
+    6,
+    8,
+    13,
+    17
+  ],
+  "origin": "synthetic",
+  "banner": "Synthetic — not a real government file",
+  "cites": [
+    "AP-FIN01-GOMS-45-2019",
+    "AP-FIN01-GOMS-57-2018"
+  ]
+}

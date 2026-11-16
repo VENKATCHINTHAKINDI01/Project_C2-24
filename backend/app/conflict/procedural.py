@@ -40,6 +40,9 @@ class Action(StrEnum):
     TRANSFER = "transfer"
     WORKS_SANCTION = "works_sanction"
     OUTSOURCING = "outsourcing"
+    RECRUITMENT = "recruitment"  # who recruits / issues the notification
+    REAPPROPRIATION = "reappropriation"  # re-appropriation / additional funds
+    BUSINESS_ALLOCATION = "business_allocation"  # which department administers a subject
 
 
 class PostLevel(StrEnum):
@@ -68,17 +71,43 @@ class RuleSource(_Frozen):
         return parse_canonical_id(self.id).document_id
 
 
+class BarredPeriod(_Frozen):
+    """A part of every year in which the action may not be granted ("no request … will be
+    entertained in the first two quarters"): month-day bounds, inclusive."""
+
+    from_month_day: str = Field(pattern=r"^\d{2}-\d{2}$")
+    to_month_day: str = Field(pattern=r"^\d{2}-\d{2}$")
+
+    def covers(self, day: dt.date) -> bool:
+        return self.from_month_day <= day.strftime("%m-%d") <= self.to_month_day
+
+
 class AuthorityRule(_Frozen):
     id: str
     action: Action
+    departments: tuple[str, ...] = ()  # departments whose proposals it governs; empty = any
+    subject_terms: tuple[str, ...] = ()  # applies only when the proposal names one of these
     post_level: PostLevel | None = None
     amount_max: int | None = None  # rupees, inclusive
     amount_min_exclusive: int | None = None
-    competent: tuple[str, ...]
+    competent: tuple[str, ...] = ()
     recommend_only: tuple[str, ...] = ()
     requires_concurrence: tuple[str, ...] = ()
+    barred: BarredPeriod | None = None
     effective_from: dt.date
+    effective_until: dt.date | None = None  # e.g. an order for one financial year
     sources: tuple[RuleSource, ...] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def _says_something(self) -> AuthorityRule:
+        if not (self.competent or self.requires_concurrence or self.barred):
+            raise ValueError(f"rule {self.id} states no authority, concurrence or barred period")
+        return self
+
+    def names(self, text: str) -> bool:
+        """True when the rule has no subject terms, or `text` contains one (case-insensitive)."""
+        low = text.lower()
+        return not self.subject_terms or any(t.lower() in low for t in self.subject_terms)
 
 
 class RuleSetStatus(StrEnum):
@@ -168,6 +197,8 @@ class ProposalFacts(_Frozen):
     amount_rupees: int | None = Field(default=None, ge=0)
     proposed_authority: str | None = None  # authority code the note asks to approve
     concurrences_obtained: frozenset[str] = frozenset()
+    grants: bool = False  # the proposal supports granting the request (read from its own words)
+    subject: str = ""  # the note's subject, for rules limited to named subjects
     evidence: str = ""  # the note's own words for these facts
 
 
@@ -187,6 +218,12 @@ def parse_amount(text: str) -> int | None:
 
 def _applies(rule: AuthorityRule, f: ProposalFacts) -> bool:
     if rule.action is not f.action or f.proposal_date < rule.effective_from:
+        return False
+    if rule.effective_until is not None and f.proposal_date > rule.effective_until:
+        return False
+    if rule.departments and f.department not in rule.departments:
+        return False
+    if not rule.names(f"{f.subject} {f.evidence}"):
         return False
     if rule.post_level is not None and rule.post_level is not f.post_level:
         return False
@@ -253,16 +290,30 @@ def check_authority(
         where = f" under {', '.join(s.id for s in shown)}" if shown else ""
         competent = " or ".join(rules.label(c) for c in rule.competent)
         p = facts.proposed_authority
-        if p is not None and p not in rule.competent:
-            role = (
-                "can only recommend"
-                if p in rule.recommend_only
-                else "is not the competent authority"
-            )
+        if rule.competent and p is not None and p not in rule.competent:
+            if rule.action is Action.BUSINESS_ALLOCATION:
+                text = (
+                    f"Potential conflict — the proposal treats {rules.label(p)} as the "
+                    f"department concerned; the subject is allotted to {competent}{where}{quote}. "
+                    f"Review recommended: route the matter to {competent}."
+                )
+            else:
+                role = (
+                    "can only recommend"
+                    if p in rule.recommend_only
+                    else "is not the competent authority"
+                )
+                text = (
+                    f"Potential conflict — the proposal seeks approval by {rules.label(p)}, "
+                    f"who {role}; the competent authority is {competent}{where}{quote}. "
+                    f"Review recommended: submit to {competent}."
+                )
+            flags.append(_flag(rule, facts, shown, text, verified))
+        if rule.barred is not None and facts.grants and rule.barred.covers(facts.proposal_date):
             text = (
-                f"Potential conflict — the proposal seeks approval by {rules.label(p)}, "
-                f"who {role}; the competent authority is {competent}{where}{quote}. "
-                f"Review recommended: submit to {competent}."
+                "Potential conflict — the proposal supports the request on "
+                f"{facts.proposal_date:%d-%m-%Y}, inside the period in which such requests are "
+                f"not to be entertained{where}{quote}. Review recommended."
             )
             flags.append(_flag(rule, facts, shown, text, verified))
         missing = [c for c in rule.requires_concurrence if c not in facts.concurrences_obtained]

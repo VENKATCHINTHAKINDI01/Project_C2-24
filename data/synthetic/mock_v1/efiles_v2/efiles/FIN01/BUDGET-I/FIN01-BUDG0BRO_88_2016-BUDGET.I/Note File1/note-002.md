@@ -1,0 +1,8 @@
+<!-- SYNTHETIC — not a real government file. Cites real public G.O.s. (C2-24 efiles_v2) -->
+<!-- green -->
+Note # 2
+5) Sir, submitted for approval of Para 3 with regard to Budget 2016-17 – Budget Authorisation for April 2016 and Guidelines for issue of.
+
+26/11/2016 11:10 AM
+G. SRINIVASA MURTHY, I.A.S
+JOINT SECRETARY

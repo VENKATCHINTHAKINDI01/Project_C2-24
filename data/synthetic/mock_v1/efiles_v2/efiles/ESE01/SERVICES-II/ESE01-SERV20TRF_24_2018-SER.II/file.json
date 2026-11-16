@@ -1,0 +1,35 @@
+{
+  "file_no": "ESE01-SERV20TRF/24/2018-SER.II",
+  "computer_no": "3410866",
+  "subject": "Andhra Pradesh School Educational Subordinate Service Rules for the posts of teachers in Government Schools in Andhra Pradesh - Adhoc Rules – Reg.",
+  "department_code": "ESE01",
+  "section": "SERVICES-II",
+  "section_label": "School Education (Services.II) Department",
+  "classification": "UNCLASSIFIED",
+  "status": "reopened",
+  "opened": "2018-04-27",
+  "scenario": "ESE01-F-083",
+  "touchpoints": [
+    6,
+    10,
+    11,
+    15,
+    17
+  ],
+  "origin": "synthetic",
+  "banner": "Synthetic — not a real government file",
+  "cites": [
+    "AP-ESE01-GOMS-11-2009"
+  ],
+  "consultations": [
+    {
+      "with": "GADSER",
+      "uo_no": "GAD01-SERA0SER/514/2018-SER.A",
+      "department": "General Administration (Ser.A)",
+      "sent": "2018-05-03",
+      "returned": "2018-05-12",
+      "conditional": true,
+      "correspondence": "R-002.md"
+    }
+  ]
+}

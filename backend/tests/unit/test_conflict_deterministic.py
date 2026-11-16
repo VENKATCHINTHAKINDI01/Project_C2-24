@@ -122,3 +122,61 @@ def test_flags_never_name_documents_outside_known_set() -> None:
         action = dt.datetime.strptime(BY_ID[doc_id]["date"], "%d-%m-%Y").date()
         for f in check_citations(_citations(doc_id), action, KNOWN, RELS):
             assert set(f.evidence_ids) <= set(KNOWN)
+
+
+def test_older_order_cited_together_with_its_successor_is_not_type_a() -> None:
+    """ "G.O.57 read with G.O.54": the note applies the newer order; the older one is history."""
+    known = {
+        "AP-FIN01-GOMS-54-2018": Instrument(
+            canonical_id="AP-FIN01-GOMS-54-2018",
+            hierarchy_level=4,
+            effective_from=dt.date(2018, 5, 2),
+        ),
+        "AP-FIN01-GOMS-57-2018": Instrument(
+            canonical_id="AP-FIN01-GOMS-57-2018",
+            hierarchy_level=4,
+            effective_from=dt.date(2018, 5, 8),
+        ),
+    }
+    rels = [
+        TemporalRelation(
+            source="AP-FIN01-GOMS-57-2018",
+            kind=RelationKind.SUPERSEDES,
+            target="AP-FIN01-GOMS-54-2018",
+            confirmed=True,
+        )
+    ]
+    old = Citation(raw="G.O.Ms.No.54", canonical_id="AP-FIN01-GOMS-54-2018")
+    new = Citation(raw="G.O.Ms.No.57", canonical_id="AP-FIN01-GOMS-57-2018")
+    alone = check_citations([old], dt.date(2018, 10, 30), known, rels)
+    assert [f.type for f in alone] == [ConflictType.A]
+    assert check_citations([new, old], dt.date(2018, 10, 30), known, rels) == []
+
+
+def test_order_amended_before_the_note_without_citing_the_amendment_is_type_f() -> None:
+    known = {
+        "AP-ESE01-GOMS-32-2017": Instrument(
+            canonical_id="AP-ESE01-GOMS-32-2017",
+            hierarchy_level=4,
+            effective_from=dt.date(2017, 6, 4),
+        ),
+        "AP-ESE01-GOMS-38-2017": Instrument(
+            canonical_id="AP-ESE01-GOMS-38-2017",
+            hierarchy_level=4,
+            effective_from=dt.date(2017, 6, 21),
+        ),
+    }
+    rels = [
+        TemporalRelation(
+            source="AP-ESE01-GOMS-38-2017",
+            kind=RelationKind.AMENDS,
+            target="AP-ESE01-GOMS-32-2017",
+            confirmed=True,
+        )
+    ]
+    old = Citation(raw="G.O.Ms.No.32", canonical_id="AP-ESE01-GOMS-32-2017")
+    amend = Citation(raw="G.O.Ms.No.38", canonical_id="AP-ESE01-GOMS-38-2017")
+    after = check_citations([old], dt.date(2017, 9, 5), known, rels)
+    assert [f.type for f in after] == [ConflictType.F] and after[0].certain
+    assert check_citations([old], dt.date(2017, 6, 10), known, rels) == []  # before the amendment
+    assert check_citations([old, amend], dt.date(2017, 9, 5), known, rels) == []  # cites it

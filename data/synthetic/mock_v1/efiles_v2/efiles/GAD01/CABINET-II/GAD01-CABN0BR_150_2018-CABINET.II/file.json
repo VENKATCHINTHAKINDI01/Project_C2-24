@@ -1,0 +1,24 @@
+{
+  "file_no": "GAD01-CABN0BR/150/2018-CABINET.II",
+  "computer_no": "4308660",
+  "subject": "A.P. State Housing Board — reference from the Housing Department for – Reg.",
+  "department_code": "GAD01",
+  "section": "CABINET-II",
+  "section_label": "General Administration (Cabinet.II) Department",
+  "classification": "UNCLASSIFIED",
+  "status": "open",
+  "opened": "2018-01-05",
+  "scenario": "GAD01-C-HC4",
+  "touchpoints": [
+    6,
+    7,
+    10,
+    11,
+    13
+  ],
+  "origin": "synthetic",
+  "banner": "Synthetic — not a real government file",
+  "cites": [
+    "AP-GAD01-GOMS-99-2017"
+  ]
+}

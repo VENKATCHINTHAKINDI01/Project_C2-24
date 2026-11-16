@@ -1,0 +1,26 @@
+{
+  "file_no": "FIN01-HRPEN0PEN/130/2023-HR.III",
+  "computer_no": "4050280",
+  "subject": "Commutation of pension — date of effect – Reg.",
+  "department_code": "FIN01",
+  "section": "HR-III",
+  "section_label": "Finance (HR.III-Pension & GPF) Department",
+  "classification": "RESTRICTED",
+  "status": "decided",
+  "opened": "2023-09-06",
+  "scenario": "FIN01-B-HB1",
+  "touchpoints": [
+    1,
+    2,
+    10,
+    11,
+    13,
+    14
+  ],
+  "origin": "synthetic",
+  "banner": "Synthetic — not a real government file",
+  "cites": [
+    "AP-FIN01-GOMS-2-2022",
+    "AP-FIN01-GOMS-105-2022"
+  ]
+}

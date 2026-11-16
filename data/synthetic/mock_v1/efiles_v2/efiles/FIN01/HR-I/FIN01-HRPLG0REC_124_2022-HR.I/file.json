@@ -1,0 +1,34 @@
+{
+  "file_no": "FIN01-HRPLG0REC/124/2022-HR.I",
+  "computer_no": "4002766",
+  "subject": "Finance Department - District Restructuring, 2022 – Human Resources - Allocation - Provisional allocation of posts & personnel in the restructured District / Di – Reg.",
+  "department_code": "FIN01",
+  "section": "HR-I",
+  "section_label": "Finance (HR.I-Plg. & Policy) Department",
+  "classification": "UNCLASSIFIED",
+  "status": "decided",
+  "opened": "2022-05-28",
+  "scenario": "FIN01-F-028",
+  "touchpoints": [
+    6,
+    8,
+    10,
+    11
+  ],
+  "origin": "synthetic",
+  "banner": "Synthetic — not a real government file",
+  "cites": [
+    "AP-FIN01-GOMS-31-2022"
+  ],
+  "consultations": [
+    {
+      "with": "CABINET",
+      "uo_no": "GAD01-CABN0BR/614/2022-CABINET.II",
+      "department": "General Administration (Cabinet.II)",
+      "sent": "2022-06-09",
+      "returned": "2022-06-23",
+      "conditional": false,
+      "correspondence": "R-002.md"
+    }
+  ]
+}

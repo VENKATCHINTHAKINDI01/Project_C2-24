@@ -1,0 +1,24 @@
+{
+  "file_no": "ESE01-SERV20TRF/70/2025-SER.II",
+  "computer_no": "3775140",
+  "subject": "Transfer of a Headmaster Gr.II in a ZP High School – Reg.",
+  "department_code": "ESE01",
+  "section": "SERVICES-II",
+  "section_label": "School Education (Services.II) Department",
+  "classification": "RESTRICTED",
+  "status": "open",
+  "opened": "2025-06-06",
+  "scenario": "ESE01-C-HC2",
+  "touchpoints": [
+    1,
+    6,
+    10,
+    11,
+    13
+  ],
+  "origin": "synthetic",
+  "banner": "Synthetic — not a real government file",
+  "cites": [
+    "AP-ESE01-GOMS-22-2025"
+  ]
+}

@@ -1,0 +1,1 @@
+{"prompt": "conflict_contradiction.v2", "model": "gemini-3.5-flash", "response": {"verdict": "insufficient", "quote_a": "", "quote_b": "", "explanation": "Document A does not contain any provisions regarding the date of effect of commutation, making it impossible to determine if there is a contradiction with Document B."}}

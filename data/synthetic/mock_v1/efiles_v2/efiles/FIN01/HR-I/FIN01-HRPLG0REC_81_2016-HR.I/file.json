@@ -1,0 +1,24 @@
+{
+  "file_no": "FIN01-HRPLG0REC/81/2016-HR.I",
+  "computer_no": "3662249",
+  "subject": "Direct recruitment to the permitted vacancies — proposal for recruitment at department level – Reg.",
+  "department_code": "FIN01",
+  "section": "HR-I",
+  "section_label": "Finance (HR.I-Plg. & Policy) Department",
+  "classification": "UNCLASSIFIED",
+  "status": "open",
+  "opened": "2016-09-05",
+  "scenario": "FIN01-C-HC1",
+  "touchpoints": [
+    5,
+    6,
+    10,
+    11,
+    13
+  ],
+  "origin": "synthetic",
+  "banner": "Synthetic — not a real government file",
+  "cites": [
+    "AP-FIN01-GOMS-110-2016"
+  ]
+}

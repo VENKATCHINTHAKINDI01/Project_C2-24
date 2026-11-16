@@ -1,0 +1,20 @@
+[
+  {
+    "note": 1,
+    "from": "V03",
+    "name": "M. Jyothirmayi",
+    "designation": "Section Officer",
+    "at": "12/02/2022 10:30 AM",
+    "sent_to": "V05",
+    "remarks": "for approval"
+  },
+  {
+    "note": 2,
+    "from": "V05",
+    "name": "P. Uma Maheswari",
+    "designation": "Assistant Secretary",
+    "at": "12/02/2022 10:55 AM",
+    "sent_to": null,
+    "remarks": "pending"
+  }
+]

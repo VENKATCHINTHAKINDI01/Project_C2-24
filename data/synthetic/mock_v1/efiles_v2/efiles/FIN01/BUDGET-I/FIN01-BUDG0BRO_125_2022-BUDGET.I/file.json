@@ -1,0 +1,25 @@
+{
+  "file_no": "FIN01-BUDG0BRO/125/2022-BUDGET.I",
+  "computer_no": "4010685",
+  "subject": "Budget Management - Measures to Streamline the Financial Management System - Distribution of Approved Budget – Issue of Comprehensive Budget Release Order (CBRO) - Instructions and Guidelines – Reg.",
+  "department_code": "FIN01",
+  "section": "BUDGET-I",
+  "section_label": "Finance (Budget.I) Department",
+  "classification": "CONFIDENTIAL",
+  "status": "decided",
+  "opened": "2022-06-03",
+  "scenario": "FIN01-E-053",
+  "touchpoints": [
+    9,
+    10,
+    11,
+    15,
+    20
+  ],
+  "origin": "synthetic",
+  "banner": "Synthetic — not a real government file",
+  "cites": [
+    "AP-FIN01-GOMS-59-2001"
+  ],
+  "received_by": "U.O. Note"
+}

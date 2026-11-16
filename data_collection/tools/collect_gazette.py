@@ -9,6 +9,14 @@ Default is a DRY RUN: one GET + one search POST, results listed, nothing downloa
   python tools/collect_gazette.py --options                              # print department / type / part lists
   python tools/collect_gazette.py --dept FINANCE --type 1 --year 2024              # list (dry run)
   python tools/collect_gazette.py --dept FINANCE --type 1 --year 2024 --pick 9     # save result no. 9 only
+Batch mode for Rules / Acts (owner OK 12 Nov 2026): every department x year x gazette type, keeping only rows
+whose abstract is about Rules, Regulations, Acts, Ordinances or Codes (skip_topics still apply). Dry run by default;
+--download saves them (10 s between requests, stops after 3 errors in a row). Candidates are also written to
+staging/manifests/gazette_candidates.jsonl.
+  python tools/collect_gazette.py --batch                                   # dry run: FIN, GAD, School Education, 2016-2025
+  python tools/collect_gazette.py --batch --dept LAW --years 2016-2025      # one department (repeat --dept for more)
+  python tools/collect_gazette.py --batch --download --limit 5              # test: save 5
+  python tools/collect_gazette.py --batch --download --limit 0              # save all candidates
 Notes (tested 18 Oct 2026): only the YEAR filter returns results; date ranges (DDMMYYYY) return nothing.
 Download links are signed tokens tied to the search; the stable key is the file path inside the token.
 Raw result page is saved to staging/manifests/egazette_last_search.html so the parser can be checked.
@@ -69,6 +77,7 @@ def pub_date(cell):
 
 def part_code(cell):   # "Extraordinary / PART IV-B" -> "EIVB", "Weekly / Part I" -> "WI"
     kind = "E" if "extra" in (cell or "").lower() else "W" if "week" in (cell or "").lower() else "X"
+    if "rules supplement" in (cell or "").lower(): kind += "RS"   # e.g. "Rules Supplement to Part I" -> "ERSI"
     m = re.search(r"part\s*([IVX]+(?:\s*-?\s*[A-Z])?)", cell or "", re.I)
     return kind + (re.sub(r"[^A-Z]", "", m.group(1).upper()) if m else "")
 
@@ -124,10 +133,153 @@ def held_index():
         except Exception: pass
     return files, ids
 
+# Batch filter, tightened after the first dry run (12 Nov 2026: 637 -> 238 candidates). "Act" alone matched bans under
+# the Public Security Act, pipeline declarations and holidays; "Rules Supplement" parts also carry ordinary G.O.s.
+RULES = re.compile(r"\brules\b|\brule\s+\d|\bregulations\b|\bcode\b|\bmanual\b|\bbye-?laws?\b", re.I)
+ACT_CHANGE = re.compile(r"\b(?:act|ordinance)\b[^.]{0,80}\b(?:coming into force|commencement|come into force|amendment|amended)", re.I)
+NOISE = re.compile(r"\belection|\bholiday|\bdeclaration of (?:the )?(?:premises|repeater|motor|sub-?station)|public security act|takeover", re.I)
+DEFAULT_DEPTS = ["FINANCE", "GENERAL ADMINISTRATION", "SCHOOL EDUCATION"]
+APPROPRIATION = re.compile(r"appropriation|vote[- ]on[- ]account", re.I)
+
+def select(row, scope):
+    """Batch filter: Rules / Acts and notifications about them. skip_topics (individual cases) still win."""
+    keep, why = topic_decision(row["abstract"], scope, all_topics=True)
+    if not keep: return None, why
+    if APPROPRIATION.search(row["abstract"] or ""): return None, "appropriation / vote on account (not kept, scope.yaml)"
+    a = row["abstract"] or ""
+    if NOISE.search(a): return None, "election / holiday / declaration / ban / takeover"
+    if row.get("dept_name", "") not in ("", *DEFAULT_DEPTS):   # other departments (e.g. LAW): Acts, or rules on our topics
+        if not (ACT_CHANGE.search(a) or topic_decision(a, scope)[0]): return None, "other department, not on our topics"
+    kind, _ = gazette_kind(row["part"], a, None)
+    if kind in ("ACT", "RULE"): return kind, "rules/act"
+    if RULES.search(a) or ACT_CHANGE.search(a): return "NOTIFICATION", "about rules / an Act coming into force or amended"
+    return None, "not about rules/acts"
+
+def save_row(s, action, row, scope, files, act=None, via="manual-target"):
+    """Download one result (its token belongs to the search just made) and file it. Returns a status line."""
+    if row["file"] in files: return f"already held ({row['file']})"
+    if not (row["gazette_no"] and row["date"]): return "gazette number/date unreadable — not saved"
+    url = BASE + "uploadGazette_view?filePath=" + quote(row["token"], safe="")
+    time.sleep(DELAY)
+    try:
+        pdf = s.get(url, timeout=90, headers={"Referer": action})
+    except requests.RequestException as e:
+        append_jsonl(ST / "manifests" / "failed.jsonl", {"source": "egazette", "url": row["file"], "error": str(e)[:200], "at": now()})
+        raise
+    if not pdf.content.startswith(b"%PDF"):
+        return f"not a PDF (HTTP {pdf.status_code}, {pdf.headers.get('content-type')}) — token may have expired; not saved"
+    year = row["date"][:4]; pc = part_code(row["part"])
+    cid = canonical_id("GAZ", "GAZETTE", row["gazette_no"], year, filecode=pc)
+    assert CANONICAL_RE.match(cid), cid
+    kind, level = gazette_kind(row["part"], row["abstract"], act)
+    meta = {"canonical_id": cid, "doc_type": "Gazette", "instrument": f"A.P. Gazette {row['part']}",
+            "number": row["gazette_no"], "date": row["date"], "date_raw": None,
+            "department_code": "GAZ", "department_name": "A.P. GAZETTE", "publishing_department": row["dept"],
+            "subject": row["abstract"], "issue_no": row["issue_no"], "notification_no": row["notification_no"],
+            "republishes": row["republishes"],
+            "republishes_id": republished_id(row["republishes"], year, scope), "act_number": act,
+            "gazette_kind": kind, "hierarchy_level": level,
+            "classification": "UNCLASSIFIED", "status": "unknown", "effective_from": row["date"], "effective_to": None,
+            "effective_from_source": "assumed_issue_date",
+            "read_list": [], "language": "en/te", "origin": "public", "source_name": "AP e-Gazette",
+            # The site serves files only through a signed token from a search; the stable reference is the
+            # file path inside it, so source_url = site + that path (cite with gazette no./part/date).
+            "source_url": BASE.rstrip("/") + row["file"], "source_url_direct": False,
+            "gazette_file": row["file"], "official_url": None,
+            "verification_status": "pending", "parse_confidence": "medium",
+            "files": {"original": "order.pdf", "ocr": None},
+            "collector": "tools/collect_gazette.py", "collected_via": via, "collected_at": now()}
+    folder = ST / "rule-library" / "gazette" / "GAZ" / year / cid
+    if folder.exists():
+        other = json.loads((folder / "meta.json").read_text())
+        if other.get("gazette_file") == row["file"]: return f"{cid} exists — not overwritten"
+        # Gazette numbers repeat within a part and year (No.914 of 2022: 25 Jan and 7 Sep). Owner rule, 13 Nov 2026:
+        # only the repeat gets the publication date, as memos do (AP-GAZ-GAZETTE-EI-914-2022-D20220907).
+        first_id = cid
+        cid = canonical_id("GAZ", "GAZETTE", row["gazette_no"], year, filecode=pc, date=row["date"])
+        assert CANONICAL_RE.match(cid), cid
+        meta.update({"canonical_id": cid, "id_note": f"number repeats {first_id} (published {other.get('date')}); "
+                                                      "publication date added to the ID"})
+        folder = ST / "rule-library" / "gazette" / "GAZ" / year / cid
+        if folder.exists(): return f"{cid} exists — not overwritten"
+    folder.mkdir(parents=True)
+    (folder / "order.pdf").write_bytes(pdf.content)
+    meta["sha256"] = sha256(folder / "order.pdf")
+    text = pdf_text(folder / "order.pdf")
+    body = re.sub(r"(?i)part\s+i+\s+extraordinary|registered no\.[^\n]*|notifications by government[-x ]*", "", text).strip()
+    if len(body) > 300:
+        (folder / "ocr.txt").write_text(text); meta["files"]["ocr"] = "ocr.txt"; meta["ocr_source"] = "PDF text layer (pypdf)"
+    else:
+        meta["needs_ocr"] = True   # body is a scanned image (seen in Gazette No.137 of 2024) -> Document AI
+    write_json(folder / "meta.json", meta); provenance(ST, meta, "web:egazette")
+    files.add(row["file"])
+    return (f"saved {cid} ({len(pdf.content):,} bytes; {kind}, level {level}; "
+            f"{'text layer' if meta['files']['ocr'] else 'scanned body: needs Document AI'})"
+            f"{'  republishes ' + row['republishes'] if row['republishes'] else ''}")
+
+def years_of(spec):
+    a_, _, b_ = spec.partition("-")
+    return [str(y) for y in range(int(b_ or a_), int(a_) - 1, -1)]
+
+def batch(a):
+    scope = load_scope(); files, _ = held_index()
+    depts = a.dept_list or DEFAULT_DEPTS
+    types = [t.strip() for t in a.types.split(",") if t.strip()]
+    cand_path = ST / "manifests" / "gazette_candidates.jsonl"
+    cand_path.parent.mkdir(parents=True, exist_ok=True); cand_path.write_text("")   # this run's list only
+    s = requests.Session(); s.headers["User-Agent"] = UA
+    saved = found = errors = 0
+    for dept in depts:
+        for year in years_of(a.years):
+            for typ in types:
+                try:
+                    action, hidden, selects, _ = get_form(s)
+                    try:
+                        data = dict(hidden)
+                        data.update({"departmentId": pick(selects.get("departmentId", []), dept),
+                                     "gazeeteTypeId": pick(selects.get("gazeeteTypeId", []), typ),
+                                     "gazeetePartId": "", "year": year, "month1": "", "fromdate": "", "todate": "",
+                                     "gazetteno": "", "abstract1": ""})
+                    except SystemExit as e:   # department name not on the site: say so, go on
+                        print(f"!! {dept}: {e}"); break
+                    time.sleep(DELAY)
+                    r = s.post(action, data=data, timeout=60, headers={"Referer": BASE + "searchAllGazette"})
+                    r.raise_for_status(); errors = 0
+                except requests.RequestException as e:
+                    errors += 1
+                    append_jsonl(ST / "manifests" / "failed.jsonl", {"source": "egazette", "url": f"search {dept} {year} {typ}", "error": str(e)[:200], "at": now()})
+                    print(f"!! search failed {dept} {year} type {typ}: {e}")
+                    if errors >= 3: raise SystemExit("3 errors in a row — stopping (re-run later; held files are skipped)")
+                    continue
+                rows = parse_results(r.text)
+                for row in rows: row["dept_name"] = dept
+                picked = [(row, *select(row, scope)) for row in rows]
+                picked = [(row, k, why) for row, k, why in picked if k]
+                print(f"== {dept} {year} type {typ}: {len(rows)} results, {len(picked)} about rules/acts")
+                for row, kind, why in picked:
+                    found += 1
+                    held = row["file"] in files
+                    print(f"   {row['date'] or '????-??-??'} {part_code(row['part']):<5} No.{row['gazette_no'] or '?':<5} "
+                          f"{kind:<12} {row['abstract'][:90]}{'  [held]' if held else ''}")
+                    append_jsonl(cand_path, {"dept": dept, "year": year, "type": typ, "date": row["date"], "part": row["part"],
+                                             "gazette_no": row["gazette_no"], "kind": kind, "abstract": row["abstract"],
+                                             "file": row["file"], "held": held, "listed_at": now()})
+                    if a.download and not held and (a.limit == 0 or saved < a.limit):
+                        try:
+                            msg = save_row(s, action, row, scope, files, via="gazette-batch")
+                            errors = 0
+                        except requests.RequestException as e:
+                            errors += 1; msg = f"download failed (logged): {e}"
+                            if errors >= 3: raise SystemExit("3 errors in a row — stopping (re-run later; held files are skipped)")
+                        saved += msg.startswith("saved"); print("      ->", msg)
+    print(f"\n{found} candidates listed (also in {cand_path.relative_to(ROOT)}); saved {saved}"
+          + ("" if a.download else "  — dry run: add --download (with --limit N to test)"))
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--options", action="store_true", help="print the department / type / part lists and exit")
-    ap.add_argument("--dept", help="department name or id, e.g. FINANCE, 'GENERAL ADMINISTRATION', 27")
+    ap.add_argument("--dept", action="append", help="department name or id, e.g. FINANCE, 'GENERAL ADMINISTRATION', 27 "
+                                                    "(batch: repeat for several)")
     ap.add_argument("--type", default="1", help="gazette type id/name (1 Extraordinary, 2 Weekly)")
     ap.add_argument("--part", help="gazette part id/name, e.g. 9 (Part IV-B)")
     ap.add_argument("--year"); ap.add_argument("--month")
@@ -135,7 +287,15 @@ def main():
     ap.add_argument("--number", help="gazette number"); ap.add_argument("--text", help="search text (abstract)")
     ap.add_argument("--pick", help="result numbers to save, e.g. 9 or 9,12 (test phase: 1-2). Without it: dry run")
     ap.add_argument("--act", help="if the saved gazette publishes an Act, its Act number (recorded, not guessed)")
+    ap.add_argument("--batch", action="store_true", help="Rules/Acts across departments x years (dry run unless --download)")
+    ap.add_argument("--years", default="2016-2025", help="batch: year range, e.g. 2016-2025")
+    ap.add_argument("--types", default="1,2", help="batch: gazette types, 1 Extraordinary, 2 Weekly")
+    ap.add_argument("--download", action="store_true", help="batch: save the candidates")
+    ap.add_argument("--limit", type=int, default=5, help="batch: max files to save (0 = no cap)")
     a = ap.parse_args()
+    a.dept_list, a.dept = a.dept, (a.dept[-1] if a.dept else None)
+    if a.batch:
+        return batch(a)
     s = requests.Session(); s.headers["User-Agent"] = UA
     action, hidden, selects, dates = get_form(s)
     if a.options:
@@ -183,55 +343,11 @@ def main():
     saved = 0
     for n in picks[:2]:   # test phase: at most 2 per run
         if not 1 <= n <= len(rows): print(f"no result {n}"); continue
-        row = rows[n - 1]
-        if row["file"] in files: print(f"{n}: already held ({row['file']})"); continue
-        if not (row["gazette_no"] and row["date"]):
-            print(f"{n}: gazette number/date unreadable — not saved"); continue
-        url = BASE + "uploadGazette_view?filePath=" + quote(row["token"], safe="")
-        time.sleep(DELAY)
         try:
-            pdf = s.get(url, timeout=90, headers={"Referer": action})
+            msg = save_row(s, action, rows[n - 1], scope, files, act=a.act)
         except requests.RequestException as e:
-            append_jsonl(ST / "manifests" / "failed.jsonl", {"source": "egazette", "url": row["file"], "error": str(e)[:200], "at": now()})
             print("download failed (logged):", e); break
-        if not pdf.content.startswith(b"%PDF"):
-            print(f"{n}: not a PDF (HTTP {pdf.status_code}, {pdf.headers.get('content-type')}) — token may have expired; not saved"); continue
-        year = row["date"][:4]; pc = part_code(row["part"])
-        cid = canonical_id("GAZ", "GAZETTE", row["gazette_no"], year, filecode=pc)
-        assert CANONICAL_RE.match(cid), cid
-        meta = {"canonical_id": cid, "doc_type": "Gazette", "instrument": f"A.P. Gazette {row['part']}",
-                "number": row["gazette_no"], "date": row["date"], "date_raw": None,
-                "department_code": "GAZ", "department_name": "A.P. GAZETTE", "publishing_department": row["dept"],
-                "subject": row["abstract"], "issue_no": row["issue_no"], "notification_no": row["notification_no"],
-                "republishes": row["republishes"],
-                "republishes_id": republished_id(row["republishes"], year, scope), "act_number": a.act,
-                "gazette_kind": gazette_kind(row["part"], row["abstract"], a.act)[0],
-                "hierarchy_level": gazette_kind(row["part"], row["abstract"], a.act)[1],
-                "classification": "UNCLASSIFIED", "status": "unknown", "effective_from": row["date"], "effective_to": None,
-                "read_list": [], "language": "en/te", "origin": "public", "source_name": "AP e-Gazette",
-                # The site serves files only through a signed token from a search; the stable reference is the
-                # file path inside it, so source_url = site + that path (cite with gazette no./part/date).
-                "source_url": BASE.rstrip("/") + row["file"], "source_url_direct": False,
-                "gazette_file": row["file"], "official_url": None,
-                "verification_status": "pending", "parse_confidence": "medium",
-                "files": {"original": "order.pdf", "ocr": None},
-                "collector": "tools/collect_gazette.py", "collected_via": "manual-target", "collected_at": now()}
-        folder = ST / "rule-library" / "gazette" / "GAZ" / year / cid
-        if folder.exists(): print(f"{n}: {cid} exists — not overwritten"); continue
-        folder.mkdir(parents=True)
-        (folder / "order.pdf").write_bytes(pdf.content)
-        meta["sha256"] = sha256(folder / "order.pdf")
-        text = pdf_text(folder / "order.pdf")
-        body = re.sub(r"(?i)part\s+i+\s+extraordinary|registered no\.[^\n]*|notifications by government[-x ]*", "", text).strip()
-        if len(body) > 300:
-            (folder / "ocr.txt").write_text(text); meta["files"]["ocr"] = "ocr.txt"; meta["ocr_source"] = "PDF text layer (pypdf)"
-        else:
-            meta["needs_ocr"] = True   # body is a scanned image (seen in Gazette No.137 of 2024) -> Document AI
-        write_json(folder / "meta.json", meta); provenance(ST, meta, "web:egazette")
-        files.add(row["file"]); saved += 1
-        print(f"{n}: saved {cid} ({len(pdf.content):,} bytes; {meta['gazette_kind']}, level {meta['hierarchy_level']}; "
-              f"{'text layer' if meta['files']['ocr'] else 'scanned body: needs Document AI'})"
-              f"{'  republishes ' + row['republishes'] if row['republishes'] else ''}")
+        saved += msg.startswith("saved"); print(f"{n}: {msg}")
     print(f"saved {saved}")
 
 if __name__ == "__main__":

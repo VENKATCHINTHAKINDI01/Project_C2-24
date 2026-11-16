@@ -1,0 +1,35 @@
+{
+  "file_no": "FIN01-HRPEN0PEN/128/2023-HR.III",
+  "computer_no": "4034442",
+  "subject": "Pensions Adoption of Revised Pay Scales, 2022 with effect from 1st July, 2018 -Sanction of Consolidated Pension/Family Pension- Revision of other benefits - Com – Reg.",
+  "department_code": "FIN01",
+  "section": "HR-III",
+  "section_label": "Finance (HR.III-Pension & GPF) Department",
+  "classification": "RESTRICTED",
+  "status": "decided",
+  "opened": "2022-12-29",
+  "scenario": "FIN01-CLEAN-041",
+  "touchpoints": [
+    6,
+    8,
+    12,
+    13
+  ],
+  "origin": "synthetic",
+  "banner": "Synthetic — not a real government file",
+  "cites": [
+    "AP-FIN01-GOMS-105-2022",
+    "AP-FIN01-GOMS-2-2022"
+  ],
+  "consultations": [
+    {
+      "with": "CABINET",
+      "uo_no": "GAD01-CABN0BR/618/2023-CABINET.II",
+      "department": "General Administration (Cabinet.II)",
+      "sent": "2023-01-04",
+      "returned": "2023-01-26",
+      "conditional": false,
+      "correspondence": "R-002.md"
+    }
+  ]
+}

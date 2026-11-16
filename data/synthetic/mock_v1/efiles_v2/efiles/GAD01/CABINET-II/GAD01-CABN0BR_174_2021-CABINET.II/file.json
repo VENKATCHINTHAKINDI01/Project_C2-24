@@ -1,0 +1,36 @@
+{
+  "file_no": "GAD01-CABN0BR/174/2021-CABINET.II",
+  "computer_no": "4498716",
+  "subject": "General Administration Department – Cabinet - Creation of new Department -“Department of Skills Development and Training” – Reg.",
+  "department_code": "GAD01",
+  "section": "CABINET-II",
+  "section_label": "General Administration (Cabinet.II) Department",
+  "classification": "UNCLASSIFIED",
+  "status": "closed",
+  "opened": "2021-05-14",
+  "scenario": "GAD01-CLEAN-007",
+  "touchpoints": [
+    6,
+    8,
+    11,
+    13,
+    16
+  ],
+  "origin": "synthetic",
+  "banner": "Synthetic — not a real government file",
+  "cites": [
+    "AP-GAD01-GOMS-2-2021",
+    "AP-GAD01-GOMS-153-2019"
+  ],
+  "consultations": [
+    {
+      "with": "FIN",
+      "uo_no": "FIN01-FMU0MISC/204/2021-FMU-GAD-I",
+      "department": "Finance (FMU-GAD-I)",
+      "sent": "2021-05-25",
+      "returned": "2021-06-02",
+      "conditional": false,
+      "correspondence": "R-002.md"
+    }
+  ]
+}

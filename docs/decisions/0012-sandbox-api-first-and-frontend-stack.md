@@ -22,6 +22,8 @@ P8 builds the mock e-Office sandbox and the touchpoints. It needs a backend surf
 
 **Update (4 Nov 2026, touchpoint 4):** the connector gains `open_files()` (e-File numbers of open files, for reconciliation notices). Sandbox replays: `backend/config/sandbox.yaml` names letters held back at startup (`C2_SANDBOX_REPLAY=tp04`); the mock adapter withholds them from `documents()` until "Letter arrives", then raises `ORDER_RECEIVED`. The core only consumes events (`AssistRuntime.sync`) — it never knows about replays.
 
+**Update (5 Nov 2026, touchpoint 7):** `FileContext` gains `notes: tuple[NoteRef]` (e-Office note ID, note number, first paragraph number, confirmed/Green) and `pages: tuple[PageRef]` (correspondence ID, page range, title, canonical ID when the page is an indexed order) — metadata only, no text. Additive. The e-Office's own note ID is what its previous-note reference link needs; C2-24 never constructs one. The draft label `suggested_reference` now covers note references as well as linked files (screen: "Suggested reference — draft").
+
 ## Alternatives considered
 | Option | Why not |
 |---|---|

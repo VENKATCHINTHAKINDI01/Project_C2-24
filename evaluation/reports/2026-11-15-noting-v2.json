@@ -1,0 +1,69 @@
+{
+ "summary": {
+  "files": 4,
+  "mode": "live",
+  "notes_written": 3,
+  "lines_kept": 44,
+  "lines_removed": 0,
+  "forbidden_records_named": 0
+ },
+ "rows": [
+  {
+   "user": "U01",
+   "computer_no": "2894562",
+   "sections": [
+    "Background",
+    "Precedent",
+    "Applicable provisions",
+    "Analysis",
+    "Potential issues",
+    "Proposal"
+   ],
+   "lines_kept": 17,
+   "lines_removed": 0,
+   "forbidden_named": [],
+   "engine": "gemini-3.5-flash@asia-south1"
+  },
+  {
+   "user": "U03",
+   "computer_no": "2899017",
+   "sections": [
+    "Background",
+    "Precedent",
+    "Applicable provisions",
+    "Analysis",
+    "Potential issues",
+    "Proposal"
+   ],
+   "lines_kept": 10,
+   "lines_removed": 0,
+   "forbidden_named": [],
+   "engine": "gemini-3.5-flash@asia-south1"
+  },
+  {
+   "user": "U01",
+   "computer_no": "2881930",
+   "sections": [],
+   "lines_kept": 0,
+   "lines_removed": 0,
+   "forbidden_named": [],
+   "engine": null
+  },
+  {
+   "user": "U02",
+   "computer_no": "2894562",
+   "sections": [
+    "Background",
+    "Precedent",
+    "Applicable provisions",
+    "Analysis",
+    "Potential issues",
+    "Proposal"
+   ],
+   "lines_kept": 17,
+   "lines_removed": 0,
+   "forbidden_named": [],
+   "engine": "gemini-3.5-flash@asia-south1"
+  }
+ ]
+}

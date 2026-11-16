@@ -1,0 +1,25 @@
+{
+  "file_no": "ESE01-PROG10RTE/43/2021-PROG.I",
+  "computer_no": "3561327",
+  "subject": "Admission age for Class I under the RTE Rules – Reg.",
+  "department_code": "ESE01",
+  "section": "PROGRAM-I",
+  "section_label": "School Education (Prog.I) Department",
+  "classification": "UNCLASSIFIED",
+  "status": "decided",
+  "opened": "2021-08-05",
+  "scenario": "ESE01-B-HB3",
+  "touchpoints": [
+    1,
+    2,
+    10,
+    11,
+    13,
+    14
+  ],
+  "origin": "synthetic",
+  "banner": "Synthetic — not a real government file",
+  "cites": [
+    "AP-ESE01-GOMS-20-2011"
+  ]
+}

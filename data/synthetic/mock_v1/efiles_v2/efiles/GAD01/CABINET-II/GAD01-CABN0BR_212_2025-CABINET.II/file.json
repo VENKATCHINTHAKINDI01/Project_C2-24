@@ -1,0 +1,24 @@
+{
+  "file_no": "GAD01-CABN0BR/212/2025-CABINET.II",
+  "computer_no": "4799638",
+  "subject": "Order of precedence for invitees to the Republic Day State function – Reg.",
+  "department_code": "GAD01",
+  "section": "CABINET-II",
+  "section_label": "General Administration (Cabinet.II) Department",
+  "classification": "UNCLASSIFIED",
+  "status": "open",
+  "opened": "2025-12-13",
+  "scenario": "GAD01-CLEAN-HK2",
+  "touchpoints": [
+    4,
+    6,
+    8,
+    11
+  ],
+  "origin": "synthetic",
+  "banner": "Synthetic — not a real government file",
+  "cites": [
+    "AP-GAD01-GOMS-59-2018",
+    "AP-GAD01-GOMS-8-2021"
+  ]
+}

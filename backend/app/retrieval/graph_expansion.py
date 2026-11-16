@@ -17,7 +17,12 @@ from app.auth.models import AccessPolicy
 from app.auth.policy import ScopeError, check, scope_for
 from app.auth.store import AuthzStore
 from app.config import Classification, RuntimeConfig
-from app.graph.repository import Direction, EdgeKind, GraphHit, InMemoryGraphRepository
+from app.graph.repository import (
+    Direction,
+    EdgeKind,
+    GraphHit,
+    WalkableGraph,
+)
 
 log = logging.getLogger(__name__)
 
@@ -50,7 +55,7 @@ def expand(
     user_id: str,
     seeds: Iterable[str],
     *,
-    graph: InMemoryGraphRepository,
+    graph: WalkableGraph,
     kinds: frozenset[EdgeKind],
     direction: Direction,
     max_hops: int,

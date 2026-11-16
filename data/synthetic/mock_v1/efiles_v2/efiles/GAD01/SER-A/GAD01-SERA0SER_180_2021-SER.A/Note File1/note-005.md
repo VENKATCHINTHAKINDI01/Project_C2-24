@@ -1,0 +1,8 @@
+<!-- SYNTHETIC — not a real government file. Cites real public G.O.s. (C2-24 efiles_v2) -->
+<!-- green -->
+Note # 5
+6. Para 3 - agreed.
+
+23/12/2021 01:01 PM
+J. RAVINDRA NATH, I.A.S
+SECRETARY TO GOVERNMENT (SERVICES)

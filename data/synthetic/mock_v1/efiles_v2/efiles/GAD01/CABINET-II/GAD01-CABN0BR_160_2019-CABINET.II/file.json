@@ -1,0 +1,25 @@
+{
+  "file_no": "GAD01-CABN0BR/160/2019-CABINET.II",
+  "computer_no": "4387850",
+  "subject": "Circulation of a proposal to the Council of Ministers – Reg.",
+  "department_code": "GAD01",
+  "section": "CABINET-II",
+  "section_label": "General Administration (Cabinet.II) Department",
+  "classification": "UNCLASSIFIED",
+  "status": "reopened",
+  "opened": "2019-08-30",
+  "scenario": "GAD01-B-HB2",
+  "touchpoints": [
+    1,
+    2,
+    10,
+    11,
+    13,
+    17
+  ],
+  "origin": "synthetic",
+  "banner": "Synthetic — not a real government file",
+  "cites": [
+    "AP-GAD01-GOMS-32-2017"
+  ]
+}

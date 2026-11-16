@@ -119,7 +119,10 @@ def _decide(
     user_rank = ranks.get(principal.clearance)
     if doc_rank is None or user_rank is None:
         return deny(DecisionReason.UNKNOWN_CLASSIFICATION)
-    if doc.classification == policy.public_classification:
+    # "Public" means a published instrument (a G.O., a gazette). A paper inside an e-File — note
+    # sheet, draft, correspondence — is never public, whatever its marking: it follows the
+    # file's reach below (CLAUDE.md §2.4: never more than the officer's e-Office scope allows).
+    if doc.classification == policy.public_classification and doc.file_no is None:
         return allow(DecisionReason.PUBLIC)
     if doc.department != principal.department:
         return deny(DecisionReason.OTHER_DEPARTMENT)

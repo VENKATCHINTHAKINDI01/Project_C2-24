@@ -27,6 +27,7 @@ class NoteEntry(_Frozen):
     post: str | None
     signed_at: dt.datetime | None
     source: str  # canonical ID of the note document
+    by_paragraph: tuple[tuple[int, str], ...] = ()  # (number, its own words), when numbered
 
 
 class FileSoFar(_Frozen):
@@ -44,6 +45,7 @@ _FURNITURE = re.compile(
     r"|SYNTHETIC TEST DATA\b.*|NOTE)\s*$"
 )
 _ONE_LINE = re.compile(r"^(?P<name>.+?)\s+/\s+(?P<post>.+?)\s+/\s+\d{2}/\d{2}/\d{4}\b")
+_MARKING = re.compile(r"^\s*\[?(?:UNCLASSIFIED|RESTRICTED|CONFIDENTIAL|SECRET)\]?\s*$")
 _PARA = re.compile(r"^\s*(\d{1,3})\.\s")
 
 
@@ -73,17 +75,30 @@ def parse_notes(text: str, source: str) -> list[NoteEntry]:
             assert sm is not None
             signed_at = _when(sm.group(1), sm.group(2), sm.group(3))
             one = _ONE_LINE.match(lines[idx])
+            after = lines[idx + 1 :]
             if one:  # "name / post / date" on one line
                 signer, post = one.group("name"), one.group("post")
                 body = lines[:idx]
+            elif len(after) == 2 and not any(_PARA.match(a) for a in after):
+                # date first, then name and post below it (set v2 / e-Office print layout)
+                signer, post = after
+                body, after = lines[:idx], []
             else:  # name and post on the two lines above the date
                 signer = lines[idx - 2] if idx >= 2 else None
                 post = lines[idx - 1] if idx >= 1 else None
                 body = lines[: max(idx - 2, 0)]
-            body += lines[idx + 1 :]
+            body += after
         else:
             body = lines
         nums = [int(p.group(1)) for ln in body if (p := _PARA.match(ln))]
+        paras: list[tuple[int, str]] = []
+        for ln in body:
+            if _MARKING.match(ln):
+                continue  # a page's classification marking, not the note's words
+            if pm := _PARA.match(ln):
+                paras.append((int(pm.group(1)), ln))
+            elif paras:  # a wrapped line continues the paragraph above it
+                paras[-1] = (paras[-1][0], f"{paras[-1][1]} {ln}")
         out.append(
             NoteEntry(
                 note_no=int(m.group(1)),
@@ -93,6 +108,7 @@ def parse_notes(text: str, source: str) -> list[NoteEntry]:
                 post=post,
                 signed_at=signed_at,
                 source=source,
+                by_paragraph=tuple(paras),
             )
         )
     return out

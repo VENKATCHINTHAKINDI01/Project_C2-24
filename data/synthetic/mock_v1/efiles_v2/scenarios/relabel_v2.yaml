@@ -1,0 +1,45 @@
+# SYNTHETIC set v2 (ADR-0020) — labels corrected after the sandbox pre-send check (13 Nov 2026).
+# Owner OK 17:37 IST: four files planted as "clean" rely on orders a real order had already superseded or that had
+# lapsed. Every entry is checked by the builder: the scenario must still cite exactly these orders on this date, and the
+# anchor must match the governing order's own text (quote kept in the plan). Nothing else changes in these files.
+relabel:
+  - key: GAD01-CLEAN-026
+    date: "2017-03-20"
+    cite: [AP-GAD01-GOMS-381-2016, AP-GAD01-GOMS-295-2014]
+    type: A
+    cited: AP-GAD01-GOMS-381-2016
+    governing: AP-GAD01-GOMS-396-2016
+    anchor: 'in supersession of the orders issued in G\.?\s*O\.?\s*Ms\.?\s*No\.?\s*295.{0,80}?381'
+    reason: >-
+      The note relies on G.O.Ms.No.381, dated 17-10-2016 read with G.O.Ms.No.295, dated 23-09-2014; G.O.Ms.No.396,
+      dated 05-11-2016 superseded both before the note was written (2017-03-20).
+  - key: GAD01-CLEAN-035
+    date: "2022-07-23"
+    cite: [AP-GAD01-GOMS-105-2021, AP-GAD01-GOMS-295-2014]
+    type: A
+    cited: AP-GAD01-GOMS-295-2014
+    governing: AP-GAD01-GOMS-396-2016
+    anchor: 'in supersession of the orders issued in G\.?\s*O\.?\s*Ms\.?\s*No\.?\s*295'
+    reason: >-
+      The note relies on G.O.Ms.No.295, dated 23-09-2014 (read with G.O.Ms.No.105, dated 27-09-2021); G.O.Ms.No.396,
+      dated 05-11-2016 had superseded G.O.Ms.No.295 before the note was written (2022-07-23).
+  - key: GAD01-CLEAN-038
+    date: "2024-01-12"
+    cite: [AP-GAD01-GOMS-109-2023, AP-GAD01-GOMS-295-2014]
+    type: A
+    cited: AP-GAD01-GOMS-295-2014
+    governing: AP-GAD01-GOMS-396-2016
+    anchor: 'in supersession of the orders issued in G\.?\s*O\.?\s*Ms\.?\s*No\.?\s*295'
+    reason: >-
+      The note relies on G.O.Ms.No.295, dated 23-09-2014 (read with G.O.Ms.No.109, dated 10-10-2023); G.O.Ms.No.396,
+      dated 05-11-2016 had superseded G.O.Ms.No.295 before the note was written (2024-01-12).
+  - key: GAD01-CLEAN-039
+    date: "2022-02-01"
+    cite: [AP-GAD01-GOMS-396-2016]
+    type: F
+    cited: AP-GAD01-GOMS-396-2016
+    governing: AP-GAD01-GOMS-396-2016
+    anchor: 'up\s*to\s*30[/.-]0?9[/.-]2017'
+    reason: >-
+      The note applies the age relaxation of G.O.Ms.No.396, dated 05-11-2016, which was given only for recruitments up
+      to 30-09-2017; the note is dated 2022-02-01, after the relaxation lapsed.

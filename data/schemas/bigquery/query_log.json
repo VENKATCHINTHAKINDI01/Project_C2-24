@@ -1,0 +1,127 @@
+[
+ {
+  "name": "query_id",
+  "type": "STRING",
+  "mode": "REQUIRED"
+ },
+ {
+  "name": "ts",
+  "type": "TIMESTAMP",
+  "mode": "REQUIRED"
+ },
+ {
+  "name": "session_id",
+  "type": "STRING",
+  "mode": "REQUIRED"
+ },
+ {
+  "name": "turn",
+  "type": "INT64",
+  "mode": "REQUIRED"
+ },
+ {
+  "name": "user_id",
+  "type": "STRING",
+  "mode": "REQUIRED"
+ },
+ {
+  "name": "department",
+  "type": "STRING",
+  "mode": "REQUIRED"
+ },
+ {
+  "name": "section",
+  "type": "STRING",
+  "mode": "NULLABLE"
+ },
+ {
+  "name": "role",
+  "type": "STRING",
+  "mode": "REQUIRED"
+ },
+ {
+  "name": "query_hash",
+  "type": "STRING",
+  "mode": "REQUIRED"
+ },
+ {
+  "name": "intent",
+  "type": "STRING",
+  "mode": "NULLABLE"
+ },
+ {
+  "name": "entities",
+  "type": "STRING",
+  "mode": "REPEATED"
+ },
+ {
+  "name": "ladder_level",
+  "type": "STRING",
+  "mode": "NULLABLE"
+ },
+ {
+  "name": "retrieved_ids",
+  "type": "STRING",
+  "mode": "REPEATED"
+ },
+ {
+  "name": "evidence_ids",
+  "type": "STRING",
+  "mode": "REPEATED"
+ },
+ {
+  "name": "cited_ids",
+  "type": "STRING",
+  "mode": "REPEATED"
+ },
+ {
+  "name": "conflicts_found",
+  "type": "INT64",
+  "mode": "REQUIRED"
+ },
+ {
+  "name": "conflict_types",
+  "type": "STRING",
+  "mode": "REPEATED"
+ },
+ {
+  "name": "scope_signature",
+  "type": "STRING",
+  "mode": "NULLABLE"
+ },
+ {
+  "name": "latency_ms",
+  "type": "INT64",
+  "mode": "REQUIRED"
+ },
+ {
+  "name": "cache_hit",
+  "type": "BOOL",
+  "mode": "REQUIRED"
+ },
+ {
+  "name": "answer_status",
+  "type": "STRING",
+  "mode": "REQUIRED"
+ },
+ {
+  "name": "human_action",
+  "type": "STRING",
+  "mode": "NULLABLE"
+ },
+ {
+  "name": "question",
+  "type": "STRING",
+  "mode": "NULLABLE"
+ },
+ {
+  "name": "clearance_rank",
+  "type": "INT64",
+  "mode": "NULLABLE"
+ },
+ {
+  "name": "flags",
+  "type": "STRING",
+  "mode": "REPEATED"
+ }
+]

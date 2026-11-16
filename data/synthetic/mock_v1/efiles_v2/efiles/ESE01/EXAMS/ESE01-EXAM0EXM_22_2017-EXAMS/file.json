@@ -1,0 +1,24 @@
+{
+  "file_no": "ESE01-EXAM0EXM/22/2017-EXAMS",
+  "computer_no": "3395028",
+  "subject": "School Education – Guidelines for conducting Andhra Pradesh State Teacher Eligibility Test (AP-TET) under the Right of Children to Free and Compulsory Education – Reg.",
+  "department_code": "ESE01",
+  "section": "EXAMS",
+  "section_label": "School Education (Exams) Department",
+  "classification": "CONFIDENTIAL",
+  "status": "open",
+  "opened": "2017-12-14",
+  "scenario": "ESE01-CLEAN-007",
+  "touchpoints": [
+    6,
+    7,
+    13,
+    14,
+    20
+  ],
+  "origin": "synthetic",
+  "banner": "Synthetic — not a real government file",
+  "cites": [
+    "AP-ESE01-GOMS-91-2017"
+  ]
+}

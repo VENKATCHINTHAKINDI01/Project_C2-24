@@ -1,0 +1,24 @@
+{
+  "file_no": "ESE01-SERV20TRF/71/2025-SER.II",
+  "computer_no": "3783059",
+  "subject": "Transfer of a Headmaster Gr.II on request — orders by the Regional Joint Director – Reg.",
+  "department_code": "ESE01",
+  "section": "SERVICES-II",
+  "section_label": "School Education (Services.II) Department",
+  "classification": "RESTRICTED",
+  "status": "decided",
+  "opened": "2025-06-17",
+  "scenario": "ESE01-C-HC3",
+  "touchpoints": [
+    2,
+    6,
+    10,
+    11,
+    13
+  ],
+  "origin": "synthetic",
+  "banner": "Synthetic — not a real government file",
+  "cites": [
+    "AP-ESE01-GOMS-22-2025"
+  ]
+}

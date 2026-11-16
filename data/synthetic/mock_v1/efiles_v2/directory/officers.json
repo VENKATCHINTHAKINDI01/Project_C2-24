@@ -1,0 +1,284 @@
+[
+  {
+    "id": "V01",
+    "name": "K. Sravani",
+    "post": "Assistant Section Officer",
+    "rank": 1,
+    "dept": "FIN01",
+    "sections": [
+      "HR-I"
+    ],
+    "scope": "Section",
+    "clearance": "RESTRICTED",
+    "origin": "synthetic"
+  },
+  {
+    "id": "V02",
+    "name": "B. Narendra Babu",
+    "post": "Section Officer",
+    "rank": 2,
+    "dept": "FIN01",
+    "sections": [
+      "HR-I"
+    ],
+    "scope": "Section Hierarchy",
+    "clearance": "RESTRICTED",
+    "origin": "synthetic"
+  },
+  {
+    "id": "V03",
+    "name": "M. Jyothirmayi",
+    "post": "Section Officer",
+    "rank": 2,
+    "dept": "FIN01",
+    "sections": [
+      "HR-III"
+    ],
+    "scope": "Section Hierarchy",
+    "clearance": "RESTRICTED",
+    "origin": "synthetic"
+  },
+  {
+    "id": "V04",
+    "name": "T. Rajasekhar",
+    "post": "Section Officer",
+    "rank": 2,
+    "dept": "FIN01",
+    "sections": [
+      "BUDGET-I"
+    ],
+    "scope": "Section Hierarchy",
+    "clearance": "CONFIDENTIAL",
+    "origin": "synthetic"
+  },
+  {
+    "id": "V05",
+    "name": "P. Uma Maheswari",
+    "post": "Assistant Secretary",
+    "rank": 3,
+    "dept": "FIN01",
+    "sections": [
+      "HR-I",
+      "HR-III"
+    ],
+    "scope": "Section Hierarchy",
+    "clearance": "CONFIDENTIAL",
+    "origin": "synthetic"
+  },
+  {
+    "id": "V06",
+    "name": "G. Srinivasa Murthy",
+    "post": "Joint Secretary",
+    "rank": 5,
+    "dept": "FIN01",
+    "sections": [
+      "HR-I",
+      "HR-III",
+      "BUDGET-I"
+    ],
+    "scope": "Department",
+    "clearance": "CONFIDENTIAL",
+    "origin": "synthetic"
+  },
+  {
+    "id": "V07",
+    "name": "A. Lakshmi Prasanna",
+    "post": "Principal Secretary to Government",
+    "rank": 6,
+    "dept": "FIN01",
+    "sections": [
+      "ALL"
+    ],
+    "scope": "Department",
+    "clearance": "SECRET",
+    "origin": "synthetic"
+  },
+  {
+    "id": "V08",
+    "name": "D. Vamsi Krishna",
+    "post": "Assistant Section Officer",
+    "rank": 1,
+    "dept": "GAD01",
+    "sections": [
+      "SER-A"
+    ],
+    "scope": "Section",
+    "clearance": "RESTRICTED",
+    "origin": "synthetic"
+  },
+  {
+    "id": "V09",
+    "name": "N. Hymavathi",
+    "post": "Section Officer",
+    "rank": 2,
+    "dept": "GAD01",
+    "sections": [
+      "SER-A"
+    ],
+    "scope": "Section Hierarchy",
+    "clearance": "RESTRICTED",
+    "origin": "synthetic"
+  },
+  {
+    "id": "V10",
+    "name": "R. Chandra Sekhar",
+    "post": "Section Officer",
+    "rank": 2,
+    "dept": "GAD01",
+    "sections": [
+      "CABINET-II"
+    ],
+    "scope": "Section Hierarchy",
+    "clearance": "RESTRICTED",
+    "origin": "synthetic"
+  },
+  {
+    "id": "V11",
+    "name": "S. Manjula",
+    "post": "Section Officer",
+    "rank": 2,
+    "dept": "GAD01",
+    "sections": [
+      "SC-F"
+    ],
+    "scope": "Section Hierarchy",
+    "clearance": "CONFIDENTIAL",
+    "origin": "synthetic"
+  },
+  {
+    "id": "V12",
+    "name": "Y. Koteswara Rao",
+    "post": "Assistant Secretary",
+    "rank": 3,
+    "dept": "GAD01",
+    "sections": [
+      "SER-A",
+      "CABINET-II"
+    ],
+    "scope": "Section Hierarchy",
+    "clearance": "CONFIDENTIAL",
+    "origin": "synthetic"
+  },
+  {
+    "id": "V13",
+    "name": "V. Padmaja",
+    "post": "Joint Secretary",
+    "rank": 5,
+    "dept": "GAD01",
+    "sections": [
+      "SER-A",
+      "CABINET-II",
+      "SC-F"
+    ],
+    "scope": "Department",
+    "clearance": "CONFIDENTIAL",
+    "origin": "synthetic"
+  },
+  {
+    "id": "V14",
+    "name": "J. Ravindra Nath",
+    "post": "Secretary to Government (Services)",
+    "rank": 6,
+    "dept": "GAD01",
+    "sections": [
+      "ALL"
+    ],
+    "scope": "Department",
+    "clearance": "SECRET",
+    "origin": "synthetic"
+  },
+  {
+    "id": "V15",
+    "name": "L. Bhargavi",
+    "post": "Assistant Section Officer",
+    "rank": 1,
+    "dept": "ESE01",
+    "sections": [
+      "SERVICES-II"
+    ],
+    "scope": "Section",
+    "clearance": "RESTRICTED",
+    "origin": "synthetic"
+  },
+  {
+    "id": "V16",
+    "name": "Ch. Venkata Ramana",
+    "post": "Section Officer",
+    "rank": 2,
+    "dept": "ESE01",
+    "sections": [
+      "SERVICES-II"
+    ],
+    "scope": "Section Hierarchy",
+    "clearance": "RESTRICTED",
+    "origin": "synthetic"
+  },
+  {
+    "id": "V17",
+    "name": "K. Sujatha",
+    "post": "Section Officer",
+    "rank": 2,
+    "dept": "ESE01",
+    "sections": [
+      "PROGRAM-I"
+    ],
+    "scope": "Section Hierarchy",
+    "clearance": "RESTRICTED",
+    "origin": "synthetic"
+  },
+  {
+    "id": "V18",
+    "name": "P. Mohan Krishna",
+    "post": "Section Officer",
+    "rank": 2,
+    "dept": "ESE01",
+    "sections": [
+      "EXAMS"
+    ],
+    "scope": "Section Hierarchy",
+    "clearance": "CONFIDENTIAL",
+    "origin": "synthetic"
+  },
+  {
+    "id": "V19",
+    "name": "E. Sarada Devi",
+    "post": "Assistant Secretary",
+    "rank": 3,
+    "dept": "ESE01",
+    "sections": [
+      "SERVICES-II",
+      "PROGRAM-I"
+    ],
+    "scope": "Section Hierarchy",
+    "clearance": "CONFIDENTIAL",
+    "origin": "synthetic"
+  },
+  {
+    "id": "V20",
+    "name": "B. Suresh Kumar",
+    "post": "Joint Secretary",
+    "rank": 5,
+    "dept": "ESE01",
+    "sections": [
+      "SERVICES-II",
+      "PROGRAM-I",
+      "EXAMS"
+    ],
+    "scope": "Department",
+    "clearance": "CONFIDENTIAL",
+    "origin": "synthetic"
+  },
+  {
+    "id": "V21",
+    "name": "M. Annapurna",
+    "post": "Principal Secretary to Government",
+    "rank": 6,
+    "dept": "ESE01",
+    "sections": [
+      "ALL"
+    ],
+    "scope": "Department",
+    "clearance": "SECRET",
+    "origin": "synthetic"
+  }
+]

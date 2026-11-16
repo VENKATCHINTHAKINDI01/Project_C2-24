@@ -1,0 +1,1 @@
+{"prompt": "conflict_contradiction.v2", "model": "gemini-3.5-flash", "response": {"verdict": "consistent", "quote_a": "", "quote_b": "", "explanation": "The two documents address different subjects: Document A amends the department subjects and board names, while Document B specifies the timeline for submitting proposals to the Cabinet wing."}}

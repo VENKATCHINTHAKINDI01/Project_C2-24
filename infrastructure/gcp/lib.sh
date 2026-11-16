@@ -19,3 +19,25 @@ require_cost_ack() {  # resources that bill while idle need an explicit second f
   fi
 }
 sa_email() { echo "${PREFIX}-$1@${PROJECT_ID}.iam.gserviceaccount.com"; }
+# Dataset-level access in BigQuery through the dataset's own access list (bq add-iam-policy-binding on a
+# dataset "requires allowlisting" in this project, found 15 Nov 2026). role: READER | WRITER | OWNER.
+# Adds the entry only if it is missing; never removes anything.
+bq_dataset_grant() {
+  local ds="$1" role="$2" email="$3"
+  if [[ "$APPLY" != "1" ]]; then echo "[dry-run] add $role $email to the access list of $ds"; return 0; fi
+  local tmp; tmp="$(mktemp)"
+  bq show --format=prettyjson "$ds" > "$tmp"
+  if python3 - "$tmp" "$role" "$email" <<'PY'
+import json, sys
+path, role, email = sys.argv[1:]
+d = json.load(open(path))
+acc = d.setdefault("access", [])
+if any(a.get("role") == role and a.get("userByEmail") == email for a in acc):
+    sys.exit(1)  # already there
+acc.append({"role": role, "userByEmail": email})
+json.dump(d, open(path, "w"))
+PY
+  then echo "+ bq update (add $role $email) $ds"; bq update --source "$tmp" "$ds"
+  else echo "= $email already $role on $ds"; fi
+  rm -f "$tmp"
+}

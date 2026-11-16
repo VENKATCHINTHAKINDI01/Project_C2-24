@@ -7,15 +7,20 @@ draft note before it is sent.
   action (`conflict.windows`), e.g. a transfer proposed while the ban on transfers is in force.
 - Status coverage (owner rule, 3 Nov 2026): a cited order whose status the officer's records
   cannot establish completely is listed as "status unconfirmed", never assumed in force.
+- Awaiting review: a cited order not found while the officer may see records of its department
+  that wait in review (a scan before Document AI) keeps its E flag, marked uncertain, and is
+  listed in `awaiting_review` (`citations.py`).
 - Overall result is CLEAR only when nothing is flagged, every cited order's status is confirmed,
   every needed fact was read, and type C returned NO_CONFLICT_VERIFIED. With mock rules it is
-  therefore never CLEAR. B, D and G need grounded Gemini judgment (later).
+  therefore never CLEAR. B and G: grounded Gemini judgment (`judgment.py`) when a model is
+  configured; if it is configured but cannot answer, the report says the check is incomplete.
+  D needs comparable-case judgment (later).
 """
 
 from __future__ import annotations
 
 import datetime as dt
-from collections.abc import Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict
@@ -54,6 +59,7 @@ class PreSendReport(BaseModel):
     flags: tuple[ConflictFlag, ...]  # A, E, F (citations), F (action window), C
     authority: AuthorityResult | None
     status_unconfirmed: tuple[str, ...]  # cited orders whose status cannot be confirmed
+    awaiting_review: tuple[str, ...] = ()  # cited orders that may be among records in review
     fact_gaps: tuple[str, ...]
     facts: FactsResult | None
 
@@ -88,6 +94,10 @@ def presend_check(
     policy: AccessPolicy,
     classification: Classification,
     windows: Iterable[ActionWindow] = (),
+    awaiting_review: Iterable[DocumentAccessTags] = (),
+    contradictions: Callable[[list[str], str], tuple[list[ConflictFlag], bool]] | None = None,
+    file_notes: str = "",
+    precedents: Callable[[str, DocumentMetadata], list[ConflictFlag]] | None = None,
 ) -> PreSendReport:
     """Run on the officer's draft at "Send" (touchpoint 11). Fails closed to REVIEW_NEEDED."""
     action_date = meta.issue_date or dt.date.today()
@@ -122,6 +132,7 @@ def presend_check(
         store=store,
         policy=policy,
         classification=classification,
+        awaiting_review=awaiting_review,
     )
     flags, unconfirmed = review.flags, review.unconfirmed
     known, rels = review.known, review.relations
@@ -131,9 +142,20 @@ def presend_check(
             return tags.classification
         return max(classification.levels, key=lambda lv: lv.rank).name
 
-    facts = extract_proposal_facts(text, meta, rules, note_id)
+    # A draft often only says "Para 4 may kindly be seen": the proposal (and any concurrence
+    # recorded) is then in the file's earlier notes, which the officer may see (`file_notes`).
+    # The draft comes last, so its own proposal wins when it states one.
+    facts = extract_proposal_facts(
+        f"{file_notes}\n{text}" if file_notes else text, meta, rules, note_id
+    )
     authority = None
     gaps = list(facts.missing)
+    if contradictions is not None:  # B / G on the cited records the officer may see
+        cited = list(dict.fromkeys(c.canonical_id for c in cites if c.canonical_id in known))
+        bg, complete = contradictions(cited, text)
+        flags = [*flags, *bg]
+        if not complete:
+            gaps.append("contradiction check (B/G) incomplete: model unavailable")
     if facts.facts is not None:
         window = check_action_window(
             facts.facts.action.value, facts.facts.proposal_date, windows, known, rels
@@ -155,10 +177,15 @@ def presend_check(
     clear = (
         not flags
         and not unconfirmed
+        and not review.awaiting
         and not gaps
         and authority is not None
         and authority.outcome is AuthorityOutcome.NO_CONFLICT_VERIFIED
     )
+    if precedents is not None:  # type D, review only: earlier files the officer may see
+        flags += precedents(f"{file_notes}\n{text}" if file_notes else text, meta)
+    # the same order cited twice (Read list and a para) gives one flag, not two
+    flags = list({(f.type, f.cited, f.explanation): f for f in flags}.values())
     outcome = (
         PreSendOutcome.CONFLICTS_FOUND
         if flags
@@ -172,6 +199,7 @@ def presend_check(
         flags=tuple(flags),
         authority=authority,
         status_unconfirmed=tuple(dict.fromkeys(unconfirmed)),
+        awaiting_review=tuple(review.awaiting),
         fact_gaps=tuple(gaps),
         facts=facts,
     )

@@ -1,0 +1,34 @@
+{
+  "file_no": "FIN01-HRPEN0PEN/143/2025-HR.III",
+  "computer_no": "4153227",
+  "subject": "NEW PENSION SYSTEM - Contributory Pension Scheme –Implementation of New Pension System (NPS) in the State – Uploading of contributions of both Subscriber and Go – Reg.",
+  "department_code": "FIN01",
+  "section": "HR-III",
+  "section_label": "Finance (HR.III-Pension & GPF) Department",
+  "classification": "RESTRICTED",
+  "status": "decided",
+  "opened": "2025-03-13",
+  "scenario": "FIN01-A-043",
+  "touchpoints": [
+    6,
+    7,
+    10,
+    11
+  ],
+  "origin": "synthetic",
+  "banner": "Synthetic — not a real government file",
+  "cites": [
+    "AP-FIN01-GOMS-196-2012"
+  ],
+  "consultations": [
+    {
+      "with": "CABINET",
+      "uo_no": "GAD01-CABN0BR/633/2025-CABINET.II",
+      "department": "General Administration (Cabinet.II)",
+      "sent": "2025-03-25",
+      "returned": "2025-04-21",
+      "conditional": false,
+      "correspondence": "R-002.md"
+    }
+  ]
+}

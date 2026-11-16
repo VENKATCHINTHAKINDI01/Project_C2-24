@@ -5,7 +5,7 @@ from __future__ import annotations
 from enum import StrEnum
 from functools import lru_cache
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -34,12 +34,108 @@ class Settings(BaseSettings):
     sandbox: bool | None = None  # None → on for local, off for gcp
     sandbox_seed_path: Path = REPO_ROOT / "data" / "synthetic" / "mock_v1" / "eoffice" / "seed.json"
     sandbox_corpus_dir: Path = REPO_ROOT / "data" / "synthetic" / "mock_v1"
+    # Which synthetic sandbox data to load (ADR-0020): "v1" mock corpus, "v2" the 201-file set on
+    # real public G.O.s, or "both". v2 needs the public orders in the data root, outside the repo.
+    sandbox_seed: Literal["v1", "v2", "both"] = "v1"
+    sandbox_v2_dir: Path = REPO_ROOT / "data" / "synthetic" / "mock_v1" / "efiles_v2" / "eoffice"
+    sandbox_public_corpus_dir: Path | None = (
+        None  # data root holding staging/rule-library (ADR-0006)
+    )
+    # saved page reads of the public orders, written by the graph job (--pdf-scans); read-only.
+    # Unset: PDFs are parsed at start as before (ADR-0028 addendum 2).
+    pdf_scan_cache_dir: Path | None = None
+    # build the sandbox when the service starts instead of at the first assistant call (Cloud Run)
+    sandbox_warm_start: bool = False
+    # sandbox officers who may open the usage dashboard (comma-separated IDs; empty = nobody).
+    # Aggregates only, but who sees them is still a decision: mock until the department says.
+    monitoring_users: str = ""
+    # what counts as unusual activity on the pad (ADR-0036): MOCK until the department decides
+    monitoring_config_path: Path = REPO_ROOT / "backend" / "config" / "monitoring.yaml"
+    # Memorystore (Redis/Valkey) — cache only (ADR-0035). Unset: in-memory cache in this instance.
+    # redis://[:password@]host:6379/0 ; the password comes from Secret Manager, never the repo.
+    redis_url: str | None = None
+    cache_ttl_s: int = Field(default=6 * 3600, ge=60)
+    embedding_cache_ttl_s: int = Field(default=7 * 86400, ge=60)
     sandbox_config_path: Path = REPO_ROOT / "backend" / "config" / "sandbox.yaml"
     sandbox_replay: str | None = None  # name of a replay in sandbox.yaml (e.g. "tp04")
+    # OCR (plan §4.1; ADR-0017). "none": scans wait in review unread. "documentai": live calls
+    # (billed per page), cached on disk by file hash. "recorded": replay saved responses only.
+    ocr_provider: Literal["none", "documentai", "recorded"] = "none"
+    ocr_recorded_dir: Path = REPO_ROOT / "data" / "synthetic" / "mock_v1" / "ocr" / "documentai"
+    docai_location: str | None = None  # defaults to gcp_region
+    docai_ocr_processor_id: str | None = None
+    # Pinned OCR model (ADR-0017 point 4, owner-approved 11 Nov 2026). The processor default in
+    # asia-south1 (v1.0, 2020) cannot read Telugu. Changing it = new OCR evaluation run first.
+    docai_ocr_processor_version: str | None = "pretrained-ocr-v2.1.1-2025-01-31"
+    ocr_language_hints: tuple[str, ...] = ("te", "en")
+    # Gemini (plan §7; ADR-0017): grounded judgment for conflict types B / G. "none": not run (the
+    # pre-send report says so); "vertex": live regional calls, cached on disk per model by request;
+    # "recorded": replay that cache only (no GCP calls).
+    llm_provider: Literal["none", "vertex", "recorded"] = "none"
+    gemini_model: str = "gemini-3.5-flash"
+    gemini_location: str | None = None  # defaults to gcp_region; never the global endpoint
+    # Text embeddings for rung L2 (ADR-0026). No default: the model must be one that answers in
+    # the project's region (infrastructure/gcp/17_embedding_check.py).
+    embedding_model: str | None = None
+    embedding_dimensions: int = 768
+    llm_recorded_dir: Path = REPO_ROOT / "data" / "synthetic" / "mock_v1" / "llm"
+    # Fallback when Gemini is down (ADR-0021): an open model on Ollama on THIS machine only.
+    llm_fallback: Literal["none", "ollama"] = "none"
+    ollama_base_url: str = "http://localhost:11434"
+    ollama_model: str | None = None  # e.g. the model you pulled with `ollama pull`; required
+    llm_failover_threshold: int = Field(default=2, ge=1)  # primary failures in a row
+    llm_failover_cooldown_s: float = Field(default=60.0, gt=0)  # wait before trying it again
+    # Source-document store (ADR-0014 rule 7). "memory": sandbox; "gcs": private raw bucket, under
+    # a prefix that says what the data is (synthetic corpus here, never mixed with real files).
+    document_store: Literal["memory", "gcs"] = "memory"
+    gcs_raw_bucket: str | None = None
+    gcs_documents_prefix: str = "synthetic/mock_v1/sources"
+    # Application state (plan §3.5): review decisions, confirmed OCR text, audit trail. "memory":
+    # sandbox, lost on restart. "postgres": C2_PG_DSN (local/test) or Cloud SQL with IAM auth.
+    state_store: Literal["memory", "postgres"] = "memory"
+    pg_dsn: str | None = None  # local/test only; never a password-bearing DSN on GCP
+    cloudsql_instance: str | None = None  # project:region:instance
+    cloudsql_user: str | None = None  # IAM DB user, e.g. c2-api@<project>.iam
+    cloudsql_db: str = "c2"
+    # Where the public-order rungs are read from (ADR-0028). "memory": everything is ingested at
+    # start (sandbox default). "cloud": the officer's e-Office papers stay in memory and the public
+    # corpus is read from BigQuery (L0-L2, dataset `bq_dataset`) and Cloud SQL (L3).
+    retrieval_backend: Literal["memory", "cloud"] = "memory"
+    # Query tracking (plan §10.4; ADR-0029): "bigquery" streams one record per question into
+    # <project>.<bq_audit_dataset>.query_log (IDs and metadata only). The same switch sends the
+    # officers' feedback actions to <project>.<bq_audit_dataset>.human_action (ADR-0031).
+    query_log: Literal["memory", "bigquery"] = "memory"
+    # keep the officer's question text in the query log for the monitoring pad (plan §10.4
+    # raw_query; ADR-0035). Never document text.
+    query_log_text: bool = True
+    bq_audit_dataset: str = "c2_audit"
+    bq_dataset: str = "c2_metadata"
+    # Evidence threshold for the BigQuery L2 score (0-1). None = not calibrated: its hits are
+    # listed but never end the ladder at L2 by themselves (ADR-0026, ADR-0028).
+    l2_cloud_min_score: float | None = Field(default=None, gt=0, le=1)
 
     @property
     def sandbox_enabled(self) -> bool:
         return self.sandbox if self.sandbox is not None else self.env is Environment.LOCAL
+
+    @model_validator(mode="after")
+    def _v2_requires_public_corpus(self) -> Settings:
+        if self.sandbox_seed != "v1" and self.sandbox_public_corpus_dir is None:
+            raise ValueError(
+                "C2_SANDBOX_SEED=v2/both requires C2_SANDBOX_PUBLIC_CORPUS_DIR (the data root)"
+            )
+        return self
+
+    @model_validator(mode="after")
+    def _cloud_rungs_need_their_stores(self) -> Settings:
+        if self.retrieval_backend == "cloud" and not (
+            self.gcp_project_id and self.gcp_region and (self.pg_dsn or self.cloudsql_instance)
+        ):
+            raise ValueError(
+                "C2_RETRIEVAL_BACKEND=cloud needs C2_GCP_PROJECT_ID, C2_GCP_REGION and a Cloud SQL "
+                "connection (C2_CLOUDSQL_INSTANCE + C2_CLOUDSQL_USER, or C2_PG_DSN)"
+            )
+        return self
 
     @model_validator(mode="after")
     def _gcp_requires_project(self) -> Settings:
@@ -56,6 +152,7 @@ class HierarchyLevel(_Frozen):
     level: int = Field(ge=1)
     instrument: str
     label: str
+    basis: str | None = None  # where the placing comes from (public source or "assumption")
 
 
 class Hierarchy(_Frozen):
@@ -78,6 +175,7 @@ class Hierarchy(_Frozen):
 class ClassificationLevel(_Frozen):
     rank: int = Field(ge=0)
     name: str
+    basis: str | None = None  # public source of the grade, or "assumption"
 
 
 class Classification(_Frozen):
@@ -94,6 +192,10 @@ class Classification(_Frozen):
         if len({lv.name for lv in self.levels}) != len(self.levels):
             raise ValueError("classification names must be unique")
         return self
+
+    def rank_of(self, name: str) -> int:
+        """The level's rank; an unknown mark counts as the most restricted (fail closed)."""
+        return next((lv.rank for lv in self.levels if lv.name == name), len(self.levels) - 1)
 
 
 class IngestionConfig(_Frozen):

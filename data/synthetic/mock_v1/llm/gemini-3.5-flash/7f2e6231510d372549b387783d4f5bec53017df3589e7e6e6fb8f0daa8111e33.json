@@ -1,0 +1,1 @@
+{"prompt": "conflict_contradiction.v1", "model": "gemini-3.5-flash", "response": {"verdict": "insufficient", "quote_a": "", "quote_b": "", "explanation": "Document A refers to Rule 2 for determining who is compulsorily transferable, but the text of Rule 2 is not provided, making it impossible to determine if there is a contradiction with Document B's ten-year requirement."}}

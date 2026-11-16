@@ -1,0 +1,25 @@
+{
+  "file_no": "ESE01-EXAM0EXM/62/2024-EXAMS",
+  "computer_no": "3711788",
+  "subject": "School Education – Continuous and Comprehensive Evaluation pattern of examination system – Introduction of six (6) paper pattern in SSC Public Examinations from – Reg.",
+  "department_code": "ESE01",
+  "section": "EXAMS",
+  "section_label": "School Education (Exams) Department",
+  "classification": "CONFIDENTIAL",
+  "status": "reopened",
+  "opened": "2024-10-23",
+  "scenario": "ESE01-F-033",
+  "touchpoints": [
+    6,
+    10,
+    11,
+    13,
+    17,
+    20
+  ],
+  "origin": "synthetic",
+  "banner": "Synthetic — not a real government file",
+  "cites": [
+    "AP-ESE01-GOMS-136-2022"
+  ]
+}

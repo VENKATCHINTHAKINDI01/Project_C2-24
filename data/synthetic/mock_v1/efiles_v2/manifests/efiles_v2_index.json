@@ -1,0 +1,1220 @@
+[
+  {
+    "file_no": "ESE01-PROG10RTE/10/2016-PROG.I",
+    "folder": "efiles/ESE01/PROGRAM-I/ESE01-PROG10RTE_10_2016-PROG.I",
+    "scenario": "ESE01-F-055",
+    "conflict": "F"
+  },
+  {
+    "file_no": "ESE01-SERV20TRF/11/2017-SER.II",
+    "folder": "efiles/ESE01/SERVICES-II/ESE01-SERV20TRF_11_2017-SER.II",
+    "scenario": "ESE01-CLEAN-084",
+    "conflict": null
+  },
+  {
+    "file_no": "ESE01-PROG10RTE/12/2017-PROG.I",
+    "folder": "efiles/ESE01/PROGRAM-I/ESE01-PROG10RTE_12_2017-PROG.I",
+    "scenario": "ESE01-CLEAN-060",
+    "conflict": null
+  },
+  {
+    "file_no": "ESE01-SERV20TRF/13/2017-SER.II",
+    "folder": "efiles/ESE01/SERVICES-II/ESE01-SERV20TRF_13_2017-SER.II",
+    "scenario": "ESE01-G-HG1",
+    "conflict": "G"
+  },
+  {
+    "file_no": "ESE01-SERV20TRF/14/2017-SER.II",
+    "folder": "efiles/ESE01/SERVICES-II/ESE01-SERV20TRF_14_2017-SER.II",
+    "scenario": "ESE01-G-HG2",
+    "conflict": "G"
+  },
+  {
+    "file_no": "ESE01-SERV20TRF/15/2017-SER.II",
+    "folder": "efiles/ESE01/SERVICES-II/ESE01-SERV20TRF_15_2017-SER.II",
+    "scenario": "ESE01-CLEAN-093",
+    "conflict": null
+  },
+  {
+    "file_no": "ESE01-SERV20TRF/16/2017-SER.II",
+    "folder": "efiles/ESE01/SERVICES-II/ESE01-SERV20TRF_16_2017-SER.II",
+    "scenario": "ESE01-CLEAN-094",
+    "conflict": "F"
+  },
+  {
+    "file_no": "ESE01-SERV20TRF/17/2017-SER.II",
+    "folder": "efiles/ESE01/SERVICES-II/ESE01-SERV20TRF_17_2017-SER.II",
+    "scenario": "ESE01-A-085",
+    "conflict": "A"
+  },
+  {
+    "file_no": "ESE01-PROG10RTE/18/2017-PROG.I",
+    "folder": "efiles/ESE01/PROGRAM-I/ESE01-PROG10RTE_18_2017-PROG.I",
+    "scenario": "ESE01-CLEAN-061",
+    "conflict": null
+  },
+  {
+    "file_no": "ESE01-PROG10RTE/19/2017-PROG.I",
+    "folder": "efiles/ESE01/PROGRAM-I/ESE01-PROG10RTE_19_2017-PROG.I",
+    "scenario": "ESE01-F-056",
+    "conflict": "F"
+  },
+  {
+    "file_no": "ESE01-SERV20TRF/20/2017-SER.II",
+    "folder": "efiles/ESE01/SERVICES-II/ESE01-SERV20TRF_20_2017-SER.II",
+    "scenario": "ESE01-CLEAN-090",
+    "conflict": null
+  },
+  {
+    "file_no": "ESE01-SERV20TRF/21/2017-SER.II",
+    "folder": "efiles/ESE01/SERVICES-II/ESE01-SERV20TRF_21_2017-SER.II",
+    "scenario": "ESE01-CLEAN-087",
+    "conflict": null
+  },
+  {
+    "file_no": "ESE01-EXAM0EXM/22/2017-EXAMS",
+    "folder": "efiles/ESE01/EXAMS/ESE01-EXAM0EXM_22_2017-EXAMS",
+    "scenario": "ESE01-CLEAN-007",
+    "conflict": null
+  },
+  {
+    "file_no": "ESE01-SERV20TRF/23/2017-SER.II",
+    "folder": "efiles/ESE01/SERVICES-II/ESE01-SERV20TRF_23_2017-SER.II",
+    "scenario": "ESE01-F-088",
+    "conflict": "F"
+  },
+  {
+    "file_no": "ESE01-SERV20TRF/24/2018-SER.II",
+    "folder": "efiles/ESE01/SERVICES-II/ESE01-SERV20TRF_24_2018-SER.II",
+    "scenario": "ESE01-F-083",
+    "conflict": "F"
+  },
+  {
+    "file_no": "ESE01-EXAM0EXM/25/2018-EXAMS",
+    "folder": "efiles/ESE01/EXAMS/ESE01-EXAM0EXM_25_2018-EXAMS",
+    "scenario": "ESE01-D-120",
+    "conflict": "D"
+  },
+  {
+    "file_no": "ESE01-SERV20TRF/26/2018-SER.II",
+    "folder": "efiles/ESE01/SERVICES-II/ESE01-SERV20TRF_26_2018-SER.II",
+    "scenario": "ESE01-F-089",
+    "conflict": "F"
+  },
+  {
+    "file_no": "ESE01-SERV20TRF/27/2018-SER.II",
+    "folder": "efiles/ESE01/SERVICES-II/ESE01-SERV20TRF_27_2018-SER.II",
+    "scenario": "ESE01-F-096",
+    "conflict": "F"
+  },
+  {
+    "file_no": "ESE01-SERV20TRF/28/2018-SER.II",
+    "folder": "efiles/ESE01/SERVICES-II/ESE01-SERV20TRF_28_2018-SER.II",
+    "scenario": "ESE01-A-086",
+    "conflict": "A"
+  },
+  {
+    "file_no": "ESE01-EXAM0EXM/29/2018-EXAMS",
+    "folder": "efiles/ESE01/EXAMS/ESE01-EXAM0EXM_29_2018-EXAMS",
+    "scenario": "ESE01-CLEAN-012",
+    "conflict": null
+  },
+  {
+    "file_no": "ESE01-EXAM0EXM/30/2019-EXAMS",
+    "folder": "efiles/ESE01/EXAMS/ESE01-EXAM0EXM_30_2019-EXAMS",
+    "scenario": "ESE01-D-121",
+    "conflict": "D"
+  },
+  {
+    "file_no": "ESE01-EXAM0EXM/31/2019-EXAMS",
+    "folder": "efiles/ESE01/EXAMS/ESE01-EXAM0EXM_31_2019-EXAMS",
+    "scenario": "ESE01-F-013",
+    "conflict": "F"
+  },
+  {
+    "file_no": "ESE01-EXAM0EXM/32/2019-EXAMS",
+    "folder": "efiles/ESE01/EXAMS/ESE01-EXAM0EXM_32_2019-EXAMS",
+    "scenario": "ESE01-E-111",
+    "conflict": "E"
+  },
+  {
+    "file_no": "ESE01-EXAM0EXM/33/2019-EXAMS",
+    "folder": "efiles/ESE01/EXAMS/ESE01-EXAM0EXM_33_2019-EXAMS",
+    "scenario": "ESE01-F-017",
+    "conflict": "F"
+  },
+  {
+    "file_no": "ESE01-EXAM0EXM/34/2019-EXAMS",
+    "folder": "efiles/ESE01/EXAMS/ESE01-EXAM0EXM_34_2019-EXAMS",
+    "scenario": "ESE01-F-010",
+    "conflict": "F"
+  },
+  {
+    "file_no": "ESE01-EXAM0EXM/35/2019-EXAMS",
+    "folder": "efiles/ESE01/EXAMS/ESE01-EXAM0EXM_35_2019-EXAMS",
+    "scenario": "ESE01-CLEAN-016",
+    "conflict": "F"
+  },
+  {
+    "file_no": "ESE01-EXAM0EXM/36/2019-EXAMS",
+    "folder": "efiles/ESE01/EXAMS/ESE01-EXAM0EXM_36_2019-EXAMS",
+    "scenario": "ESE01-D-118",
+    "conflict": null
+  },
+  {
+    "file_no": "ESE01-EXAM0EXM/37/2020-EXAMS",
+    "folder": "efiles/ESE01/EXAMS/ESE01-EXAM0EXM_37_2020-EXAMS",
+    "scenario": "ESE01-F-014",
+    "conflict": "F"
+  },
+  {
+    "file_no": "ESE01-EXAM0EXM/38/2020-EXAMS",
+    "folder": "efiles/ESE01/EXAMS/ESE01-EXAM0EXM_38_2020-EXAMS",
+    "scenario": "ESE01-D-119",
+    "conflict": "D"
+  },
+  {
+    "file_no": "ESE01-SERV20TRF/39/2020-SER.II",
+    "folder": "efiles/ESE01/SERVICES-II/ESE01-SERV20TRF_39_2020-SER.II",
+    "scenario": "ESE01-B-HB1",
+    "conflict": "B"
+  },
+  {
+    "file_no": "ESE01-PROG10RTE/40/2021-PROG.I",
+    "folder": "efiles/ESE01/PROGRAM-I/ESE01-PROG10RTE_40_2021-PROG.I",
+    "scenario": "ESE01-F-040",
+    "conflict": "F"
+  },
+  {
+    "file_no": "ESE01-PROG10RTE/41/2021-PROG.I",
+    "folder": "efiles/ESE01/PROGRAM-I/ESE01-PROG10RTE_41_2021-PROG.I",
+    "scenario": "ESE01-F-062",
+    "conflict": "F"
+  },
+  {
+    "file_no": "ESE01-PROG10RTE/42/2021-PROG.I",
+    "folder": "efiles/ESE01/PROGRAM-I/ESE01-PROG10RTE_42_2021-PROG.I",
+    "scenario": "ESE01-CLEAN-042",
+    "conflict": "F"
+  },
+  {
+    "file_no": "ESE01-PROG10RTE/43/2021-PROG.I",
+    "folder": "efiles/ESE01/PROGRAM-I/ESE01-PROG10RTE_43_2021-PROG.I",
+    "scenario": "ESE01-B-HB3",
+    "conflict": "B"
+  },
+  {
+    "file_no": "ESE01-EXAM0EXM/44/2021-EXAMS",
+    "folder": "efiles/ESE01/EXAMS/ESE01-EXAM0EXM_44_2021-EXAMS",
+    "scenario": "ESE01-CLEAN-030",
+    "conflict": null
+  },
+  {
+    "file_no": "ESE01-EXAM0EXM/45/2022-EXAMS",
+    "folder": "efiles/ESE01/EXAMS/ESE01-EXAM0EXM_45_2022-EXAMS",
+    "scenario": "ESE01-CLEAN-026",
+    "conflict": null
+  },
+  {
+    "file_no": "ESE01-PROG10RTE/46/2022-PROG.I",
+    "folder": "efiles/ESE01/PROGRAM-I/ESE01-PROG10RTE_46_2022-PROG.I",
+    "scenario": "ESE01-F-063",
+    "conflict": "F"
+  },
+  {
+    "file_no": "ESE01-EXAM0EXM/47/2022-EXAMS",
+    "folder": "efiles/ESE01/EXAMS/ESE01-EXAM0EXM_47_2022-EXAMS",
+    "scenario": "ESE01-F-028",
+    "conflict": "F"
+  },
+  {
+    "file_no": "ESE01-EXAM0EXM/48/2022-EXAMS",
+    "folder": "efiles/ESE01/EXAMS/ESE01-EXAM0EXM_48_2022-EXAMS",
+    "scenario": "ESE01-CLEAN-031",
+    "conflict": null
+  },
+  {
+    "file_no": "ESE01-EXAM0EXM/49/2023-EXAMS",
+    "folder": "efiles/ESE01/EXAMS/ESE01-EXAM0EXM_49_2023-EXAMS",
+    "scenario": "ESE01-B-HB2",
+    "conflict": "B"
+  },
+  {
+    "file_no": "ESE01-EXAM0EXM/50/2023-EXAMS",
+    "folder": "efiles/ESE01/EXAMS/ESE01-EXAM0EXM_50_2023-EXAMS",
+    "scenario": "ESE01-F-024",
+    "conflict": "F"
+  },
+  {
+    "file_no": "ESE01-EXAM0EXM/51/2023-EXAMS",
+    "folder": "efiles/ESE01/EXAMS/ESE01-EXAM0EXM_51_2023-EXAMS",
+    "scenario": "ESE01-E-114",
+    "conflict": "E"
+  },
+  {
+    "file_no": "ESE01-PROG10RTE/52/2023-PROG.I",
+    "folder": "efiles/ESE01/PROGRAM-I/ESE01-PROG10RTE_52_2023-PROG.I",
+    "scenario": "ESE01-CLEAN-076",
+    "conflict": "F"
+  },
+  {
+    "file_no": "ESE01-PROG10RTE/53/2023-PROG.I",
+    "folder": "efiles/ESE01/PROGRAM-I/ESE01-PROG10RTE_53_2023-PROG.I",
+    "scenario": "ESE01-CLEAN-070",
+    "conflict": "F"
+  },
+  {
+    "file_no": "ESE01-SERV20TRF/54/2023-SER.II",
+    "folder": "efiles/ESE01/SERVICES-II/ESE01-SERV20TRF_54_2023-SER.II",
+    "scenario": "ESE01-A-106",
+    "conflict": "A"
+  },
+  {
+    "file_no": "ESE01-PROG10RTE/55/2024-PROG.I",
+    "folder": "efiles/ESE01/PROGRAM-I/ESE01-PROG10RTE_55_2024-PROG.I",
+    "scenario": "ESE01-CLEAN-045",
+    "conflict": "F"
+  },
+  {
+    "file_no": "ESE01-PROG10RTE/56/2024-PROG.I",
+    "folder": "efiles/ESE01/PROGRAM-I/ESE01-PROG10RTE_56_2024-PROG.I",
+    "scenario": "ESE01-F-075",
+    "conflict": "F"
+  },
+  {
+    "file_no": "ESE01-PROG10RTE/57/2024-PROG.I",
+    "folder": "efiles/ESE01/PROGRAM-I/ESE01-PROG10RTE_57_2024-PROG.I",
+    "scenario": "ESE01-F-043",
+    "conflict": "F"
+  },
+  {
+    "file_no": "ESE01-PROG10RTE/58/2024-PROG.I",
+    "folder": "efiles/ESE01/PROGRAM-I/ESE01-PROG10RTE_58_2024-PROG.I",
+    "scenario": "ESE01-F-072",
+    "conflict": "F"
+  },
+  {
+    "file_no": "ESE01-SERV20TRF/59/2024-SER.II",
+    "folder": "efiles/ESE01/SERVICES-II/ESE01-SERV20TRF_59_2024-SER.II",
+    "scenario": "ESE01-E-110",
+    "conflict": "E"
+  },
+  {
+    "file_no": "ESE01-EXAM0EXM/60/2024-EXAMS",
+    "folder": "efiles/ESE01/EXAMS/ESE01-EXAM0EXM_60_2024-EXAMS",
+    "scenario": "ESE01-F-036",
+    "conflict": "F"
+  },
+  {
+    "file_no": "ESE01-SERV20TRF/61/2024-SER.II",
+    "folder": "efiles/ESE01/SERVICES-II/ESE01-SERV20TRF_61_2024-SER.II",
+    "scenario": "ESE01-A-107",
+    "conflict": "A"
+  },
+  {
+    "file_no": "ESE01-EXAM0EXM/62/2024-EXAMS",
+    "folder": "efiles/ESE01/EXAMS/ESE01-EXAM0EXM_62_2024-EXAMS",
+    "scenario": "ESE01-F-033",
+    "conflict": "F"
+  },
+  {
+    "file_no": "ESE01-PROG10RTE/63/2024-PROG.I",
+    "folder": "efiles/ESE01/PROGRAM-I/ESE01-PROG10RTE_63_2024-PROG.I",
+    "scenario": "ESE01-F-044",
+    "conflict": "F"
+  },
+  {
+    "file_no": "ESE01-PROG10RTE/64/2024-PROG.I",
+    "folder": "efiles/ESE01/PROGRAM-I/ESE01-PROG10RTE_64_2024-PROG.I",
+    "scenario": "ESE01-F-050",
+    "conflict": "F"
+  },
+  {
+    "file_no": "ESE01-EXAM0EXM/65/2024-EXAMS",
+    "folder": "efiles/ESE01/EXAMS/ESE01-EXAM0EXM_65_2024-EXAMS",
+    "scenario": "ESE01-F-037",
+    "conflict": "F"
+  },
+  {
+    "file_no": "ESE01-EXAM0EXM/66/2025-EXAMS",
+    "folder": "efiles/ESE01/EXAMS/ESE01-EXAM0EXM_66_2025-EXAMS",
+    "scenario": "ESE01-E-112",
+    "conflict": "E"
+  },
+  {
+    "file_no": "ESE01-SERV20TRF/67/2025-SER.II",
+    "folder": "efiles/ESE01/SERVICES-II/ESE01-SERV20TRF_67_2025-SER.II",
+    "scenario": "ESE01-G-HG3",
+    "conflict": "G"
+  },
+  {
+    "file_no": "ESE01-SERV20TRF/68/2025-SER.II",
+    "folder": "efiles/ESE01/SERVICES-II/ESE01-SERV20TRF_68_2025-SER.II",
+    "scenario": "ESE01-G-HG4",
+    "conflict": "G"
+  },
+  {
+    "file_no": "ESE01-SERV20TRF/69/2025-SER.II",
+    "folder": "efiles/ESE01/SERVICES-II/ESE01-SERV20TRF_69_2025-SER.II",
+    "scenario": "ESE01-C-HC1",
+    "conflict": "C"
+  },
+  {
+    "file_no": "ESE01-SERV20TRF/70/2025-SER.II",
+    "folder": "efiles/ESE01/SERVICES-II/ESE01-SERV20TRF_70_2025-SER.II",
+    "scenario": "ESE01-C-HC2",
+    "conflict": "C"
+  },
+  {
+    "file_no": "ESE01-SERV20TRF/71/2025-SER.II",
+    "folder": "efiles/ESE01/SERVICES-II/ESE01-SERV20TRF_71_2025-SER.II",
+    "scenario": "ESE01-C-HC3",
+    "conflict": "C"
+  },
+  {
+    "file_no": "ESE01-PROG10RTE/72/2025-PROG.I",
+    "folder": "efiles/ESE01/PROGRAM-I/ESE01-PROG10RTE_72_2025-PROG.I",
+    "scenario": "ESE01-F-052",
+    "conflict": "F"
+  },
+  {
+    "file_no": "ESE01-PROG10RTE/73/2025-PROG.I",
+    "folder": "efiles/ESE01/PROGRAM-I/ESE01-PROG10RTE_73_2025-PROG.I",
+    "scenario": "ESE01-F-077",
+    "conflict": "F"
+  },
+  {
+    "file_no": "ESE01-PROG10RTE/74/2025-PROG.I",
+    "folder": "efiles/ESE01/PROGRAM-I/ESE01-PROG10RTE_74_2025-PROG.I",
+    "scenario": "ESE01-CLEAN-080",
+    "conflict": "F"
+  },
+  {
+    "file_no": "ESE01-EXAM0EXM/75/2025-EXAMS",
+    "folder": "efiles/ESE01/EXAMS/ESE01-EXAM0EXM_75_2025-EXAMS",
+    "scenario": "ESE01-E-113",
+    "conflict": "E"
+  },
+  {
+    "file_no": "ESE01-PROG10RTE/76/2025-PROG.I",
+    "folder": "efiles/ESE01/PROGRAM-I/ESE01-PROG10RTE_76_2025-PROG.I",
+    "scenario": "ESE01-F-081",
+    "conflict": "F"
+  },
+  {
+    "file_no": "FIN01-BUDG0BRO/77/2016-BUDGET.I",
+    "folder": "efiles/FIN01/BUDGET-I/FIN01-BUDG0BRO_77_2016-BUDGET.I",
+    "scenario": "FIN01-C-HC3",
+    "conflict": "C"
+  },
+  {
+    "file_no": "FIN01-BUDG0BRO/78/2016-BUDGET.I",
+    "folder": "efiles/FIN01/BUDGET-I/FIN01-BUDG0BRO_78_2016-BUDGET.I",
+    "scenario": "FIN01-B-HB3",
+    "conflict": "B"
+  },
+  {
+    "file_no": "FIN01-HRPLG0REC/79/2016-HR.I",
+    "folder": "efiles/FIN01/HR-I/FIN01-HRPLG0REC_79_2016-HR.I",
+    "scenario": "FIN01-CLEAN-019",
+    "conflict": "F"
+  },
+  {
+    "file_no": "FIN01-BUDG0BRO/80/2016-BUDGET.I",
+    "folder": "efiles/FIN01/BUDGET-I/FIN01-BUDG0BRO_80_2016-BUDGET.I",
+    "scenario": "FIN01-C-HC4",
+    "conflict": "C"
+  },
+  {
+    "file_no": "FIN01-HRPLG0REC/81/2016-HR.I",
+    "folder": "efiles/FIN01/HR-I/FIN01-HRPLG0REC_81_2016-HR.I",
+    "scenario": "FIN01-C-HC1",
+    "conflict": "C"
+  },
+  {
+    "file_no": "FIN01-HRPLG0REC/82/2016-HR.I",
+    "folder": "efiles/FIN01/HR-I/FIN01-HRPLG0REC_82_2016-HR.I",
+    "scenario": "FIN01-F-011",
+    "conflict": "F"
+  },
+  {
+    "file_no": "FIN01-HRPEN0PEN/83/2016-HR.III",
+    "folder": "efiles/FIN01/HR-III/FIN01-HRPEN0PEN_83_2016-HR.III",
+    "scenario": "FIN01-F-045",
+    "conflict": "F"
+  },
+  {
+    "file_no": "FIN01-HRPLG0REC/84/2016-HR.I",
+    "folder": "efiles/FIN01/HR-I/FIN01-HRPLG0REC_84_2016-HR.I",
+    "scenario": "FIN01-CLEAN-016",
+    "conflict": null
+  },
+  {
+    "file_no": "FIN01-HRPLG0REC/85/2016-HR.I",
+    "folder": "efiles/FIN01/HR-I/FIN01-HRPLG0REC_85_2016-HR.I",
+    "scenario": "FIN01-CLEAN-020",
+    "conflict": "F"
+  },
+  {
+    "file_no": "FIN01-HRPLG0REC/86/2016-HR.I",
+    "folder": "efiles/FIN01/HR-I/FIN01-HRPLG0REC_86_2016-HR.I",
+    "scenario": "FIN01-CLEAN-013",
+    "conflict": null
+  },
+  {
+    "file_no": "FIN01-HRPLG0REC/87/2016-HR.I",
+    "folder": "efiles/FIN01/HR-I/FIN01-HRPLG0REC_87_2016-HR.I",
+    "scenario": "FIN01-C-HC2",
+    "conflict": "C"
+  },
+  {
+    "file_no": "FIN01-BUDG0BRO/88/2016-BUDGET.I",
+    "folder": "efiles/FIN01/BUDGET-I/FIN01-BUDG0BRO_88_2016-BUDGET.I",
+    "scenario": "FIN01-F-001",
+    "conflict": "F"
+  },
+  {
+    "file_no": "FIN01-BUDG0BRO/89/2016-BUDGET.I",
+    "folder": "efiles/FIN01/BUDGET-I/FIN01-BUDG0BRO_89_2016-BUDGET.I",
+    "scenario": "FIN01-CLEAN-003",
+    "conflict": null
+  },
+  {
+    "file_no": "FIN01-HRPLG0REC/90/2017-HR.I",
+    "folder": "efiles/FIN01/HR-I/FIN01-HRPLG0REC_90_2017-HR.I",
+    "scenario": "FIN01-F-014",
+    "conflict": "F"
+  },
+  {
+    "file_no": "FIN01-BUDG0BRO/91/2017-BUDGET.I",
+    "folder": "efiles/FIN01/BUDGET-I/FIN01-BUDG0BRO_91_2017-BUDGET.I",
+    "scenario": "FIN01-D-060",
+    "conflict": "D"
+  },
+  {
+    "file_no": "FIN01-HRPEN0PEN/92/2017-HR.III",
+    "folder": "efiles/FIN01/HR-III/FIN01-HRPEN0PEN_92_2017-HR.III",
+    "scenario": "FIN01-F-046",
+    "conflict": "F"
+  },
+  {
+    "file_no": "FIN01-BUDG0BRO/93/2017-BUDGET.I",
+    "folder": "efiles/FIN01/BUDGET-I/FIN01-BUDG0BRO_93_2017-BUDGET.I",
+    "scenario": "FIN01-F-002",
+    "conflict": "F"
+  },
+  {
+    "file_no": "FIN01-HRPLG0REC/94/2017-HR.I",
+    "folder": "efiles/FIN01/HR-I/FIN01-HRPLG0REC_94_2017-HR.I",
+    "scenario": "FIN01-CLEAN-034",
+    "conflict": null
+  },
+  {
+    "file_no": "FIN01-HRPLG0REC/95/2017-HR.I",
+    "folder": "efiles/FIN01/HR-I/FIN01-HRPLG0REC_95_2017-HR.I",
+    "scenario": "FIN01-F-015",
+    "conflict": "F"
+  },
+  {
+    "file_no": "FIN01-HRPLG0REC/96/2017-HR.I",
+    "folder": "efiles/FIN01/HR-I/FIN01-HRPLG0REC_96_2017-HR.I",
+    "scenario": "FIN01-F-012",
+    "conflict": "F"
+  },
+  {
+    "file_no": "FIN01-HRPLG0REC/97/2017-HR.I",
+    "folder": "efiles/FIN01/HR-I/FIN01-HRPLG0REC_97_2017-HR.I",
+    "scenario": "FIN01-F-018",
+    "conflict": "F"
+  },
+  {
+    "file_no": "FIN01-HRPEN0PEN/98/2017-HR.III",
+    "folder": "efiles/FIN01/HR-III/FIN01-HRPEN0PEN_98_2017-HR.III",
+    "scenario": "FIN01-F-047",
+    "conflict": "F"
+  },
+  {
+    "file_no": "FIN01-HRPEN0PEN/99/2018-HR.III",
+    "folder": "efiles/FIN01/HR-III/FIN01-HRPEN0PEN_99_2018-HR.III",
+    "scenario": "FIN01-F-048",
+    "conflict": "F"
+  },
+  {
+    "file_no": "FIN01-HRPEN0PEN/100/2018-HR.III",
+    "folder": "efiles/FIN01/HR-III/FIN01-HRPEN0PEN_100_2018-HR.III",
+    "scenario": "FIN01-E-055",
+    "conflict": "E"
+  },
+  {
+    "file_no": "FIN01-HRPLG0REC/101/2018-HR.I",
+    "folder": "efiles/FIN01/HR-I/FIN01-HRPLG0REC_101_2018-HR.I",
+    "scenario": "FIN01-CLEAN-026",
+    "conflict": null
+  },
+  {
+    "file_no": "FIN01-HRPEN0PEN/102/2018-HR.III",
+    "folder": "efiles/FIN01/HR-III/FIN01-HRPEN0PEN_102_2018-HR.III",
+    "scenario": "FIN01-F-049",
+    "conflict": "F"
+  },
+  {
+    "file_no": "FIN01-HRPLG0REC/103/2018-HR.I",
+    "folder": "efiles/FIN01/HR-I/FIN01-HRPLG0REC_103_2018-HR.I",
+    "scenario": "FIN01-A-021",
+    "conflict": "A"
+  },
+  {
+    "file_no": "FIN01-HRPLG0REC/104/2018-HR.I",
+    "folder": "efiles/FIN01/HR-I/FIN01-HRPLG0REC_104_2018-HR.I",
+    "scenario": "FIN01-CLEAN-023",
+    "conflict": null
+  },
+  {
+    "file_no": "FIN01-HRPLG0REC/105/2019-HR.I",
+    "folder": "efiles/FIN01/HR-I/FIN01-HRPLG0REC_105_2019-HR.I",
+    "scenario": "FIN01-B-HB2",
+    "conflict": "B"
+  },
+  {
+    "file_no": "FIN01-HRPEN0PEN/106/2019-HR.III",
+    "folder": "efiles/FIN01/HR-III/FIN01-HRPEN0PEN_106_2019-HR.III",
+    "scenario": "FIN01-F-050",
+    "conflict": "F"
+  },
+  {
+    "file_no": "FIN01-HRPLG0REC/107/2019-HR.I",
+    "folder": "efiles/FIN01/HR-I/FIN01-HRPLG0REC_107_2019-HR.I",
+    "scenario": "FIN01-A-022",
+    "conflict": "A"
+  },
+  {
+    "file_no": "FIN01-HRPLG0REC/108/2019-HR.I",
+    "folder": "efiles/FIN01/HR-I/FIN01-HRPLG0REC_108_2019-HR.I",
+    "scenario": "FIN01-F-032",
+    "conflict": "F"
+  },
+  {
+    "file_no": "FIN01-HRPLG0REC/109/2019-HR.I",
+    "folder": "efiles/FIN01/HR-I/FIN01-HRPLG0REC_109_2019-HR.I",
+    "scenario": "FIN01-A-024",
+    "conflict": "A"
+  },
+  {
+    "file_no": "FIN01-HRPLG0REC/110/2019-HR.I",
+    "folder": "efiles/FIN01/HR-I/FIN01-HRPLG0REC_110_2019-HR.I",
+    "scenario": "FIN01-CLEAN-035",
+    "conflict": null
+  },
+  {
+    "file_no": "FIN01-BUDG0BRO/111/2019-BUDGET.I",
+    "folder": "efiles/FIN01/BUDGET-I/FIN01-BUDG0BRO_111_2019-BUDGET.I",
+    "scenario": "FIN01-CLEAN-006",
+    "conflict": null
+  },
+  {
+    "file_no": "FIN01-BUDG0BRO/112/2019-BUDGET.I",
+    "folder": "efiles/FIN01/BUDGET-I/FIN01-BUDG0BRO_112_2019-BUDGET.I",
+    "scenario": "FIN01-CLEAN-007",
+    "conflict": null
+  },
+  {
+    "file_no": "FIN01-HRPLG0REC/113/2019-HR.I",
+    "folder": "efiles/FIN01/HR-I/FIN01-HRPLG0REC_113_2019-HR.I",
+    "scenario": "FIN01-CLEAN-027",
+    "conflict": null
+  },
+  {
+    "file_no": "FIN01-HRPLG0REC/114/2019-HR.I",
+    "folder": "efiles/FIN01/HR-I/FIN01-HRPLG0REC_114_2019-HR.I",
+    "scenario": "FIN01-F-033",
+    "conflict": "F"
+  },
+  {
+    "file_no": "FIN01-BUDG0BRO/115/2019-BUDGET.I",
+    "folder": "efiles/FIN01/BUDGET-I/FIN01-BUDG0BRO_115_2019-BUDGET.I",
+    "scenario": "FIN01-F-004",
+    "conflict": "F"
+  },
+  {
+    "file_no": "FIN01-BUDG0BRO/116/2020-BUDGET.I",
+    "folder": "efiles/FIN01/BUDGET-I/FIN01-BUDG0BRO_116_2020-BUDGET.I",
+    "scenario": "FIN01-D-062",
+    "conflict": "D"
+  },
+  {
+    "file_no": "FIN01-BUDG0BRO/117/2020-BUDGET.I",
+    "folder": "efiles/FIN01/BUDGET-I/FIN01-BUDG0BRO_117_2020-BUDGET.I",
+    "scenario": "FIN01-D-061",
+    "conflict": "D"
+  },
+  {
+    "file_no": "FIN01-HRPLG0REC/118/2021-HR.I",
+    "folder": "efiles/FIN01/HR-I/FIN01-HRPLG0REC_118_2021-HR.I",
+    "scenario": "FIN01-A-025",
+    "conflict": "A"
+  },
+  {
+    "file_no": "FIN01-BUDG0BRO/119/2021-BUDGET.I",
+    "folder": "efiles/FIN01/BUDGET-I/FIN01-BUDG0BRO_119_2021-BUDGET.I",
+    "scenario": "FIN01-F-005",
+    "conflict": "F"
+  },
+  {
+    "file_no": "FIN01-HRPLG0REC/120/2021-HR.I",
+    "folder": "efiles/FIN01/HR-I/FIN01-HRPLG0REC_120_2021-HR.I",
+    "scenario": "FIN01-E-052",
+    "conflict": "E"
+  },
+  {
+    "file_no": "FIN01-BUDG0BRO/121/2021-BUDGET.I",
+    "folder": "efiles/FIN01/BUDGET-I/FIN01-BUDG0BRO_121_2021-BUDGET.I",
+    "scenario": "FIN01-E-056",
+    "conflict": "E"
+  },
+  {
+    "file_no": "FIN01-HRPEN0PEN/122/2022-HR.III",
+    "folder": "efiles/FIN01/HR-III/FIN01-HRPEN0PEN_122_2022-HR.III",
+    "scenario": "FIN01-CLEAN-040",
+    "conflict": null
+  },
+  {
+    "file_no": "FIN01-HRPLG0REC/123/2022-HR.I",
+    "folder": "efiles/FIN01/HR-I/FIN01-HRPLG0REC_123_2022-HR.I",
+    "scenario": "FIN01-CLEAN-030",
+    "conflict": "F"
+  },
+  {
+    "file_no": "FIN01-HRPLG0REC/124/2022-HR.I",
+    "folder": "efiles/FIN01/HR-I/FIN01-HRPLG0REC_124_2022-HR.I",
+    "scenario": "FIN01-F-028",
+    "conflict": "F"
+  },
+  {
+    "file_no": "FIN01-BUDG0BRO/125/2022-BUDGET.I",
+    "folder": "efiles/FIN01/BUDGET-I/FIN01-BUDG0BRO_125_2022-BUDGET.I",
+    "scenario": "FIN01-E-053",
+    "conflict": "E"
+  },
+  {
+    "file_no": "FIN01-HRPLG0REC/126/2022-HR.I",
+    "folder": "efiles/FIN01/HR-I/FIN01-HRPLG0REC_126_2022-HR.I",
+    "scenario": "FIN01-CLEAN-031",
+    "conflict": null
+  },
+  {
+    "file_no": "FIN01-HRPEN0PEN/127/2022-HR.III",
+    "folder": "efiles/FIN01/HR-III/FIN01-HRPEN0PEN_127_2022-HR.III",
+    "scenario": "FIN01-A-038",
+    "conflict": "A"
+  },
+  {
+    "file_no": "FIN01-HRPEN0PEN/128/2023-HR.III",
+    "folder": "efiles/FIN01/HR-III/FIN01-HRPEN0PEN_128_2023-HR.III",
+    "scenario": "FIN01-CLEAN-041",
+    "conflict": null
+  },
+  {
+    "file_no": "FIN01-HRPEN0PEN/129/2023-HR.III",
+    "folder": "efiles/FIN01/HR-III/FIN01-HRPEN0PEN_129_2023-HR.III",
+    "scenario": "FIN01-CLEAN-044",
+    "conflict": null
+  },
+  {
+    "file_no": "FIN01-HRPEN0PEN/130/2023-HR.III",
+    "folder": "efiles/FIN01/HR-III/FIN01-HRPEN0PEN_130_2023-HR.III",
+    "scenario": "FIN01-B-HB1",
+    "conflict": "B"
+  },
+  {
+    "file_no": "FIN01-BUDG0BRO/131/2023-BUDGET.I",
+    "folder": "efiles/FIN01/BUDGET-I/FIN01-BUDG0BRO_131_2023-BUDGET.I",
+    "scenario": "FIN01-F-008",
+    "conflict": "F"
+  },
+  {
+    "file_no": "FIN01-BUDG0BRO/132/2023-BUDGET.I",
+    "folder": "efiles/FIN01/BUDGET-I/FIN01-BUDG0BRO_132_2023-BUDGET.I",
+    "scenario": "FIN01-CLEAN-010",
+    "conflict": null
+  },
+  {
+    "file_no": "FIN01-HRPEN0PEN/133/2023-HR.III",
+    "folder": "efiles/FIN01/HR-III/FIN01-HRPEN0PEN_133_2023-HR.III",
+    "scenario": "FIN01-A-042",
+    "conflict": "A"
+  },
+  {
+    "file_no": "FIN01-HRPLG0REC/134/2023-HR.I",
+    "folder": "efiles/FIN01/HR-I/FIN01-HRPLG0REC_134_2023-HR.I",
+    "scenario": "FIN01-F-029",
+    "conflict": "F"
+  },
+  {
+    "file_no": "FIN01-HRPEN0PEN/135/2023-HR.III",
+    "folder": "efiles/FIN01/HR-III/FIN01-HRPEN0PEN_135_2023-HR.III",
+    "scenario": "FIN01-A-039",
+    "conflict": "A"
+  },
+  {
+    "file_no": "FIN01-HRPEN0PEN/136/2024-HR.III",
+    "folder": "efiles/FIN01/HR-III/FIN01-HRPEN0PEN_136_2024-HR.III",
+    "scenario": "FIN01-F-051",
+    "conflict": "F"
+  },
+  {
+    "file_no": "FIN01-HRPEN0PEN/137/2024-HR.III",
+    "folder": "efiles/FIN01/HR-III/FIN01-HRPEN0PEN_137_2024-HR.III",
+    "scenario": "FIN01-B-HB4",
+    "conflict": "B"
+  },
+  {
+    "file_no": "FIN01-HRPEN0PEN/138/2024-HR.III",
+    "folder": "efiles/FIN01/HR-III/FIN01-HRPEN0PEN_138_2024-HR.III",
+    "scenario": "FIN01-G-HG2",
+    "conflict": "G"
+  },
+  {
+    "file_no": "FIN01-HRPEN0PEN/139/2024-HR.III",
+    "folder": "efiles/FIN01/HR-III/FIN01-HRPEN0PEN_139_2024-HR.III",
+    "scenario": "FIN01-G-HG3",
+    "conflict": "G"
+  },
+  {
+    "file_no": "FIN01-BUDG0BRO/140/2024-BUDGET.I",
+    "folder": "efiles/FIN01/BUDGET-I/FIN01-BUDG0BRO_140_2024-BUDGET.I",
+    "scenario": "FIN01-D-063",
+    "conflict": "D"
+  },
+  {
+    "file_no": "FIN01-HRPEN0PEN/141/2025-HR.III",
+    "folder": "efiles/FIN01/HR-III/FIN01-HRPEN0PEN_141_2025-HR.III",
+    "scenario": "FIN01-E-054",
+    "conflict": "E"
+  },
+  {
+    "file_no": "FIN01-BUDG0BRO/142/2025-BUDGET.I",
+    "folder": "efiles/FIN01/BUDGET-I/FIN01-BUDG0BRO_142_2025-BUDGET.I",
+    "scenario": "FIN01-F-009",
+    "conflict": "F"
+  },
+  {
+    "file_no": "FIN01-HRPEN0PEN/143/2025-HR.III",
+    "folder": "efiles/FIN01/HR-III/FIN01-HRPEN0PEN_143_2025-HR.III",
+    "scenario": "FIN01-A-043",
+    "conflict": "A"
+  },
+  {
+    "file_no": "GAD01-SERA0SER/144/2016-SER.A",
+    "folder": "efiles/GAD01/SER-A/GAD01-SERA0SER_144_2016-SER.A",
+    "scenario": "GAD01-F-024",
+    "conflict": "F"
+  },
+  {
+    "file_no": "GAD01-SERA0SER/145/2017-SER.A",
+    "folder": "efiles/GAD01/SER-A/GAD01-SERA0SER_145_2017-SER.A",
+    "scenario": "GAD01-CLEAN-026",
+    "conflict": "A"
+  },
+  {
+    "file_no": "GAD01-CABN0BR/146/2017-CABINET.II",
+    "folder": "efiles/GAD01/CABINET-II/GAD01-CABN0BR_146_2017-CABINET.II",
+    "scenario": "GAD01-C-HC5",
+    "conflict": "C"
+  },
+  {
+    "file_no": "GAD01-SCF0ACB/147/2017-SC.F",
+    "folder": "efiles/GAD01/SC-F/GAD01-SCF0ACB_147_2017-SC.F",
+    "scenario": "GAD01-CLEAN-018",
+    "conflict": null
+  },
+  {
+    "file_no": "GAD01-SERA0SER/148/2017-SER.A",
+    "folder": "efiles/GAD01/SER-A/GAD01-SERA0SER_148_2017-SER.A",
+    "scenario": "GAD01-C-HC1",
+    "conflict": "C"
+  },
+  {
+    "file_no": "GAD01-CABN0BR/149/2017-CABINET.II",
+    "folder": "efiles/GAD01/CABINET-II/GAD01-CABN0BR_149_2017-CABINET.II",
+    "scenario": "GAD01-C-HC3",
+    "conflict": "C"
+  },
+  {
+    "file_no": "GAD01-CABN0BR/150/2018-CABINET.II",
+    "folder": "efiles/GAD01/CABINET-II/GAD01-CABN0BR_150_2018-CABINET.II",
+    "scenario": "GAD01-C-HC4",
+    "conflict": "C"
+  },
+  {
+    "file_no": "GAD01-SCF0ACB/151/2018-SC.F",
+    "folder": "efiles/GAD01/SC-F/GAD01-SCF0ACB_151_2018-SC.F",
+    "scenario": "GAD01-CLEAN-019",
+    "conflict": null
+  },
+  {
+    "file_no": "GAD01-SERA0SER/152/2018-SER.A",
+    "folder": "efiles/GAD01/SER-A/GAD01-SERA0SER_152_2018-SER.A",
+    "scenario": "GAD01-C-HC2",
+    "conflict": "C"
+  },
+  {
+    "file_no": "GAD01-SERA0SER/153/2018-SER.A",
+    "folder": "efiles/GAD01/SER-A/GAD01-SERA0SER_153_2018-SER.A",
+    "scenario": "GAD01-CLEAN-029",
+    "conflict": null
+  },
+  {
+    "file_no": "GAD01-SERA0SER/154/2018-SER.A",
+    "folder": "efiles/GAD01/SER-A/GAD01-SERA0SER_154_2018-SER.A",
+    "scenario": "GAD01-A-027",
+    "conflict": "A"
+  },
+  {
+    "file_no": "GAD01-SCF0ACB/155/2018-SC.F",
+    "folder": "efiles/GAD01/SC-F/GAD01-SCF0ACB_155_2018-SC.F",
+    "scenario": "GAD01-F-016",
+    "conflict": "F"
+  },
+  {
+    "file_no": "GAD01-SERA0SER/156/2018-SER.A",
+    "folder": "efiles/GAD01/SER-A/GAD01-SERA0SER_156_2018-SER.A",
+    "scenario": "GAD01-F-025",
+    "conflict": "F"
+  },
+  {
+    "file_no": "GAD01-SCF0ACB/157/2018-SC.F",
+    "folder": "efiles/GAD01/SC-F/GAD01-SCF0ACB_157_2018-SC.F",
+    "scenario": "GAD01-D-059",
+    "conflict": "D"
+  },
+  {
+    "file_no": "GAD01-SCF0ACB/158/2018-SC.F",
+    "folder": "efiles/GAD01/SC-F/GAD01-SCF0ACB_158_2018-SC.F",
+    "scenario": "GAD01-F-017",
+    "conflict": "F"
+  },
+  {
+    "file_no": "GAD01-SERA0SER/159/2019-SER.A",
+    "folder": "efiles/GAD01/SER-A/GAD01-SERA0SER_159_2019-SER.A",
+    "scenario": "GAD01-A-028",
+    "conflict": "A"
+  },
+  {
+    "file_no": "GAD01-CABN0BR/160/2019-CABINET.II",
+    "folder": "efiles/GAD01/CABINET-II/GAD01-CABN0BR_160_2019-CABINET.II",
+    "scenario": "GAD01-B-HB2",
+    "conflict": "B"
+  },
+  {
+    "file_no": "GAD01-SERA0SER/161/2019-SER.A",
+    "folder": "efiles/GAD01/SER-A/GAD01-SERA0SER_161_2019-SER.A",
+    "scenario": "GAD01-E-051",
+    "conflict": "E"
+  },
+  {
+    "file_no": "GAD01-CABN0BR/162/2020-CABINET.II",
+    "folder": "efiles/GAD01/CABINET-II/GAD01-CABN0BR_162_2020-CABINET.II",
+    "scenario": "GAD01-CLEAN-003",
+    "conflict": null
+  },
+  {
+    "file_no": "GAD01-CABN0BR/163/2020-CABINET.II",
+    "folder": "efiles/GAD01/CABINET-II/GAD01-CABN0BR_163_2020-CABINET.II",
+    "scenario": "GAD01-F-001",
+    "conflict": "F"
+  },
+  {
+    "file_no": "GAD01-SCF0ACB/164/2020-SC.F",
+    "folder": "efiles/GAD01/SC-F/GAD01-SCF0ACB_164_2020-SC.F",
+    "scenario": "GAD01-G-HG3",
+    "conflict": "G"
+  },
+  {
+    "file_no": "GAD01-SCF0ACB/165/2020-SC.F",
+    "folder": "efiles/GAD01/SC-F/GAD01-SCF0ACB_165_2020-SC.F",
+    "scenario": "GAD01-CLEAN-022",
+    "conflict": null
+  },
+  {
+    "file_no": "GAD01-CABN0BR/166/2020-CABINET.II",
+    "folder": "efiles/GAD01/CABINET-II/GAD01-CABN0BR_166_2020-CABINET.II",
+    "scenario": "GAD01-D-052",
+    "conflict": "D"
+  },
+  {
+    "file_no": "GAD01-CABN0BR/167/2020-CABINET.II",
+    "folder": "efiles/GAD01/CABINET-II/GAD01-CABN0BR_167_2020-CABINET.II",
+    "scenario": "GAD01-CLEAN-006",
+    "conflict": null
+  },
+  {
+    "file_no": "GAD01-SERA0SER/168/2020-SER.A",
+    "folder": "efiles/GAD01/SER-A/GAD01-SERA0SER_168_2020-SER.A",
+    "scenario": "GAD01-E-050",
+    "conflict": "E"
+  },
+  {
+    "file_no": "GAD01-SERA0SER/169/2020-SER.A",
+    "folder": "efiles/GAD01/SER-A/GAD01-SERA0SER_169_2020-SER.A",
+    "scenario": "GAD01-CLEAN-032",
+    "conflict": "F"
+  },
+  {
+    "file_no": "GAD01-SERA0SER/170/2021-SER.A",
+    "folder": "efiles/GAD01/SER-A/GAD01-SERA0SER_170_2021-SER.A",
+    "scenario": "GAD01-E-045",
+    "conflict": "E"
+  },
+  {
+    "file_no": "GAD01-SERA0SER/171/2021-SER.A",
+    "folder": "efiles/GAD01/SER-A/GAD01-SERA0SER_171_2021-SER.A",
+    "scenario": "GAD01-A-030",
+    "conflict": "A"
+  },
+  {
+    "file_no": "GAD01-CABN0BR/172/2021-CABINET.II",
+    "folder": "efiles/GAD01/CABINET-II/GAD01-CABN0BR_172_2021-CABINET.II",
+    "scenario": "GAD01-CLEAN-010",
+    "conflict": null
+  },
+  {
+    "file_no": "GAD01-SCF0ACB/173/2021-SC.F",
+    "folder": "efiles/GAD01/SC-F/GAD01-SCF0ACB_173_2021-SC.F",
+    "scenario": "GAD01-CLEAN-014",
+    "conflict": null
+  },
+  {
+    "file_no": "GAD01-CABN0BR/174/2021-CABINET.II",
+    "folder": "efiles/GAD01/CABINET-II/GAD01-CABN0BR_174_2021-CABINET.II",
+    "scenario": "GAD01-CLEAN-007",
+    "conflict": null
+  },
+  {
+    "file_no": "GAD01-CABN0BR/175/2021-CABINET.II",
+    "folder": "efiles/GAD01/CABINET-II/GAD01-CABN0BR_175_2021-CABINET.II",
+    "scenario": "GAD01-F-002",
+    "conflict": "F"
+  },
+  {
+    "file_no": "GAD01-CABN0BR/176/2021-CABINET.II",
+    "folder": "efiles/GAD01/CABINET-II/GAD01-CABN0BR_176_2021-CABINET.II",
+    "scenario": "GAD01-D-055",
+    "conflict": "D"
+  },
+  {
+    "file_no": "GAD01-CABN0BR/177/2021-CABINET.II",
+    "folder": "efiles/GAD01/CABINET-II/GAD01-CABN0BR_177_2021-CABINET.II",
+    "scenario": "GAD01-D-053",
+    "conflict": "D"
+  },
+  {
+    "file_no": "GAD01-CABN0BR/178/2021-CABINET.II",
+    "folder": "efiles/GAD01/CABINET-II/GAD01-CABN0BR_178_2021-CABINET.II",
+    "scenario": "GAD01-F-004",
+    "conflict": "F"
+  },
+  {
+    "file_no": "GAD01-SCF0ACB/179/2021-SC.F",
+    "folder": "efiles/GAD01/SC-F/GAD01-SCF0ACB_179_2021-SC.F",
+    "scenario": "GAD01-D-057",
+    "conflict": "D"
+  },
+  {
+    "file_no": "GAD01-SERA0SER/180/2021-SER.A",
+    "folder": "efiles/GAD01/SER-A/GAD01-SERA0SER_180_2021-SER.A",
+    "scenario": "GAD01-A-033",
+    "conflict": "A"
+  },
+  {
+    "file_no": "GAD01-SERA0SER/181/2022-SER.A",
+    "folder": "efiles/GAD01/SER-A/GAD01-SERA0SER_181_2022-SER.A",
+    "scenario": "GAD01-A-031",
+    "conflict": "A"
+  },
+  {
+    "file_no": "GAD01-SERA0SER/182/2022-SER.A",
+    "folder": "efiles/GAD01/SER-A/GAD01-SERA0SER_182_2022-SER.A",
+    "scenario": "GAD01-CLEAN-039",
+    "conflict": "F"
+  },
+  {
+    "file_no": "GAD01-SERA0SER/183/2022-SER.A",
+    "folder": "efiles/GAD01/SER-A/GAD01-SERA0SER_183_2022-SER.A",
+    "scenario": "GAD01-G-HG1",
+    "conflict": "G"
+  },
+  {
+    "file_no": "GAD01-CABN0BR/184/2022-CABINET.II",
+    "folder": "efiles/GAD01/CABINET-II/GAD01-CABN0BR_184_2022-CABINET.II",
+    "scenario": "GAD01-D-054",
+    "conflict": "D"
+  },
+  {
+    "file_no": "GAD01-SCF0ACB/185/2022-SC.F",
+    "folder": "efiles/GAD01/SC-F/GAD01-SCF0ACB_185_2022-SC.F",
+    "scenario": "GAD01-CLEAN-023",
+    "conflict": "F"
+  },
+  {
+    "file_no": "GAD01-SCF0ACB/186/2022-SC.F",
+    "folder": "efiles/GAD01/SC-F/GAD01-SCF0ACB_186_2022-SC.F",
+    "scenario": "GAD01-F-012",
+    "conflict": "F"
+  },
+  {
+    "file_no": "GAD01-SERA0SER/187/2022-SER.A",
+    "folder": "efiles/GAD01/SER-A/GAD01-SERA0SER_187_2022-SER.A",
+    "scenario": "GAD01-CLEAN-035",
+    "conflict": "A"
+  },
+  {
+    "file_no": "GAD01-CABN0BR/188/2022-CABINET.II",
+    "folder": "efiles/GAD01/CABINET-II/GAD01-CABN0BR_188_2022-CABINET.II",
+    "scenario": "GAD01-F-005",
+    "conflict": "F"
+  },
+  {
+    "file_no": "GAD01-SCF0ACB/189/2022-SC.F",
+    "folder": "efiles/GAD01/SC-F/GAD01-SCF0ACB_189_2022-SC.F",
+    "scenario": "GAD01-D-058",
+    "conflict": "D"
+  },
+  {
+    "file_no": "GAD01-SCF0ACB/190/2022-SC.F",
+    "folder": "efiles/GAD01/SC-F/GAD01-SCF0ACB_190_2022-SC.F",
+    "scenario": "GAD01-F-020",
+    "conflict": "F"
+  },
+  {
+    "file_no": "GAD01-SERA0SER/191/2022-SER.A",
+    "folder": "efiles/GAD01/SER-A/GAD01-SERA0SER_191_2022-SER.A",
+    "scenario": "GAD01-A-034",
+    "conflict": "A"
+  },
+  {
+    "file_no": "GAD01-CABN0BR/192/2022-CABINET.II",
+    "folder": "efiles/GAD01/CABINET-II/GAD01-CABN0BR_192_2022-CABINET.II",
+    "scenario": "GAD01-F-008",
+    "conflict": "F"
+  },
+  {
+    "file_no": "GAD01-CABN0BR/193/2022-CABINET.II",
+    "folder": "efiles/GAD01/CABINET-II/GAD01-CABN0BR_193_2022-CABINET.II",
+    "scenario": "GAD01-CLEAN-011",
+    "conflict": null
+  },
+  {
+    "file_no": "GAD01-SCF0ACB/194/2022-SC.F",
+    "folder": "efiles/GAD01/SC-F/GAD01-SCF0ACB_194_2022-SC.F",
+    "scenario": "GAD01-F-013",
+    "conflict": "F"
+  },
+  {
+    "file_no": "GAD01-CABN0BR/195/2023-CABINET.II",
+    "folder": "efiles/GAD01/CABINET-II/GAD01-CABN0BR_195_2023-CABINET.II",
+    "scenario": "GAD01-D-056",
+    "conflict": "D"
+  },
+  {
+    "file_no": "GAD01-SERA0SER/196/2023-SER.A",
+    "folder": "efiles/GAD01/SER-A/GAD01-SERA0SER_196_2023-SER.A",
+    "scenario": "GAD01-B-HB1",
+    "conflict": "B"
+  },
+  {
+    "file_no": "GAD01-SCF0ACB/197/2023-SC.F",
+    "folder": "efiles/GAD01/SC-F/GAD01-SCF0ACB_197_2023-SC.F",
+    "scenario": "GAD01-F-021",
+    "conflict": "F"
+  },
+  {
+    "file_no": "GAD01-SCF0ACB/198/2023-SC.F",
+    "folder": "efiles/GAD01/SC-F/GAD01-SCF0ACB_198_2023-SC.F",
+    "scenario": "GAD01-E-046",
+    "conflict": "E"
+  },
+  {
+    "file_no": "GAD01-CABN0BR/199/2023-CABINET.II",
+    "folder": "efiles/GAD01/CABINET-II/GAD01-CABN0BR_199_2023-CABINET.II",
+    "scenario": "GAD01-F-009",
+    "conflict": "F"
+  },
+  {
+    "file_no": "GAD01-SERA0SER/200/2023-SER.A",
+    "folder": "efiles/GAD01/SER-A/GAD01-SERA0SER_200_2023-SER.A",
+    "scenario": "GAD01-A-036",
+    "conflict": "A"
+  },
+  {
+    "file_no": "GAD01-SERA0SER/201/2024-SER.A",
+    "folder": "efiles/GAD01/SER-A/GAD01-SERA0SER_201_2024-SER.A",
+    "scenario": "GAD01-E-048",
+    "conflict": "E"
+  },
+  {
+    "file_no": "GAD01-SERA0SER/202/2024-SER.A",
+    "folder": "efiles/GAD01/SER-A/GAD01-SERA0SER_202_2024-SER.A",
+    "scenario": "GAD01-CLEAN-038",
+    "conflict": "A"
+  },
+  {
+    "file_no": "GAD01-SERA0SER/203/2024-SER.A",
+    "folder": "efiles/GAD01/SER-A/GAD01-SERA0SER_203_2024-SER.A",
+    "scenario": "GAD01-G-HG2",
+    "conflict": "G"
+  },
+  {
+    "file_no": "GAD01-CABN0BR/204/2024-CABINET.II",
+    "folder": "efiles/GAD01/CABINET-II/GAD01-CABN0BR_204_2024-CABINET.II",
+    "scenario": "GAD01-E-044",
+    "conflict": "E"
+  },
+  {
+    "file_no": "GAD01-SERA0SER/205/2025-SER.A",
+    "folder": "efiles/GAD01/SER-A/GAD01-SERA0SER_205_2025-SER.A",
+    "scenario": "GAD01-A-037",
+    "conflict": "A"
+  },
+  {
+    "file_no": "GAD01-SERA0SER/206/2025-SER.A",
+    "folder": "efiles/GAD01/SER-A/GAD01-SERA0SER_206_2025-SER.A",
+    "scenario": "GAD01-E-049",
+    "conflict": "E"
+  },
+  {
+    "file_no": "GAD01-SERA0SER/207/2025-SER.A",
+    "folder": "efiles/GAD01/SER-A/GAD01-SERA0SER_207_2025-SER.A",
+    "scenario": "GAD01-CLEAN-042",
+    "conflict": null
+  },
+  {
+    "file_no": "GAD01-SERA0SER/208/2025-SER.A",
+    "folder": "efiles/GAD01/SER-A/GAD01-SERA0SER_208_2025-SER.A",
+    "scenario": "GAD01-CLEAN-043",
+    "conflict": null
+  },
+  {
+    "file_no": "GAD01-SERA0SER/209/2025-SER.A",
+    "folder": "efiles/GAD01/SER-A/GAD01-SERA0SER_209_2025-SER.A",
+    "scenario": "GAD01-F-041",
+    "conflict": "F"
+  },
+  {
+    "file_no": "GAD01-SERA0SER/210/2025-SER.A",
+    "folder": "efiles/GAD01/SER-A/GAD01-SERA0SER_210_2025-SER.A",
+    "scenario": "GAD01-E-047",
+    "conflict": "E"
+  },
+  {
+    "file_no": "GAD01-CABN0BR/211/2025-CABINET.II",
+    "folder": "efiles/GAD01/CABINET-II/GAD01-CABN0BR_211_2025-CABINET.II",
+    "scenario": "GAD01-CLEAN-HK1",
+    "conflict": null
+  },
+  {
+    "file_no": "GAD01-CABN0BR/212/2025-CABINET.II",
+    "folder": "efiles/GAD01/CABINET-II/GAD01-CABN0BR_212_2025-CABINET.II",
+    "scenario": "GAD01-CLEAN-HK2",
+    "conflict": null
+  }
+]

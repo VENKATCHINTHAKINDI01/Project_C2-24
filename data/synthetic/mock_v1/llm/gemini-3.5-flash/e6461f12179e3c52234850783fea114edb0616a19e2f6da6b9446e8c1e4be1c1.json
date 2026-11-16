@@ -1,0 +1,1 @@
+{"prompt": "conflict_contradiction.v1", "model": "gemini-3.5-flash", "response": {"verdict": "consistent", "quote_a": "", "quote_b": "", "explanation": "The texts are consistent as Document B specifies the minimum age for admission to Class I, while Document A addresses the non-denial of admission due to lack of age proof."}}

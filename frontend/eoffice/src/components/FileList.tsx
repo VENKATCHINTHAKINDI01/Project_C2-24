@@ -1,6 +1,9 @@
 import { useEffect, useState } from "react";
 import type { Api } from "../api";
 import type { FileRow } from "../types";
+import { DigestPanel } from "./Digest";
+import { HandoverPanel } from "./Handover";
+import { NewFilePanel } from "./NewFile";
 
 export function FileList({ api, open }: { api: Api; open: (computerNo: string) => void }) {
   const [files, setFiles] = useState<FileRow[] | null>(null);
@@ -12,6 +15,9 @@ export function FileList({ api, open }: { api: Api; open: (computerNo: string) =
   if (!files) return <p className="muted page">Loading files…</p>;
   return (
     <main className="page">
+      <DigestPanel api={api} open={open} />
+      <HandoverPanel api={api} open={open} />
+      <NewFilePanel api={api} open={open} />
       <h2>Files you can open</h2>
       <p className="muted">Follows your e-Office search privilege, movements and assignments, and your clearance.</p>
       <table className="grid">

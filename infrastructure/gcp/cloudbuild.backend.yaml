@@ -1,0 +1,6 @@
+# Build the backend image with Cloud Build and push it to Artifact Registry (used by 13_backend_image.sh).
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args: ["build", "-f", "backend/Dockerfile", "-t", "${_IMAGE}", "."]
+images: ["${_IMAGE}"]
+timeout: 1200s

@@ -1,0 +1,26 @@
+{
+  "file_no": "FIN01-BUDG0BRO/78/2016-BUDGET.I",
+  "computer_no": "3638492",
+  "subject": "Expenditure before the Comprehensive Budget Release – Reg.",
+  "department_code": "FIN01",
+  "section": "BUDGET-I",
+  "section_label": "Finance (Budget.I) Department",
+  "classification": "CONFIDENTIAL",
+  "status": "decided",
+  "opened": "2016-06-24",
+  "scenario": "FIN01-B-HB3",
+  "touchpoints": [
+    1,
+    2,
+    10,
+    11,
+    13,
+    20
+  ],
+  "origin": "synthetic",
+  "banner": "Synthetic — not a real government file",
+  "cites": [
+    "AP-FIN01-GOMS-51-2016"
+  ],
+  "received_by": "U.O. Note"
+}

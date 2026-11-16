@@ -250,3 +250,31 @@ def test_forbidden_documents_cannot_be_cited_because_they_never_enter_the_packag
     assert pkg.canonical_ids == {"AP-FIN01-GOMS-31-2025"}
     forged = Claim(text="An enquiry is pending.", evidence_ids=("EV-guess",))
     assert _verify(pkg, [forged]).results[0].status is ClaimStatus.REJECTED
+
+
+def test_a_date_broken_across_a_line_in_the_source_matches_its_quote() -> None:
+    span = WINDOW.model_copy(
+        update={"span_text": "relaxed for the period from 15-05-\n2025 to 31-05-2025."}
+    )
+    pkg = _pkg("U01", [span])
+    c = Claim(
+        text="The ban was relaxed from 15-05-2025 to 31-05-2025.",
+        evidence_ids=(_eid(pkg),),
+        quote="relaxed for the period from 15-05-2025 to 31-05-2025",
+    )
+    assert _verify(pkg, [c]).results[0].status is ClaimStatus.CONFIRMED
+
+
+def test_the_cited_records_own_number_and_date_need_not_be_in_the_passage() -> None:
+    """G.O.Ms.No.31/2025 (D04), issued 12-05-2025: its number, year and date come from the
+    package's own fields; any other number still has to be in the cited text."""
+    span = CEILING.model_copy(update={"issue_date": dt.date(2025, 5, 12)})
+    pkg = _pkg("U01", [span])
+    quote = "15% of the cadre strength"
+    own = Claim(text="G.O.Ms.No.31 dated 12-05-2025 caps transfers at 15%.",
+                evidence_ids=(_eid(pkg),), quote=quote)  # fmt: skip
+    other = Claim(text="G.O.Ms.No.88 dated 12-05-2025 caps transfers at 15%.",
+                  evidence_ids=(_eid(pkg),), quote=quote)  # fmt: skip
+    v = _verify(pkg, [own, other])
+    assert [r.status for r in v.results] == [ClaimStatus.CONFIRMED, ClaimStatus.REJECTED]
+    assert v.results[1].missing_tokens == ("88",)

@@ -1,0 +1,14 @@
+# Demo holdback (data collection plan step 11; owner 13 Nov 2026): one real order is kept out of the corpus and
+# ingested live in the demo ("a new order arrives → the open files that rely on the order it changes are flagged").
+# The files below are OPEN synthetic files that correctly cite the order as it stood before the held-back order.
+# They are added after everything else, so no other file changes.
+order: AP-GAD01-GOMS-139-2025        # 23-12-2025, amends the Warrant of Precedence; in staging/holdback/, not in the corpus
+changes: AP-GAD01-GOMS-59-2018
+files:
+  # Cabinet.II does not own the Warrant of Precedence (Protocol does); these files only apply it, as any section may.
+  - {dept: GAD01, section: CABINET-II, date: "2025-12-15",
+     subject: "Seating of dignitaries at the State function after the Cabinet meeting as per the Warrant of Precedence",
+     cite: [AP-GAD01-GOMS-59-2018, AP-GAD01-GOMS-8-2021]}
+  - {dept: GAD01, section: CABINET-II, date: "2025-12-18",
+     subject: "Order of precedence for invitees to the Republic Day State function",
+     cite: [AP-GAD01-GOMS-59-2018, AP-GAD01-GOMS-8-2021]}

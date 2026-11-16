@@ -25,7 +25,7 @@ from app.auth.models import AccessPolicy, Scope
 from app.auth.policy import ScopeError, check, scope_for
 from app.auth.store import AuthzStore
 from app.config import Classification, RuntimeConfig
-from app.graph.repository import Direction, EdgeKind, InMemoryGraphRepository
+from app.graph.repository import Direction, EdgeKind, WalkableGraph
 from app.retrieval.graph_expansion import NotCalibratedError, expand
 from app.retrieval.scoped import IndexedDocument, L1Criteria, Rung, ScopedRetriever, retrieve
 
@@ -151,7 +151,7 @@ def run_ladder(
     *,
     index: ScopedRetriever,
     l2: HybridRetriever,
-    graph: InMemoryGraphRepository,
+    graph: WalkableGraph,
     cfg: LadderConfig,
     store: AuthzStore,
     policy: AccessPolicy,

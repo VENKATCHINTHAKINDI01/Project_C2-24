@@ -15,9 +15,8 @@ from enum import StrEnum
 from xml.etree import ElementTree as ET  # noqa: S405 — parses only XML inside an uploaded zip
 
 from pydantic import BaseModel, ConfigDict
-from pypdf import PdfReader
 
-from app.ingestion.detect import Detection, Kind, Route
+from app.ingestion.detect import Detection, Kind, Route, pdf_scan
 
 
 class PageSource(StrEnum):
@@ -158,17 +157,24 @@ def _xlsx(data: bytes) -> ExtractedDocument:
 
 
 def _pdf(data: bytes, detection: Detection) -> ExtractedDocument:
-    reader = PdfReader(io.BytesIO(data))
     ocr = set(detection.ocr_pages)
     pages = []
-    for i, page in enumerate(reader.pages, 1):
+    for i, (text, _image) in enumerate(pdf_scan(data), 1):  # read once, shared with detect
         if i in ocr:
             pages.append(ExtractedPage(page=i, source=PageSource.NEEDS_OCR, text=None))
         else:
-            pages.append(
-                ExtractedPage(page=i, source=PageSource.NATIVE, text=page.extract_text() or "")
-            )
+            pages.append(ExtractedPage(page=i, source=PageSource.NATIVE, text=text))
     return ExtractedDocument(pages=tuple(pages))
+
+
+def pdf_text_layer(data: bytes, page: int) -> str:
+    """The PDF's own text layer of one page, even on a page routed to OCR ("" when none or not a
+    PDF). Printed text, not recognised text: used only where the metadata rules ask for it."""
+    try:
+        scan = pdf_scan(data)
+        return scan[page - 1][0] if 1 <= page <= len(scan) else ""
+    except Exception:  # noqa: BLE001 — not a PDF or unreadable: no layer, nothing guessed
+        return ""
 
 
 def extract_native(data: bytes, detection: Detection) -> ExtractedDocument:

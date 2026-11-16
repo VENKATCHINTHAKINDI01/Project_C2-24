@@ -118,7 +118,7 @@ Retrieval follows a fixed order and stops as soon as the evidence is sufficient.
 |----------------------------|-----------------------------------------------------------|---------------------------------------------------------|-------------------------------------------|
 | **L0 · Exact reference**   | Query or open file names a G.O., circular, file or clause | Canonical ID lookup (template)                          | Document found and its status resolved    |
 | **L1 · Structured filter** | Subject, department, date range or type is clear          | Metadata query on BigQuery (template), status-aware     | Enough authorised, current matches        |
-| **L2 · Hybrid search**     | Meaning-based question, no exact reference                | Vertex AI Search vector + keyword, capped top-K, rerank | Rerank scores pass the evidence threshold |
+| **L2 · Hybrid search**     | Meaning-based question, no exact reference                | BigQuery vector + keyword in asia-south1, capped top-K (ADR-0026; was Vertex AI Search) | Rerank scores pass the evidence threshold |
 | **L3 · Graph expansion**   | Supersession, amendment or related decisions needed       | Scope-constrained graph walk from L0–L2 hits            | Always the last rung                      |
 
 **Templates.** Each intent (precedent lookup, current rule, supersession chain, decision history, conflict check) maps to fixed, parameterised queries. The orchestrator classifies intent and fills slots; the LLM never writes SQL or graph queries. This keeps retrieval reproducible and keeps the attack surface small.
@@ -166,7 +166,7 @@ AgentState:
 | Backend / API                | FastAPI on Cloud Run (one service)                         | Modular monolith; clean internal modules                                     |
 | Orchestration                | LangGraph                                                  | Agent graph over typed AgentState + thread-scoped memory                     |
 | LLM + embeddings             | Vertex AI (Gemini + text embeddings)                       | Reasoning/drafting only, from the evidence package                           |
-| Vector + keyword             | Vertex AI Search                                           | Hybrid retrieval (ladder rung L2)                                            |
+| Vector + keyword             | BigQuery + Vertex AI Embeddings (ADR-0026; Vertex AI Search has no India location)                                       | Hybrid retrieval (ladder rung L2)                                            |
 | Knowledge graph              | Spanner Graph (behind GraphRepository)                     | Supersession / amendment / reference chains (rung L3)                        |
 | Metadata + audit + query log | BigQuery                                                   | Canonical IDs, metadata, supersession facts (rungs L0–L1), audit + analytics |
 | Relational + authz + memory  | Cloud SQL (Postgres)                                       | RBAC+ABAC tuples; LangGraph checkpointer; row security (Tier 2)              |
@@ -268,7 +268,9 @@ Identity/IAP → API → application → data (row security, §5.8) → document
 
 ### 5.4 Indirect-leakage prevention
 
-Authorization-aware behaviour for existence ("does a restricted file exist?" → neither confirm nor deny), count (count only authorised documents), summary/aggregation (only over the authorised set, without hinting at exclusions) and comparison/inference (a yes/no can leak). Because the LLM sees only the evidence package, it cannot summarise, count or compare what it was never given; an output guard covers the categories the harness tests.
+Authorization-aware behaviour for existence ("does a restricted file exist?" → neither confirm nor deny; the officer gets one guiding message, below), count (count only authorised documents), summary/aggregation (only over the authorised set, without hinting at exclusions) and comparison/inference (a yes/no can leak). Because the LLM sees only the evidence package, it cannot summarise, count or compare what it was never given; an output guard covers the categories the harness tests.
+
+**What the officer is told (owner decision, 11 Nov 2026; ADR-0016).** A record the officer may not see and a record that does not exist get the same answer — same words, same status code — and that answer points to the proper route: *"This file isn't available to you. If you need it for your work, please request access or approval from the competent authority through e-Office (your section / controlling officer)."* (likewise for a document or receipt). C2-24 never says "restricted" or "not authorised" for a specific record, because that would confirm the record exists; access itself is granted only by the competent authority in e-Office, never by C2-24.
 
 ### 5.5 Prompt-injection defense
 
@@ -288,7 +290,7 @@ As a third layer under compute_scope and can_access, Postgres row-level security
 
 ### 5.9 Fail closed
 
-If the authorization service, scope computation or a re-check errors or times out, the request is denied with a neutral message — never served from an unscoped path.
+If the authorization service, scope computation or a re-check errors or times out, the request is denied with the same neutral, guiding message (§5.4) — never served from an unscoped path.
 
 ## 6. Pillar 2 — Temporal Reasoning & Conflict Detection
 
@@ -646,7 +648,7 @@ For each component: what breaks if it fails, and how the system behaves.
 | Authorization service      | No scope can be computed            | Fail closed: deny with a neutral message                                      |
 | Document AI / extraction   | Documents cannot be read            | Hold in review queue; nothing partial is indexed                              |
 | Canonical ID resolver      | References cannot be matched        | Keep raw text; flag; type A/E checks marked "not verified"                    |
-| Vertex AI Search (L2)      | No semantic retrieval               | L0/L1/L3 still answer; otherwise no-answer policy                             |
+| BigQuery passages / embeddings (L2, ADR-0026)      | No semantic retrieval               | L0/L1/L3 still answer; otherwise no-answer policy                             |
 | Graph store (L3)           | No supersession traversal           | Answer with "supersession status unverified"; no type-A verdict               |
 | Gemini                     | No drafting or hybrid checks        | Return the evidence list and deterministic flags only                         |
 | Citation verifier          | Claims cannot be checked            | Withhold the answer; never show unverified claims                             |
@@ -663,7 +665,7 @@ Two short running logs in docs/decisions/, started in P0, so reviewers can see w
 | **Decision**         | **Chosen**                        | **Considered**                        | **Why**                                                                                        |
 |----------------------|-----------------------------------|---------------------------------------|------------------------------------------------------------------------------------------------|
 | Service shape        | Modular monolith                  | Microservices                         | PoC scale; module boundaries kept for a later split                                            |
-| Hybrid retrieval     | Vertex AI Search                  | BigQuery vector search only           | Managed vector + keyword in one product with metadata filters                                  |
+| Hybrid retrieval     | BigQuery vector + keyword in region (ADR-0026, 14 Nov 2026; originally Vertex AI Search, BigQuery was the alternative)              | BigQuery vector search only           | Managed vector + keyword in one product with metadata filters                                  |
 | Relations store      | Spanner Graph via GraphRepository | BigQuery / Postgres relations table   | Multi-hop chains across departments; swappable by design                                       |
 | Authorization engine | Postgres tuples (simple-first)    | SpiceDB / OpenFGA now                 | Same interface; engine hardened later                                                          |
 | Retrieval control    | Fixed ladder + templates          | LLM-planned or LLM-generated queries  | Reproducible, cheaper, smaller attack surface                                                  |

@@ -1,0 +1,23 @@
+{
+  "file_no": "GAD01-CABN0BR/172/2021-CABINET.II",
+  "computer_no": "4482878",
+  "subject": "GAD – Andhra Pradesh Capital Region Development Authority Repeal Act, 2020 and A.P.Decentralization and inclusive Development of all regions Act, 2020 – Reg.",
+  "department_code": "GAD01",
+  "section": "CABINET-II",
+  "section_label": "General Administration (Cabinet.II) Department",
+  "classification": "UNCLASSIFIED",
+  "status": "decided",
+  "opened": "2021-02-26",
+  "scenario": "GAD01-CLEAN-010",
+  "touchpoints": [
+    6,
+    7,
+    9,
+    14
+  ],
+  "origin": "synthetic",
+  "banner": "Synthetic — not a real government file",
+  "cites": [
+    "AP-GAD01-GOMS-80-2020"
+  ]
+}

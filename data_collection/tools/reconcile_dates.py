@@ -22,6 +22,45 @@ import collect_web as CW
 from common import ROOT  # data root (C2_DC_DATA_ROOT, ADR-0006)
 ST = ROOT / "staging"
 
+# 13 Nov 2026: the own G.O. line of a G.O.(Rt) carries its number too, and some orders print the date in words
+# ("Dated: 10th July, 2023"). Same rule as before: only the order's OWN line, above 'Read', nothing guessed.
+GORT_N = re.compile(r"G\.?\s*[O0]\.?\s*\(?\s*R\.?\s*T\.?\s*\)?\s*\.?\s*N[Oo]\.?\s*:?\s*(\d{1,4})", re.I)
+MONTHS = {m: i for i, m in enumerate(["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov",
+                                      "dec"], 1)}
+DATED_WORDS = re.compile(r"\b(?:Dated|Dt|Date)\s*\.?\s*[:.;]?\s*(\d{1,2})\s*(?:st|nd|rd|th)?\s*[,.]?\s*"
+                         r"([A-Za-z]{3,9})\.?\s*,?\s*((?:19|20)\d{2})", re.I)
+
+
+DATED_DASH = re.compile(r"\b(?:Dated|Dt|Date)\s*\.?\s*[:.;]?\s*-\s*(\d{1,2})\s*[./-]\s*(\d{1,2})\s*[./-]\s*"
+                        r"((?:19|20)\d{2})", re.I)   # "Dated:-14.09.2021"
+
+
+def own_number_match(text, kind, own):
+    """The own-line match with the order's number in group 1 (Ms as before; Rt read with GORT_N)."""
+    if kind == "MS":
+        return own
+    return GORT_N.match(text, own.start()) if own else None
+
+
+def own_date_any(text, own):
+    """CW.own_date, else the same window read for a date in words. Returns an ISO date and the match end."""
+    dm = CW.own_date(text, own)
+    if dm:
+        return CW.iso(dm), dm.end()
+    end = min(own.end() + 120, len(CW.header(text)))
+    dd = DATED_DASH.search(text, own.end(), end)
+    if dd and not re.search(r"G\.?\s*[O0]\.?\s*\(?\s*[MR]", text[own.end():dd.start()]):
+        return CW.iso(dd), dd.end()
+    wm = DATED_WORDS.search(text, own.end(), end)
+    if not wm or re.search(r"G\.?\s*[O0]\.?\s*\(?\s*[MR]", text[own.end():wm.start()]):
+        return None, None
+    mon = MONTHS.get(wm.group(2)[:3].lower())
+    day = int(wm.group(1))
+    if not mon or not 1 <= day <= 31:
+        return None, None
+    return f"{wm.group(3)}-{mon:02d}-{day:02d}", wm.end()
+
+
 def corroborations(cid, number, printed):
     """Second sources for the printed date: web listings whose file name or title carries the same number + date."""
     out = []
@@ -49,6 +88,8 @@ def main():
         if not chosen or chosen[:4] != str(m["date"])[:4]:
             raise SystemExit("refused: no such date recorded, or the year would change (canonical ID) — handle by hand")
         m.update({"date": chosen, "date_source": f"verified_{a.as_}", "date_verification_status": "verified"})
+        if m.get("effective_from_source") in (None, "assumed_issue_date"):  # assumed effective date follows the date
+            m.update({"effective_from": chosen, "effective_from_source": "assumed_issue_date"})
         mp.write_text(json.dumps(m, ensure_ascii=False, indent=2)); print("verified", a.verify, chosen); return
     rows, stats = [], {}
     for mp in sorted((ST / "rule-library").rglob("meta.json")):
@@ -61,11 +102,12 @@ def main():
         printed = ev = None
         if text and m.get("instrument") in ("G.O.(Ms)", "G.O.(Rt)"):
             kind, own = CW.own_line(text)
-            if own and (kind == "MS") == (m["instrument"] == "G.O.(Ms)") and own.re is CW.GOMS and \
+            own = own_number_match(text, kind, own) if own else None
+            if own and (kind == "MS") == (m["instrument"] == "G.O.(Ms)") and \
                     int(own.group(1)) == int(m.get("number") or -1):
-                dm = CW.own_date(text, own); printed = CW.iso(dm)
-                if dm: ev = {"method": m.get("ocr_source") or "text layer", "page": 1,
-                             "text": re.sub(r"\s+", " ", text[own.start():dm.end()])[:120]}
+                printed, end = own_date_any(text, own)
+                if printed: ev = {"method": m.get("ocr_source") or "text layer", "page": 1,
+                                  "text": re.sub(r"\s+", " ", text[own.start():end])[:120]}
         upd = {"printed_date": printed, "archive_date": archive, "date_evidence": ev}
         if not printed:
             upd.update(date_source="archive_metadata", date_mismatch=None, date_verification_status="printed_unreadable")

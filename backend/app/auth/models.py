@@ -137,8 +137,8 @@ class Scope(_Frozen):
         rank = self.classification_ranks.get(doc.classification)
         if rank is None:
             return False
-        if rank == self.public_rank:
-            return True
+        if rank == self.public_rank and doc.file_no is None:
+            return True  # a published instrument; papers inside an e-File are never public
         if doc.department != self.department or rank > self.max_rank:
             return False
         return (

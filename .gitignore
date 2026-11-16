@@ -4,7 +4,7 @@ aenv/
 venv/
 env/
 
-# Secrets
+# Secrets — never commit
 .env
 *.key
 *.pem
@@ -14,6 +14,8 @@ service-account*.json
 # Python
 __pycache__/
 *.pyc
+*.pyo
+*.egg-info/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
@@ -27,11 +29,25 @@ build/
 
 # OS / editors
 .DS_Store
+Thumbs.db
 .idea/
 .vscode/
+*.swp
+*.swo
+*~
 
 # Never commit real department data
 data/real/
 
 # Data collection (ADR-0006): machine-specific data path; the corpus itself lives outside the repo
 data_collection/local.env
+
+# GCP setup (infrastructure/gcp): project config and command output stay local
+infrastructure/gcp/config.env
+infrastructure/gcp/*.out.txt
+
+# temporary hand-over files; safe to delete
+_to_delete/
+
+# Antigravity / agent workspace (never commit agent scratch files)
+.gemini/

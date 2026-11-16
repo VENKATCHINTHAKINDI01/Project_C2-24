@@ -40,6 +40,8 @@ dev = [
     "ruff>=0.6",
     "mypy>=1.11",
     "types-PyYAML>=6.0",
+    "duckdb>=1.1",        # runs the BigQuery rung templates in tests (no cloud needed)
+    "fakeredis>=2.26",    # Redis cache tests without a server (ADR-0035)
 ]
 
 [tool.uv]

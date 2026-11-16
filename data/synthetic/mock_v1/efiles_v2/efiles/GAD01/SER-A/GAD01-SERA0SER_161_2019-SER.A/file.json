@@ -1,0 +1,34 @@
+{
+  "file_no": "GAD01-SERA0SER/161/2019-SER.A",
+  "computer_no": "4395769",
+  "subject": "APPSC – Introduction of computer based examination – Memorandum of Understanding (MOU) with A.P. Online by A.P. Public Service Commission – Administrative sanction – Accorded – Reg.",
+  "department_code": "GAD01",
+  "section": "SER-A",
+  "section_label": "General Administration (Ser.A) Department",
+  "classification": "UNCLASSIFIED",
+  "status": "decided",
+  "opened": "2019-12-04",
+  "scenario": "GAD01-E-051",
+  "touchpoints": [
+    10,
+    11,
+    15,
+    18
+  ],
+  "origin": "synthetic",
+  "banner": "Synthetic — not a real government file",
+  "cites": [
+    "AP-GAD01-GOMS-16-2013"
+  ],
+  "consultations": [
+    {
+      "with": "FIN",
+      "uo_no": "FIN01-FMU0MISC/191/2019-FMU-GAD-I",
+      "department": "Finance (FMU-GAD-I)",
+      "sent": "2019-12-10",
+      "returned": "2019-12-19",
+      "conditional": true,
+      "correspondence": "R-002.md"
+    }
+  ]
+}

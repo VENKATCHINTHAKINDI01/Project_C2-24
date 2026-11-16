@@ -1,0 +1,1 @@
+{"prompt": "conflict_contradiction.v2", "model": "gemini-3.5-flash", "response": {"verdict": "contradiction", "quote_a": "A TET certificate is valid for seven years from the date of the result.", "quote_b": "A TET certificate is valid for life.", "explanation": "The documents contradict each other on the validity period of a Teacher Eligibility Test (TET) certificate."}}

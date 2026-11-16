@@ -1,0 +1,24 @@
+{
+  "file_no": "GAD01-SERA0SER/152/2018-SER.A",
+  "computer_no": "4324498",
+  "subject": "Postings of Special Grade Deputy Collectors — proposal from a district – Reg.",
+  "department_code": "GAD01",
+  "section": "SER-A",
+  "section_label": "General Administration (Ser.A) Department",
+  "classification": "UNCLASSIFIED",
+  "status": "open",
+  "opened": "2018-02-04",
+  "scenario": "GAD01-C-HC2",
+  "touchpoints": [
+    6,
+    9,
+    10,
+    11,
+    13
+  ],
+  "origin": "synthetic",
+  "banner": "Synthetic — not a real government file",
+  "cites": [
+    "AP-GAD01-GOMS-74-2017"
+  ]
+}

@@ -1,0 +1,81 @@
+{
+ "summary": {
+  "officers": 21,
+  "files": 203,
+  "checks": 64008,
+  "disclosures": 0,
+  "controls_seen": 833,
+  "pass": true
+ },
+ "paths": {
+  "sandbox: file list": {
+   "checks": 21,
+   "disclosures": 0
+  },
+  "sandbox: receipt list": {
+   "checks": 21,
+   "disclosures": 0
+  },
+  "assist: notices": {
+   "checks": 21,
+   "disclosures": 0
+  },
+  "sandbox: open file": {
+   "checks": 4263,
+   "disclosures": 0
+  },
+  "assist: search by subject": {
+   "checks": 4263,
+   "disclosures": 0
+  },
+  "assist: ask (evidence package)": {
+   "checks": 4263,
+   "disclosures": 0
+  },
+  "assist: chat": {
+   "checks": 4263,
+   "disclosures": 0
+  },
+  "assist: chat follow-up + draft": {
+   "checks": 4263,
+   "disclosures": 0
+  },
+  "assist: reference by file number": {
+   "checks": 4263,
+   "disclosures": 0
+  },
+  "assist: presend": {
+   "checks": 4263,
+   "disclosures": 0
+  },
+  "assist: file-so-far": {
+   "checks": 4263,
+   "disclosures": 0
+  },
+  "assist: link-suggestions": {
+   "checks": 4263,
+   "disclosures": 0
+  },
+  "assist: first-cut": {
+   "checks": 4263,
+   "disclosures": 0
+  },
+  "assist: dfa": {
+   "checks": 4263,
+   "disclosures": 0
+  },
+  "assist: brief": {
+   "checks": 4263,
+   "disclosures": 0
+  },
+  "assist: note reference": {
+   "checks": 4263,
+   "disclosures": 0
+  },
+  "assist: document by identifier": {
+   "checks": 8526,
+   "disclosures": 0
+  }
+ },
+ "disclosures": []
+}

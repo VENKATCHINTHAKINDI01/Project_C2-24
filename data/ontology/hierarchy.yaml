@@ -1,14 +1,27 @@
-# AP administrative instrument hierarchy (plan §4.5).
-# WORKING ASSUMPTION — [To confirm] with the department (CLAUDE.md §5.9). Lower level = higher authority.
-version: "2026-10-13-draft"
-status: draft
+# AP administrative instrument hierarchy (plan §4.5; ADR-0027).
+# MOCK by owner decision (14 Nov 2026): built from public sources, NOT confirmed by the department.
+# Lower level = higher authority. Kept configurable (CLAUDE.md §5.9).
+# Sources (read 14 Nov 2026):
+#   CONST  Constitution of India, Arts. 162, 166, 245, 309 (executive power; orders in the Governor's name; rules
+#          under the proviso to Art. 309) — the settled position that executive instructions cannot override an
+#          Act or statutory rules, but may fill gaps
+#   APCOM  AP training note "Forms of communication" (etcsrikalahasti.ap.gov.in/assets/pdf/Commn.pdf), after the
+#          District Office Manual: Notification publishes rules and orders made under enactments; Proceedings are
+#          the final order of a competent authority; a Memo is "not for conveying any order of the govt"; a
+#          Circular is a memo-style communication to several addressees
+#   CSMOP  Central Secretariat Manual of Office Procedure, para 28 (Office Order = internal administration)
+# Placing G.O. (Ms) above G.O. (Rt) is office practice (Ms = orders of general, lasting effect; Rt = routine),
+# not a legal rule: both are Government orders. [To confirm]
+version: "2026-11-14-mock"
+status: mock
 levels:
-  - {level: 1, instrument: CONSTITUTION, label: "Constitution"}
-  - {level: 2, instrument: ACT, label: "Central / State Act"}
-  - {level: 3, instrument: RULES, label: "Statutory Rules"}
-  - {level: 4, instrument: GO_MS, label: "G.O. (Ms)"}
-  - {level: 5, instrument: GO_RT, label: "G.O. (Rt)"}
-  - {level: 6, instrument: STANDING_ORDER, label: "Standing Order"}
-  - {level: 7, instrument: CIRCULAR_MEMO, label: "Circular / Memo"}
-  - {level: 8, instrument: OFFICE_ORDER, label: "Office Order / Office Memorandum"}
-  - {level: 9, instrument: DECISION_NOTING, label: "Decision / Noting"}
+  - {level: 1, instrument: CONSTITUTION, label: "Constitution", basis: CONST}
+  - {level: 2, instrument: ACT, label: "Central / State Act, Ordinance", basis: CONST}
+  - {level: 3, instrument: RULES, label: "Statutory Rules / Regulations (published by Notification)", basis: "CONST, APCOM"}
+  - {level: 4, instrument: GO_MS, label: "G.O. (Ms)", basis: "CONST; Ms above Rt = assumption"}
+  - {level: 5, instrument: GO_RT, label: "G.O. (Rt)", basis: "CONST; Ms above Rt = assumption"}
+  - {level: 6, instrument: STANDING_ORDER, label: "Standing Order", basis: assumption}
+  - {level: 7, instrument: PROCEEDINGS, label: "Proceedings of a Head of Department / competent authority", basis: APCOM}
+  - {level: 8, instrument: CIRCULAR_MEMO, label: "Circular / Memo / U.O. Note", basis: APCOM}
+  - {level: 9, instrument: OFFICE_ORDER, label: "Office Order / Office Memorandum", basis: CSMOP}
+  - {level: 10, instrument: DECISION_NOTING, label: "Decision / Noting", basis: assumption}

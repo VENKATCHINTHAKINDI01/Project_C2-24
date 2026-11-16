@@ -1,0 +1,23 @@
+{
+  "file_no": "FIN01-HRPLG0REC/87/2016-HR.I",
+  "computer_no": "3709763",
+  "subject": "Direct recruitment — notification issued by a department on its own – Reg.",
+  "department_code": "FIN01",
+  "section": "HR-I",
+  "section_label": "Finance (HR.I-Plg. & Policy) Department",
+  "classification": "UNCLASSIFIED",
+  "status": "open",
+  "opened": "2016-11-15",
+  "scenario": "FIN01-C-HC2",
+  "touchpoints": [
+    6,
+    10,
+    11,
+    13
+  ],
+  "origin": "synthetic",
+  "banner": "Synthetic — not a real government file",
+  "cites": [
+    "AP-FIN01-GOMS-110-2016"
+  ]
+}

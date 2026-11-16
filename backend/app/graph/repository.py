@@ -84,6 +84,24 @@ class GraphRepository(Protocol):
         ...
 
 
+@runtime_checkable
+class WalkableGraph(Protocol):
+    """What the ladder's L3 rung needs: node tags (for the re-check) and the scoped walk."""
+
+    def node(self, cid: str) -> GraphNode | None: ...
+
+    def walk(
+        self,
+        seeds: Iterable[str],
+        scope: Scope,
+        *,
+        kinds: frozenset[EdgeKind],
+        direction: Direction,
+        max_hops: int,
+        include_unconfirmed: bool = False,
+    ) -> list[GraphHit]: ...
+
+
 class InMemoryGraphRepository:
     """Reference GraphRepository (mock / tests)."""
 
@@ -106,6 +124,13 @@ class InMemoryGraphRepository:
                 for e in bucket[key]
                 if (e.source, e.kind, e.target) != (edge.source, edge.kind, edge.target)
             } | {edge}
+
+    def edges(self) -> list[GraphEdge]:
+        """Every edge, in a stable order (export / batch load; no scope: not a retrieval path)."""
+        return sorted(
+            {e for bucket in self._out.values() for e in bucket},
+            key=lambda e: (e.source, e.kind.value, e.target),
+        )
 
     def _visible(self, cid: str, scope: Scope) -> bool:
         node = self._nodes.get(cid)

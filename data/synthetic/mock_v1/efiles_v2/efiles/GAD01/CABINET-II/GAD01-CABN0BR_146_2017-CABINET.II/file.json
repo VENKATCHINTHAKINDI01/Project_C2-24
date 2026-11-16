@@ -1,0 +1,24 @@
+{
+  "file_no": "GAD01-CABN0BR/146/2017-CABINET.II",
+  "computer_no": "4276984",
+  "subject": "Corporate bodies for tourism and culture — allocation query – Reg.",
+  "department_code": "GAD01",
+  "section": "CABINET-II",
+  "section_label": "General Administration (Cabinet.II) Department",
+  "classification": "UNCLASSIFIED",
+  "status": "open",
+  "opened": "2017-03-22",
+  "scenario": "GAD01-C-HC5",
+  "touchpoints": [
+    3,
+    6,
+    10,
+    11,
+    13
+  ],
+  "origin": "synthetic",
+  "banner": "Synthetic — not a real government file",
+  "cites": [
+    "AP-GAD01-GOMS-32-2017"
+  ]
+}

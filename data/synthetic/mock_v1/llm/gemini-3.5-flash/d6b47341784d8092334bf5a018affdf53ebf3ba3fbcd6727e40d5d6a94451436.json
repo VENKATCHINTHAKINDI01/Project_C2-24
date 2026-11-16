@@ -1,0 +1,1 @@
+{"prompt": "conflict_contradiction.v1", "model": "gemini-3.5-flash", "response": {"verdict": "insufficient", "quote_a": "", "quote_b": "", "explanation": "Document A does not contain the eligibility criteria regarding the minimum years of service required for a teacher to apply for transfer, making it impossible to determine if there is a contradiction with Document B."}}

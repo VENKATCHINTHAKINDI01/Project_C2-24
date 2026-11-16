@@ -1,0 +1,23 @@
+{
+  "file_no": "FIN01-HRPEN0PEN/100/2018-HR.III",
+  "computer_no": "3812710",
+  "subject": "PENSIONS – Retirement Gratuity - Enhancement of maximum limit of Retirement Gratuity from Rs.8,00,000/- to Rs.10,00,000/ – Reg.",
+  "department_code": "FIN01",
+  "section": "HR-III",
+  "section_label": "Finance (HR.III-Pension & GPF) Department",
+  "classification": "RESTRICTED",
+  "status": "decided",
+  "opened": "2018-06-09",
+  "scenario": "FIN01-E-055",
+  "touchpoints": [
+    4,
+    10,
+    11,
+    15
+  ],
+  "origin": "synthetic",
+  "banner": "Synthetic — not a real government file",
+  "cites": [
+    "AP-FIN01-GOMS-51-2011"
+  ]
+}

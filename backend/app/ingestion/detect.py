@@ -12,14 +12,22 @@ origin is not trusted as exact text. Unsupported or unreadable files go to the r
 from __future__ import annotations
 
 import csv
+import hashlib
 import io
+import json
+import re
+import threading
 import zipfile
+from collections import OrderedDict
 from enum import StrEnum
 from pathlib import Path
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict
-from pypdf import PdfReader
+from pypdf import PageObject, PdfReader
+from pypdf import __version__ as pypdf_version
 from pypdf.errors import PdfReadError
+from pypdf.generic import DictionaryObject, StreamObject
 
 
 class Kind(StrEnum):
@@ -114,14 +122,130 @@ def _sniff(data: bytes) -> Kind:
     return Kind.TXT
 
 
-def _pdf_pages(data: bytes) -> tuple[PageKind, ...]:
+_SCANS: OrderedDict[bytes, tuple[tuple[str, bool], ...]] = OrderedDict()
+_SCANS_MAX = 32  # recent files only: keyed by digest, so the file bytes are not kept alive
+_SCANS_LOCK = threading.Lock()
+
+
+def pdf_scan(data: bytes) -> tuple[tuple[str, bool], ...]:
+    """(text layer, carries an image) for each page of a PDF, read once per file.
+
+    Detection, native extraction and the metadata rules all need a PDF's page texts; pypdf's
+    text extraction is the slowest step of ingestion, so a file's pages are read once and the
+    result reused while the same bytes are being ingested (the sandbox build read every PDF
+    three times). Pure: the same bytes always give the same answer."""
+    key = hashlib.sha256(data).digest()
+    with _SCANS_LOCK:
+        if key in _SCANS:
+            _SCANS.move_to_end(key)
+            return _SCANS[key]
+    scan = _saved_scan(key) or _read_pdf(data)
+    with _SCANS_LOCK:
+        _SCANS[key] = scan
+        while len(_SCANS) > _SCANS_MAX:
+            _SCANS.popitem(last=False)
+    return scan
+
+
+_INLINE_IMAGE = re.compile(rb"(?:^|[\s\]\)>}])BI[\s/]")
+
+
+def _xobject_image(obj: Any, seen: set[Any]) -> bool:
+    """An image XObject in these resources or in any form inside them — the same set pypdf's
+    `page.images` lists, without parsing the content stream."""
+    if "/Resources" not in obj:
+        return False
+    res = obj["/Resources"]
+    res = res.get_object() if res is not None else None
+    if not isinstance(res, DictionaryObject) or "/XObject" not in res:
+        return False
+    xo = res["/XObject"].get_object()
+    if not isinstance(xo, DictionaryObject):
+        return False
+    for name in xo:
+        entry = xo[name]
+        if not isinstance(entry, StreamObject):
+            continue
+        if entry.get("/Subtype", "") == "/Image":
+            return True
+        ref = entry.indirect_reference
+        if ref is not None and ref in seen:
+            continue
+        seen.add(ref)
+        if _xobject_image(entry, seen):
+            return True
+    return False
+
+
+def _has_image(page: PageObject) -> bool:
+    """Whether `page.images` would list anything (detection result unchanged), at a fraction of
+    the cost: listing images makes pypdf parse the whole content stream a second time. Only a
+    page whose content may hold an inline image (a `BI` operator) is asked the slow way."""
+    try:
+        if _xobject_image(page, {page.indirect_reference}):
+            return True
+        content = page.get_contents()
+        raw = content.get_data() if content is not None else b""
+        return bool(_INLINE_IMAGE.search(raw)) and len(page.images) > 0
+    except ImportError:
+        # pypdf needs an image library to list inline images; one is there, so the page is
+        # treated as carrying an image (it goes to OCR rather than being trusted as text)
+        return True
+
+
+def _read_pdf(data: bytes) -> tuple[tuple[str, bool], ...]:
     reader = PdfReader(io.BytesIO(data))
     if reader.is_encrypted:
         raise PdfReadError("encrypted PDF")
+    return tuple((page.extract_text() or "", _has_image(page)) for page in reader.pages)
+
+
+# Saved page reads (ADR-0028 addendum 2): the graph job writes `<sha256>.json` for every public
+# order it reads; the sandbox service reads them (read-only mount) instead of parsing the same
+# PDFs again at every cold start. A saved read is used only if it was made by the same pypdf
+# version — then it is exactly what parsing would give — and is keyed by the file's own hash.
+SCAN_FORMAT = 1
+_SCAN_DIR: Path | None = None
+
+
+def use_saved_scans(directory: Path | None) -> None:
+    global _SCAN_DIR  # noqa: PLW0603 — process-wide setting made once at startup
+    _SCAN_DIR = directory
+
+
+def scan_record(data: bytes) -> tuple[str, dict[str, Any]]:
+    """File name and content of a saved read of this PDF (for the graph job to write)."""
+    pages = pdf_scan(data)
+    return f"{hashlib.sha256(data).hexdigest()}.json", {
+        "format": SCAN_FORMAT,
+        "pypdf": pypdf_version,
+        "pages": [[t, im] for t, im in pages],
+    }
+
+
+def _saved_scan(key: bytes) -> tuple[tuple[str, bool], ...] | None:
+    if _SCAN_DIR is None:
+        return None
+    path = _SCAN_DIR / f"{key.hex()}.json"
+    try:
+        rec = json.loads(path.read_text("utf-8"))
+    except (OSError, ValueError):
+        return None  # not saved (or unreadable): parse the PDF as usual
+    if rec.get("format") != SCAN_FORMAT or rec.get("pypdf") != pypdf_version:
+        return None
+    pages = rec.get("pages")
+    if not isinstance(pages, list) or not all(
+        isinstance(p, list) and len(p) == 2 and isinstance(p[0], str) and isinstance(p[1], bool)
+        for p in pages
+    ):
+        return None
+    return tuple((str(t), bool(im)) for t, im in pages)
+
+
+def _pdf_pages(data: bytes) -> tuple[PageKind, ...]:
     out = []
-    for page in reader.pages:
-        has_text = bool((page.extract_text() or "").strip())
-        has_image = len(page.images) > 0
+    for text, has_image in pdf_scan(data):
+        has_text = bool(text.strip())
         out.append(
             PageKind.TEXT_AND_IMAGE
             if has_text and has_image

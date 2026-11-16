@@ -1,0 +1,52 @@
+[
+ {
+  "name": "action_id",
+  "type": "STRING",
+  "mode": "REQUIRED"
+ },
+ {
+  "name": "ts",
+  "type": "TIMESTAMP",
+  "mode": "REQUIRED"
+ },
+ {
+  "name": "user_id",
+  "type": "STRING",
+  "mode": "REQUIRED"
+ },
+ {
+  "name": "query_id",
+  "type": "STRING",
+  "mode": "REQUIRED"
+ },
+ {
+  "name": "target_kind",
+  "type": "STRING",
+  "mode": "REQUIRED"
+ },
+ {
+  "name": "target_ids",
+  "type": "STRING",
+  "mode": "REPEATED"
+ },
+ {
+  "name": "action",
+  "type": "STRING",
+  "mode": "REQUIRED"
+ },
+ {
+  "name": "reason",
+  "type": "STRING",
+  "mode": "NULLABLE"
+ },
+ {
+  "name": "flag_type",
+  "type": "STRING",
+  "mode": "NULLABLE"
+ },
+ {
+  "name": "edit_share",
+  "type": "FLOAT64",
+  "mode": "NULLABLE"
+ }
+]

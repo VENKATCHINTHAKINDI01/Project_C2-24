@@ -138,3 +138,27 @@ def test_forbidden_citations_are_neither_checked_nor_named() -> None:
 def test_unknown_user_fails_closed_to_review() -> None:
     rep = _run("D27", "U99")
     assert rep.outcome is PreSendOutcome.REVIEW_NEEDED and rep.flags == ()
+
+
+def test_an_order_cited_twice_gives_one_flag() -> None:
+    """A note naming the same order in its Ref list and a para (efiles_v2 FIN 130/2023) gave the
+    same type F flag twice."""
+    did, uid = next((c["in"], "U01") for c in CONFLICTS if c["type"] in ("A", "F"))
+    text, meta = _note(did)
+    twice = meta.model_copy(update={"references": meta.references * 2})
+    rep = presend_check(
+        IDX[did]["canonical_id"],
+        text,
+        twice,
+        user_id=uid,
+        instruments=INSTRUMENTS,
+        relations=list(RELS),
+        tags_of=TAGS,
+        rules=RULES,
+        store=new_store(),
+        policy=POLICY,
+        classification=CLASSES,
+        windows=WINDOWS,
+    )
+    keys = [(f.type, f.cited, f.explanation) for f in rep.flags]
+    assert keys and len(keys) == len(set(keys))

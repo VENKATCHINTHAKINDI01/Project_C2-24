@@ -1,0 +1,87 @@
+# Procedure / authority rules for conflict type C on synthetic set v2 (plan §6.2; ADR-0010 addendum 13 Nov 2026).
+# TESTING ONLY (status: mock). Unlike authority_rules.yaml (invented mock_v1 orders), every rule here quotes a REAL
+# public order in the corpus. They are still unverified: nobody has checked that these are all the rules for the
+# action, that none was later changed, or that the reading is right. So coverage is not declared and every flag is
+# an uncertain "prompt to check" (ADR-0010 points 4-6). Loaded when C2_SANDBOX_SEED=v2.
+# Caveat for evaluation: the v2 type C files were written from these same orders, so recall on them shows that
+# rules are applied correctly, not that the system can find rules by itself.
+version: "2026-11-13-v2-unverified"
+status: mock
+
+coverage: []
+
+authorities:
+  - {code: TRANSFER_COMMITTEE, label: "the Transfer Committee concerned (orders issue only with its approval)", aliases: ["Committee"]}
+  - {code: DEO, label: "the District Educational Officer", aliases: ["District Educational Officer"]}
+  - {code: RJD, label: "the Regional Joint Director of School Education", aliases: ["Regional Joint Director of School Education", "Regional Joint Director"]}
+  - {code: CSE, label: "the Commissioner of School Education", aliases: ["Commissioner of School Education"]}
+  - {code: GAD, label: "the General Administration Department", aliases: ["General Administration Department", "General Administration (SC.A) Department"]}
+  - {code: REVENUE, label: "the Revenue Department", aliases: ["Revenue Department"]}
+  - {code: HOUSING, label: "the Housing Department", aliases: ["Housing Department"]}
+  - {code: MAUD, label: "the Municipal Administration & Urban Development Department", aliases: ["Municipal Administration & Urban Development Department", "Municipal Administration and Urban Development Department", "MA&UD Department"]}
+  - {code: YATC, label: "the Youth Advancement, Tourism and Culture Department", aliases: ["Youth Advancement, Tourism and Culture Department"]}
+  - {code: APPSC, label: "the A.P. Public Service Commission", aliases: ["A.P. Public Service Commission", "Andhra Pradesh Public Service Commission", "APPSC"]}
+  - {code: SLPRB, label: "the A.P. State Level Police Recruitment Board", aliases: ["State Level Police Recruitment Board", "SLPRB"]}
+  - {code: HOD, label: "the Head of the Department", aliases: ["Head of the Department", "Head of Department"]}
+  - {code: PLANNING, label: "the Planning Department", aliases: ["Planning Department"]}
+
+concurrences: []
+post_levels: {}
+
+rules:
+  - id: ESE-TEACHER-TRANSFER-2025
+    action: transfer
+    departments: [ESE01]
+    subject_terms: ["teacher", "headmaster"]
+    competent: [TRANSFER_COMMITTEE]
+    effective_from: 2025-05-20
+    sources:
+      - {id: "AP-ESE01-GOMS-22-2025#para-5", text: "The Competent authority concerned shall issue transfer and posting orders based on the final list generated of the web options exercised by the Headmasters (Gr.II)/Teachers after approval of the concerned Committee."}
+      - {id: "AP-ESE01-GOMS-22-2025#para-4.ii", text: "The Committee shall be the competent authority for transfer of all the Headmasters (Gr.II) in ZP High Schools in the District"}
+
+  - id: FIN-NO-ADDITIONAL-FUNDS-H1-2016
+    action: reappropriation
+    departments: [FIN01]
+    barred: {from_month_day: "04-01", to_month_day: "09-30"}     # first two quarters of the financial year
+    effective_from: 2016-04-01
+    effective_until: 2017-03-31       # budget release order for 2016-17 [To confirm: not read as a standing rule]
+    sources:
+      # the PDF text layer prints "additi onal"; quoted here as it reads on the page
+      - {id: "AP-FIN01-GOMS-51-2016#para-11", text: "no request for additional funds or re-appropriation will be entertained in the first two quarters of the financial year."}
+
+  - id: FIN-DIRECT-RECRUITMENT-AGENCIES-2016
+    action: recruitment
+    departments: [FIN01]
+    subject_terms: ["direct recruitment"]
+    competent: [APPSC, SLPRB]
+    effective_from: 2016-06-17
+    sources:
+      - {id: "AP-FIN01-GOMS-110-2016#para-3", text: "These agencies are hereby instructed to issue schedule for recruitment expeditiously and issue notification accordingly."}
+      - {id: "AP-FIN01-GOMS-110-2016#para-2", text: "Of these 4009 posts come under the purview of A.P. Public Service Commission and 5991 posts come under the purview of A.P State Level Police Recruitment Board"}
+
+  - id: GAD-DEPUTY-COLLECTORS-2017
+    action: transfer
+    departments: [GAD01]
+    subject_terms: ["Deputy Collector"]
+    competent: [GAD]
+    effective_from: 2017-06-14
+    sources:
+      - {id: "AP-GAD01-GOMS-74-2017#para-1", text: "transferring the subject matter of “Transfers and Postings of Deputy Collectors and Special Grade Deputy Collectors” from the Revenue Department to the General Administration (SC.A) Department."}
+
+  - id: GAD-BR-HOUSING-BODIES-2017
+    action: business_allocation
+    departments: [GAD01]
+    subject_terms: ["Rajiv Swagruha", "State Housing Board", "Deccan Infrastructure"]
+    competent: [MAUD]
+    effective_from: 2017-08-04
+    sources:
+      - {id: "AP-GAD01-GOMS-99-2017#para-1", text: "presently under the administrative control of the Housing Department, into the administration control of the Municipal Administration & Urban Development Department"}
+
+  - id: GAD-BR-TOURISM-CULTURE-HERITAGE-2017
+    action: business_allocation
+    departments: [GAD01]
+    subject_terms: ["tourism", "heritage"]
+    competent: [YATC]
+    effective_from: 2017-03-10
+    sources:
+      - {id: "AP-GAD01-GOMS-32-2017#para-2", text: "All corporate bodies created in relation to Tourism, Culture and Heritage"}

@@ -91,12 +91,16 @@ def parse_description(desc: str) -> dict:
     return out
 
 
-def find_cited(path: str, base_q: str, scope: dict, pause: float) -> list[dict]:
+def find_cited(path: str, base_q: str, scope: dict, pause: float, in_scope_depth2: bool = False) -> list[dict]:
     """Look up orders listed in missing.txt (e.g. AP-FIN01-GOMS-98-2024) by department + year,
     matching the order number in the search result's description - no metadata fetch per record."""
     import pathlib
     latest = str(scope.get("archive_latest") or "9999")
-    mpath = pathlib.Path(path)
+    mpath = pathlib.Path(path).expanduser()
+    if not mpath.is_absolute() and not mpath.exists():  # "staging/..." means inside the data root, as in other tools
+        mpath = STAGING.parent / mpath
+    if not mpath.exists():
+        sys.exit(f"{path} not found (looked in the current folder and in the data root {STAGING.parent})")
     metas = list(STAGING.glob("rule-library/*/*/*/*/meta.json"))
     if metas and max(m.stat().st_mtime for m in metas) > mpath.stat().st_mtime:
         sys.exit("missing.txt is older than the newest collected order - run "
@@ -109,11 +113,18 @@ def find_cited(path: str, base_q: str, scope: dict, pause: float) -> list[dict]:
     allowed = None
     rel = mpath.parent / "relations.jsonl"
     if rel.exists():
-        allowed = {e["to"] for e in map(json.loads, rel.read_text().splitlines())
-                   if e.get("to") and via.get(e["from"], "topic") != "cited"}
+        edges = [e for e in map(json.loads, rel.read_text().splitlines()) if e.get("to")]
+        allowed = {e["to"] for e in edges if via.get(e["from"], "topic") != "cited"}
+        if in_scope_depth2:  # owner request 12 Nov 2026: one more level, but only for in-scope G.O.(Ms) targets
+            depts = set(scope.get("departments", {}))
+            y0, y1 = str(scope["from_date"])[:4], str(scope["to_date"])[:4]
+            for e in edges:
+                m2 = re.fullmatch(r"AP-([A-Z]{2,6}\d{2})-GOMS-\d+-(\d{4})", e["to"])
+                if m2 and m2.group(1) in depts and y0 <= m2.group(2) <= y1:
+                    allowed.add(e["to"])
     want: dict[tuple, set] = {}
     skipped_depth = 0
-    for line in open(path):
+    for line in open(mpath):
         m = re.fullmatch(r"AP-([A-Z]{2,6}\d{2})-(GOMS|GORT)-(\d+)-(\d{4})", line.strip())
         if not m or m.group(4) > latest[:4]:
             continue
@@ -212,6 +223,9 @@ def main():
     ap.add_argument("--no-text-filter", action="store_true", help="do not add the department code to the query")
     ap.add_argument("--all-types", action="store_true", help="ignore scope.order_types (keep Ms and Rt)")
     ap.add_argument("--all-topics", action="store_true", help="ignore scope.keep_topics")
+    ap.add_argument("--in-scope-depth2", action="store_true",
+                    help="with --cited: also follow citations made by cited orders, but only to G.O.(Ms) of the "
+                         "scope departments within from_date..to_date (one extra level, nothing older)")
     ap.add_argument("--cited", metavar="MISSING_TXT",
                     help="fetch orders that collected orders cite (staging/manifests/missing.txt); "
                          "bypasses the topic and type filters")
@@ -255,7 +269,7 @@ def main():
     docs = search(q, a.limit, fields=("identifier", "title", "date", "description"))
     if a.cited:
         base = f"collection:andhra-goir AND identifier:{PREFIX['go']}*"
-        targets = find_cited(a.cited, base, scope, pause)
+        targets = find_cited(a.cited, base, scope, pause, in_scope_depth2=a.in_scope_depth2)
         docs, want_kinds, topics, a.dept = iter(targets), None, None, None
         a.limit = len(targets)
     kept = seen = skipped = skip_type = skip_topic = 0

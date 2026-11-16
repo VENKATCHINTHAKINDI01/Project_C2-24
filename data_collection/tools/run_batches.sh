@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Collect FIN01, GAD01, ESE01 for 2018–2025 from the archive mirror, then the orders they cite (depth 1).
+# Collect FIN01, GAD01, ESE01 for 2016–2025 (YEARS="2017 2016" for a subset) from the archive mirror, then the orders they cite (depth 1).
 # Usage:   bash data_collection/tools/run_batches.sh   # TEST MODE: 2 new orders per dept-year
 #          bash tools/run_batches.sh ESE01           # one department
 #          LIMIT=20 bash tools/run_batches.sh GAD01  # fewer orders per year
@@ -26,15 +26,34 @@ if [ "${FULL:-0}" = "1" ]; then LIMIT=${LIMIT:-60}; else LIMIT=${LIMIT:-2}; echo
 DEPTS=${*:-FIN01 GAD01 ESE01}
 mkdir -p logs
 
+# Network guard (12 Nov 2026: a network cut mid-run made every later request fail with an SSL error
+# and the script raced through the remaining years). Before each step, wait until archive.org answers
+# with a valid certificate, up to 60 minutes; a step that fails is retried once after the network is back.
+net_ok() { "$PY" -c 'import requests,sys; requests.head("https://archive.org/", timeout=20); sys.exit(0)' >/dev/null 2>&1; }
+wait_net() {
+  local n=0
+  until net_ok; do
+    n=$((n+1)); [ "$n" -gt 60 ] && { echo "!! archive.org unreachable for 60 min, stopping; re-run to resume"; exit 2; }
+    [ "$n" -eq 1 ] && echo "!! network down or intercepted (SSL); waiting, checking every 60 s"
+    sleep 60
+  done
+}
+step() {   # step <log> <args...>: run collect_ia once, and once more if it fails (after the network is back)
+  local log="$1"; shift
+  wait_net; "$PY" "$TOOLS"/collect_ia.py "$@" >> "$log" 2>&1 && return 0
+  echo "!! step failed (see $log); retrying once after a network check"
+  wait_net; "$PY" "$TOOLS"/collect_ia.py "$@" >> "$log" 2>&1 || echo "!! step failed twice: $*"
+}
+
 for d in $DEPTS; do
-  for y in 2025 2024 2023 2022 2021 2020 2019 2018; do
+  for y in ${YEARS:-2025 2024 2023 2022 2021 2020 2019 2018 2017 2016}; do
     echo "== $d $y"
-    $PY "$TOOLS"/collect_ia.py --dept "$d" --from "$y-01-01" --to "$y-12-31" --limit "$LIMIT" >> "logs/collect_${d}.log" 2>&1
+    step "logs/collect_${d}.log" --dept "$d" --from "$y-01-01" --to "$y-12-31" --limit "$LIMIT"
     grep -E "^seen" "logs/collect_${d}.log" | tail -1
   done
   echo "== $d: links, then cited orders (depth 1)"
   $PY "$TOOLS"/extract_relations.py staging | head -1
-  $PY "$TOOLS"/collect_ia.py --cited staging/manifests/missing.txt >> "logs/cited_${d}.log" 2>&1
+  step "logs/cited_${d}.log" --cited staging/manifests/missing.txt
   grep -E "^seen" "logs/cited_${d}.log" | tail -1
   $PY "$TOOLS"/extract_relations.py staging | head -1
   $PY "$TOOLS"/validate.py staging 2>/dev/null | tail -1

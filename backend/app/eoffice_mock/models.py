@@ -112,6 +112,8 @@ class DraftStatus(StrEnum):
     APPROVED = "approved"
     SIGNED = "signed"  # simulated click only — no DSC/eSign
     DISPATCHED = "dispatched"
+    CONFIRMED = "confirmed"  # a Yellow Note the officer confirmed: it is now a Green Note
+    DISCARDED = "discarded"  # thrown away by the officer; kept, never shown again
 
 
 class Draft(_Model):
@@ -122,6 +124,8 @@ class Draft(_Model):
     versions: list[NoteVersion]
     created_by_assistant: bool = False
     request_id: str | None = None
+    requested_by: str | None = None  # the officer who clicked Insert / Create (owns the draft)
+    note_id: str | None = None  # the Green Note a confirmed Yellow Note became
 
 
 class Movement(_Model):

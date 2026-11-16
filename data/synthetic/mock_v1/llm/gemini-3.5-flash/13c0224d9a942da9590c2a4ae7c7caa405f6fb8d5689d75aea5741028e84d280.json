@@ -1,0 +1,1 @@
+{"prompt": "conflict_contradiction.v2", "model": "gemini-3.5-flash", "response": {"verdict": "consistent", "quote_a": "", "quote_b": "", "explanation": "The two documents cover different subjects, with Document A addressing direct recruitment for vacant posts and Document B addressing the remuneration of outsourced data entry operators."}}

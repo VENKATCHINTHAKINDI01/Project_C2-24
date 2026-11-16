@@ -1,0 +1,25 @@
+{
+  "file_no": "ESE01-PROG10RTE/52/2023-PROG.I",
+  "computer_no": "3632598",
+  "subject": "School Education – The Andhra Pradesh Right of Children to Free and Compulsory Education Rules 2010 under the provisions of the Right of Children to Free and Co – Reg.",
+  "department_code": "ESE01",
+  "section": "PROGRAM-I",
+  "section_label": "School Education (Prog.I) Department",
+  "classification": "UNCLASSIFIED",
+  "status": "closed",
+  "opened": "2023-09-15",
+  "scenario": "ESE01-CLEAN-076",
+  "touchpoints": [
+    3,
+    6,
+    8,
+    13,
+    16
+  ],
+  "origin": "synthetic",
+  "banner": "Synthetic — not a real government file",
+  "cites": [
+    "AP-ESE01-GOMS-38-2023",
+    "AP-ESE01-GOMS-20-2011"
+  ]
+}

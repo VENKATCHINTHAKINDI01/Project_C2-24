@@ -12,18 +12,24 @@ from pathlib import Path
 from typing import Any
 
 from app.agents.brief import approval_brief
+from app.agents.dfa import draft_for_approval
+from app.agents.first_cut import first_cut_note
 from app.agents.intents import RELATED, Intent, IntentSlots, build_request
+from app.agents.local_reference import local_reference
 from app.agents.receipts import review_receipt
-from app.agents.tools import ToolContext
+from app.agents.tools import ToolContext, ToolName, call_tool
+from app.auth.policy import check
 from app.auth.store import InMemoryAuthzStore
 from app.config import load_hierarchy
+from app.conflict.facts import extract_proposal_facts
 from app.conflict.presend import PreSendReport, presend_check
 from app.conflict.procedural import AuthorityRules, load_authority_rules
-from app.connectors.eoffice import ReceiptContext
+from app.connectors.eoffice import FileContext, NoteRef, PageRef, ReceiptContext
 from app.graph.repository import Direction
 from app.identifiers.canonical import InvalidCanonicalIdError, lookup_keys
 from app.ingestion.metadata import extract_metadata
 from app.noting.chain import file_so_far
+from app.noting.references import ReferenceConfig, suggest_references
 from app.precedent.links import suggest_links
 from app.retrieval.evidence import CandidateSpan, build_package
 from app.retrieval.ladder import LadderRequest, LadderResult, ladder_label, run_ladder
@@ -32,13 +38,17 @@ from app.retrieval.scoped import L1Criteria
 from app.temporal.engine import status_as_of
 from app.updates.reconcile import notices_for
 from evaluation.harness import metrics as m
+from evaluation.harness.sandbox_flow import EXTENDED, run_extended
 from evaluation.harness.stack import ONTOLOGY, Stack, build_stack
 from tests.unit.mock_access import CLASSES, CORPUS, MATRIX, POLICY, USER_IDS, new_store, rows
 
 GT = CORPUS / "ground_truth"
 IMPLEMENTED_TYPES = ("A", "C", "E", "F")  # deterministic (CLAUDE.md §6.5)
 ALL_TYPES = ("A", "B", "C", "D", "E", "F", "G")
-NOT_YET = "needs grounded Gemini judgment (GCP) — not implemented yet"
+NOT_YET = (
+    "not wired into this v1 harness — B and G (Gemini) and D (precedent) are measured on set v2 by "
+    "evaluation/presend_v2.py"
+)
 
 
 def _load(name: str) -> Any:
@@ -122,6 +132,7 @@ class Harness:
             policy=POLICY,
             classification=CLASSES,
             windows=[w for ws in self.s.stores.windows.values() for w in ws],
+            awaiting_review=tuple(self.s.stores.awaiting.values()),
         )
 
     def _draft_in_file(self, file_no: str, user: str) -> str | None:
@@ -306,6 +317,8 @@ class Harness:
                     "flagged_types": sorted(got),
                     "missed": sorted(want - got),
                     "false_flags": sorted(got - want),
+                    "uncertain_flags": sorted({f.type.value for f in rep.flags if not f.certain}),
+                    "awaiting_review": [self.s.doc_of.get(c, c) for c in rep.awaiting_review],
                     "evidence_matches_answer_key": evid_ok,
                     "status_unconfirmed": [self.s.doc_of.get(c, c) for c in rep.status_unconfirmed],
                     "fact_gaps": list(rep.fact_gaps),
@@ -460,6 +473,7 @@ class Harness:
             rules=self.rules,
             windows=[w for ws in self.s.stores.windows.values() for w in ws],
             departments=self.s.departments,
+            awaiting_review=tuple(self.s.stores.awaiting.values()),
         )
 
         def did(c: str) -> str:
@@ -511,6 +525,8 @@ class Harness:
             holdback=frozenset(setup["holdback"]),
             open_files=open_files,
             arrivals=(did,),
+            transcribe=self.s.transcribe,
+            ocr_version=self.s.ocr_version,
         )
         res = replay.arrived.get(did)
         mine = notices_for(
@@ -682,6 +698,282 @@ class Harness:
             "last_direction": fs.last_direction.note_no if fs.last_direction else None,
         }
 
+    def _note_reference(self, sc: dict[str, Any]) -> dict[str, Any]:
+        """TP07: reference to a previous note paragraph of the same file. The seed stands in for the
+        connector's note/page metadata; the officer's request comes from slots_v1."""
+        user, exp = sc["user"], sc["expected"]
+        cno = sc["context"]["computer_no"]
+        seed = _load_seed()
+        f = next(x for x in seed["files"] if x["computer_no"] == cno)
+        ctx = FileContext(
+            computer_no=cno,
+            file_no=f["file_no"],
+            subject=f["subject"],
+            department=f["department"],
+            dealing_section=f["dealing_section"],
+            classification=f["classification"],
+            movement_trail=(),
+            notes=tuple(
+                NoteRef(
+                    note_id=n["note_id"],
+                    note_no=n["note_no"],
+                    paragraph_from=n["paragraph_from"],
+                    confirmed=n["state"] == "green",
+                )
+                for n in seed["notes"]
+                if n["computer_no"] == cno
+            ),
+            pages=tuple(
+                PageRef(
+                    correspondence_id=c["correspondence_id"],
+                    page_from=c["page_from"],
+                    page_to=c["page_to"],
+                    title=c["title"],
+                    canonical_id=c.get("canonical_id"),
+                )
+                for c in seed["correspondence"]
+                if c["computer_no"] == cno
+            ),
+        )
+        store = self.store()
+
+        def allowed(cid: str) -> bool:
+            t = self.s.tags(cid)
+            return t is not None and check(user, t, store, POLICY, CLASSES).allowed
+
+        docs = [
+            (cid, self.s.text_of.get(cid, ""), t)
+            for cid, _ in self.s.stores.files.get(f["file_no"], [])
+            if (t := self.s.tags(cid)) is not None
+            and (d := next((x for x in self.s.documents() if x.canonical_id == cid), None))
+            and d.doc_type.startswith("Noting")
+        ]
+        res = suggest_references(
+            self.slots["reference_requests"][sc["id"]]["text"],
+            ctx,
+            docs,
+            as_of=dt.date.fromisoformat(sc["as_of"]),
+            allowed=lambda t: check(user, t, store, POLICY, CLASSES).allowed,
+            order_visible=allowed,
+            cfg=ReferenceConfig.model_validate(
+                {k: v for k, v in self.slots["reference_config"].items() if not k.startswith("_")}
+            ),
+        )
+        want = exp["citation"]
+        top = res.suggestions[0] if res.suggestions else None
+        named = {self.s.doc_of.get(sg.source or "", sg.source) for sg in res.suggestions}
+        named.discard(None)
+        disclosed = sorted(d for d in named if d and not MATRIX.get((d, user), False))
+        ok_target = (
+            top is not None
+            and top.kind.value == want["target"]
+            and top.target_id == want["note_id"]
+            and top.paragraph == want["paragraph"]
+        )
+        return {
+            "run": True,
+            "pass": ok_target
+            and set(exp["docs"]) <= named
+            and not set(exp["forbidden_docs"]) & named
+            and not disclosed,
+            "expected": want,
+            "got": top.model_dump(mode="json", exclude={"text"}) if top else None,
+            "matched_by": res.matched_by.value,
+            "sources": sorted(d for d in named if d),
+            "matrix_disclosures": disclosed,
+        }
+
+    def _local_reference(self, sc: dict[str, Any]) -> dict[str, Any]:
+        """TP10: the officer adds an order + paragraph as a local reference. Scored on what the
+        status-coverage rule (owner, 3 Nov 2026) allows: supersession by a visible order, its date,
+        both paragraphs. When the scenario expects a `current_version` the rule withholds, the row
+        says so (`current_version_withheld`) — the expected value itself is not changed."""
+        user, exp = sc["user"], sc["expected"]
+        text = self.slots["local_references"][sc["id"]]["text"]
+        look = lookup_reference(
+            user,
+            text,
+            departments=self.s.departments,
+            retriever=self.s.stores.index,
+            store=self.store(),
+            policy=POLICY,
+            classification=CLASSES,
+        )
+        if look.status is not LookupStatus.FOUND or look.canonical_id is None:
+            return {"run": True, "pass": False, "why": f"lookup {look.status.value}"}
+        ctx = self._tool_ctx(user, sc["as_of"])
+        res = call_tool(
+            ctx, ToolName.CHECK_DOCUMENT_STATUS, {"canonical_ids": (look.canonical_id,)}
+        )
+        loc = local_reference(text, look.canonical_id, res, lambda c: self.s.text_of.get(c, ""))
+        named = {
+            self.s.doc_of.get(c, c)
+            for c in (look.canonical_id, res.by, res.current_version)
+            if c is not None
+        }
+        disclosed = sorted(d for d in named if not MATRIX.get((d, user), False))
+        a_flags = [f for f in exp["flags"] if f["type"] == "A"]
+        since_ok = all(
+            res.since is not None and res.since.strftime("%d-%m-%Y") in f["detail"] for f in a_flags
+        )
+        a_ok = not a_flags or (res.status == "superseded" and res.by is not None)
+        clause_ok = (
+            loc.successor_clause is not None and loc.successor_clause.clause_id == exp["clause"]
+        )
+        withheld = exp.get("current_version") is not None and res.current_version is None
+        current_ok = withheld or res.current_version == exp.get("current_version")
+        return {
+            "run": True,
+            "pass": set(exp["docs"]) <= named
+            and not set(exp["forbidden_docs"]) & named
+            and not disclosed
+            and a_ok
+            and since_ok
+            and clause_ok
+            and current_ok,
+            "status": res.status,
+            "by": self.s.doc_of.get(res.by or "", res.by),
+            "since": res.since.isoformat() if res.since else None,
+            "cited_clause": loc.cited_clause.clause_id if loc.cited_clause else None,
+            "successor_clause": loc.successor_clause.clause_id if loc.successor_clause else None,
+            "current_version_withheld": withheld,
+            "note": "current version not claimed (status-coverage rule; owner, 3 Nov 2026)"
+            if withheld
+            else "",
+            "matrix_disclosures": disclosed,
+        }
+
+    # TP06 answer key: "approvals 2022 and 2025 inside relaxation windows, rejection 2023 under
+    # the ban" — the year of each precedent decision and whether it fell inside a window.
+    TP06_WINDOWS = {2022: True, 2023: False, 2025: True}
+
+    def _first_cut(self, sc: dict[str, Any], c_rows: dict[str, Any]) -> dict[str, Any]:
+        """TP06: cited points for a Yellow Note — orders that apply, their paragraphs, earlier
+        decisions against the windows, open flags. The note's prose is Gemini's (not scored)."""
+        user, exp = sc["user"], sc["expected"]
+        f = next(
+            x for x in _load_seed()["files"] if x["computer_no"] == sc["context"]["computer_no"]
+        )
+        did = self._draft_in_file(f["file_no"], user)
+        if did is None:
+            return {"run": True, "pass": False, "why": "no note in the file for this officer"}
+        cid = self.s.cid_of[did]
+        text, meta = self._note(cid)
+        facts = extract_proposal_facts(text, meta, self.rules, cid)
+        ctx = self._tool_ctx(user, sc["as_of"])
+
+        def file_of(c: str) -> str | None:
+            t = self.s.tags(c)
+            return t.file_no if t else None
+
+        links = suggest_links(ctx, f["subject"], f["file_no"], file_of)
+        cut = first_cut_note(
+            ctx=ctx,
+            file_no=f["file_no"],
+            subject=f["subject"],
+            draft_note=cid,
+            meta=meta,
+            action=facts.facts.action if facts.facts else None,
+            flags=self.presend(did, user).flags,
+            precedents=[(lk.file_no, d.canonical_id) for lk in links for d in lk.documents],
+            text_of=lambda c: self.s.text_of.get(c, ""),
+            windows=[
+                w
+                for ws in self.s.stores.windows.values()
+                for w in ws
+                if self.visible(user, w.source.split("#", 1)[0])
+            ],
+        )
+        named = {self.s.doc_of.get(c.split("#", 1)[0], c) for c in cut.citations}
+        disclosed = sorted(d for d in named if not MATRIX.get((d, user), False))
+        ref = c_rows.get(did)
+        want_flags = set(ref["expected_types"]) & set(IMPLEMENTED_TYPES) if ref else set()
+        got_flags = {x.type.value for x in cut.flags}
+        uncited = [
+            ln
+            for ln in cut.body.splitlines()
+            if ln.startswith("- ") and "\u201c" in ln and not re.search(r"\[AP-[^\]]+\]", ln)
+        ]
+        windows_ok = all(
+            p.decided_on is not None
+            and self.TP06_WINDOWS.get(p.decided_on.year) in (None, p.in_window)
+            for p in cut.precedents
+        ) and {p.decided_on.year for p in cut.precedents if p.decided_on} >= set(self.TP06_WINDOWS)
+        # "Governing rule is 31/2025 (not 88/2022)": a superseded order must not be among the orders
+        # that apply; it may still be cited as the source of a past window a precedent fell in.
+        superseded_cited = {self.s.doc_of.get(c, c) for o in cut.orders for c in o.in_place_of}
+        governing = {self.s.doc_of.get(o.canonical_id, o.canonical_id) for o in cut.orders}
+        return {
+            "run": True,
+            "pass": set(exp["docs"]) <= named
+            and not set(exp["forbidden_docs"]) & named
+            and not disclosed
+            and not superseded_cited & governing
+            and want_flags <= got_flags
+            and not uncited
+            and windows_ok,
+            "cited_docs": sorted(named),
+            "points": [p.clause_id for p in cut.points],
+            "precedents": [
+                (self.s.doc_of.get(p.source, p.source), str(p.decided_on), p.in_window)
+                for p in cut.precedents
+            ],
+            "flags": sorted(got_flags),
+            "uncited_lines": uncited,
+            "matrix_disclosures": disclosed,
+        }
+
+    def _dfa(self, sc: dict[str, Any], c_rows: dict[str, Any]) -> dict[str, Any]:
+        """TP14: the deterministic parts of the DFA — "Read the following" (expected orders listed,
+        superseded / unresolvable ones not), the pre-send flags travelling with it. Order
+        paragraphs are Gemini's (not scored)."""
+        user, exp = sc["user"], sc["expected"]
+        f = next(
+            x for x in _load_seed()["files"] if x["computer_no"] == sc["context"]["computer_no"]
+        )
+        did = self._draft_in_file(f["file_no"], user)
+        if did is None:
+            return {"run": True, "pass": False, "why": "no note in the file for this officer"}
+        cid = self.s.cid_of[did]
+        text, meta = self._note(cid)
+        facts = extract_proposal_facts(text, meta, self.rules, cid)
+        rep = self.presend(did, user)
+        pv = draft_for_approval(
+            ctx=self._tool_ctx(user, sc["as_of"]),
+            file_no=f["file_no"],
+            subject=f["subject"],
+            draft_note=cid,
+            meta=meta,
+            action=facts.facts.action if facts.facts else None,
+            flags=rep.flags,
+            awaiting_review=tuple(self.s.stores.awaiting.values()),
+        )
+        listed = {self.s.doc_of.get(i.canonical_id, i.canonical_id) for i in pv.read_list}
+        disclosed = sorted(d for d in listed if not MATRIX.get((d, user), False))
+        # orders the answer key says must NOT be read: the superseded and the unresolvable ones
+        not_read = {self.s.doc_of.get(x.cited, x.cited) for x in pv.left_out} | {
+            self.s.doc_of.get(p, p) for i in pv.read_list for p in i.in_place_of
+        }
+        flags_str = exp.get("flags")
+        tp11 = re.search(r"in=(D\d+)", flags_str) if isinstance(flags_str, str) else None
+        ref = c_rows.get(tp11.group(1)) if tp11 else c_rows.get(did)
+        want_flags = set(ref["expected_types"]) & set(IMPLEMENTED_TYPES) if ref else set()
+        got_flags = {x.type.value for x in pv.flags}
+        return {
+            "run": True,
+            "pass": set(exp["docs"]) <= listed
+            and not set(exp["forbidden_docs"]) & listed
+            and not disclosed
+            and not not_read & listed
+            and want_flags <= got_flags
+            and bool(pv.body),
+            "read_list": sorted(listed),
+            "not_read": sorted(not_read),
+            "flags": sorted(got_flags),
+            "expected_flags": sorted(want_flags),
+            "matrix_disclosures": disclosed,
+        }
+
     def touchpoints(self, retrieval: dict[str, Any], conflict: dict[str, Any]) -> dict[str, Any]:
         q_rows = {r["id"]: r for r in retrieval["questions"]}
         c_rows = {r["draft"]: r for r in conflict["runs"]}
@@ -721,6 +1013,14 @@ class Harness:
                     "expected_level": exp.get("ladder_level"),
                     "files_checked": False,
                 }
+            elif sc["touchpoint"] == 6:
+                row |= self._first_cut(sc, c_rows)
+            elif sc["touchpoint"] == 14:
+                row |= self._dfa(sc, c_rows)
+            elif sc["touchpoint"] == 10:
+                row |= self._local_reference(sc)
+            elif sc["touchpoint"] == 7:
+                row |= self._note_reference(sc)
             elif sc["touchpoint"] == 8:
                 row |= self._file_so_far(sc)
             elif sc["touchpoint"] == 9:
@@ -742,6 +1042,8 @@ class Harness:
                     "questions": pairs,
                     "criterion": "no forbidden or matrix-disallowed document for any officer",
                 }
+            elif sc["touchpoint"] in EXTENDED:  # end to end through the sandbox (ADR-0038)
+                row |= run_extended(sc)
             else:
                 row |= {"run": False, "why": "needs the sandbox screen flow (P8)"}
             out.append(row)

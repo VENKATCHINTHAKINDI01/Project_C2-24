@@ -16,6 +16,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.agents.tools import CURRENT_UNCONFIRMED, STATUS_UNCONFIRMED
+from app.auth.messages import DOCUMENT_NOT_AVAILABLE, FILE_NOT_AVAILABLE, RECEIPT_NOT_AVAILABLE
 from app.config import get_settings
 from app.eoffice_mock.models import BANNER
 from app.identifiers.canonical import InvalidCanonicalIdError, lookup_keys
@@ -83,7 +84,8 @@ def test_every_response_is_marked_as_the_mock_sandbox(client: TestClient) -> Non
     r = client.get("/sandbox/profiles")
     assert r.headers["X-Mock-Sandbox"].startswith("synthetic")
     assert r.json()["banner"] == BANNER
-    assert [p["user_id"] for p in r.json()["profiles"]] == USERS  # posts without login excluded
+    # posts without login excluded; M01 = the mock monitoring officer (sandbox.yaml, ADR-0035)
+    assert [p["user_id"] for p in r.json()["profiles"]] == [*USERS, "M01"]
     assert client.get("/healthz").headers["X-Mock-Sandbox"]
 
 
@@ -182,11 +184,14 @@ def test_assist_needs_clearance_for_the_file_not_just_e_office_reach(
     for path, extra in (
         ("/assist/file-so-far", {}),
         ("/assist/presend", {}),
+        ("/assist/dfa", {}),
+        ("/assist/first-cut", {}),
+        ("/assist/note-reference", {"text": "preliminary enquiry"}),
         ("/assist/draft", {"kind": "yellow_note", "body": "x", "request_id": "r"}),
     ):
         hidden = client.post(path, json={"computer_no": cno, **extra}, headers=_h(uid))
         unknown = client.post(path, json={"computer_no": "9999999", **extra}, headers=_h(uid))
-        assert (hidden.status_code, hidden.json()) == (404, {"detail": "File not available."}), path
+        assert (hidden.status_code, hidden.json()) == (404, {"detail": FILE_NOT_AVAILABLE}), path
         assert (unknown.status_code, unknown.json()) == (hidden.status_code, hidden.json())
 
 
@@ -346,6 +351,8 @@ def test_zero_disclosures_through_the_api(client: TestClient) -> None:
         for ref in refs:
             r = client.post("/assist/reference", json={"text": ref}, headers=_h(uid))
             check(uid, f"reference {ref}", r.json())
+            r = client.post("/assist/reference", json={"text": f"{ref} para 2(v)"}, headers=_h(uid))
+            check(uid, f"reference {ref} para 2(v)", r.json())
         check(uid, "notices", client.get("/assist/notices", headers=_h(uid)).json())
         for rno in RECEIPT_NOS:
             r = client.post("/assist/receipt", json={"computer_no": rno}, headers=_h(uid))
@@ -362,6 +369,32 @@ def test_zero_disclosures_through_the_api(client: TestClient) -> None:
             check(uid, f"file so far {cno}", fsf)
             r = client.post("/assist/link-suggestions", json={"computer_no": cno}, headers=_h(uid))
             check(uid, f"link suggestions {cno}", r.json())
+            for ask in ("preliminary enquiry proposal", "transfer request spouse", "Note #1"):
+                r = client.post(
+                    "/assist/note-reference",
+                    json={"computer_no": cno, "text": ask},
+                    headers=_h(uid),
+                )
+                ref = r.json()
+                for sg in ref.get("suggestions", []):  # the note's own words, as on the file page
+                    sg.pop("text", None)
+                check(uid, f"note reference {cno} {ask}", ref)
+            r = client.post("/assist/first-cut", json={"computer_no": cno}, headers=_h(uid))
+            cut = r.json()
+            cut.pop("body", None)  # composed from the cited items below
+            for fl in cut.get("flags", []):
+                fl.pop("explanation", None)
+            for pt in cut.get("points", []):
+                pt.pop("text", None)  # a visible order's own paragraph
+            for pr in cut.get("precedents", []):
+                pr.pop("decision", None)  # a visible note's own paragraph
+            check(uid, f"first-cut {cno}", cut)
+            r = client.post("/assist/dfa", json={"computer_no": cno}, headers=_h(uid))
+            dfa = r.json()
+            dfa.pop("body", None)  # composed from the listed items and flags, checked below
+            for fl in dfa.get("flags", []):
+                fl.pop("explanation", None)  # the shared pre-send wording, checked via presend
+            check(uid, f"dfa {cno}", dfa)
             r = client.post("/assist/brief", json={"computer_no": cno}, headers=_h(uid))
             brief = r.json()
             for ev in (brief.get("proposal") or {}).get("evidence", {}):
@@ -378,3 +411,353 @@ def test_zero_disclosures_through_the_api(client: TestClient) -> None:
             check(uid, f"file page {cno}", p)
     assert checks > 500
     assert disclosures == []
+
+
+def test_held_scan_citation_is_uncertain_not_missing_through_http(client: TestClient) -> None:
+    """Regression (checkpoint eval, 4 Nov 2026): the sandbox has no OCR, so the 2023 Works circular
+    stays in review; the Works SO's pre-send check on the 2026 drain file must not say it is
+    missing from his records. The held record is never named."""
+    r = client.post("/assist/presend", json={"computer_no": "2899017"}, headers=_h("U03")).json()
+    e = [f for f in r["flags"] if f["type"] == "E"]
+    assert e and not any(f["certain"] for f in e)
+    assert all("awaiting review" in f["explanation"] for f in e)
+    assert r["awaiting_review"] and all(c.startswith("AP-USD01-") for c in r["awaiting_review"])
+    assert "D13" not in str(r) and "_photo" not in str(r)
+    # A cited order that does not exist at all is still flagged (softened while scans wait).
+    t = client.post("/assist/presend", json={"computer_no": "2894562"}, headers=_h("U01")).json()
+    assert any(f["type"] == "E" and "104" in f["cited"] for f in t["flags"])
+
+
+def test_tp07_reference_to_a_previous_note_through_http(client: TestClient) -> None:
+    """Touchpoint 7: the Vigilance SO asks for the earlier proposal; the suggestion is Note #1
+    para 3 with the e-Office note ID, and nothing is written until the officer clicks."""
+    ask = {"computer_no": "2601155", "text": "earlier proposal for a preliminary enquiry"}
+    r = client.post(
+        "/assist/note-reference", json={**ask, "as_of": "2025-07-21"}, headers=_h("U04")
+    )
+    body = r.json()
+    top = body["suggestions"][0]
+    assert (top["kind"], top["target_id"], top["note_no"], top["paragraph"]) == (
+        "previous_note",
+        "2601155-N1",
+        1,
+        3,
+    )
+    assert body["matching"].startswith("keyword stand-in") and body["calibrated"] is False
+    assert "D23" not in _named_docs(body)
+    files = client.get("/sandbox/files/2601155", headers=_h("U04")).json()
+    assert not files.get("drafts")  # suggesting writes nothing
+    made = client.post(
+        "/assist/draft",
+        json={
+            "computer_no": "2601155",
+            "kind": "suggested_reference",
+            "body": f"Please see {top['insert_text']} ({top['target_id']}).",
+            "citations": [top["target_id"], top["source"]],
+            "request_id": body["request_id"],
+        },
+        headers=_h("U04"),
+    ).json()
+    assert made["status"] == "draft" and made["kind"] == "suggested_reference"
+    # the Estt.I SO cannot reach the Vigilance file at all: same answer as an unknown file
+    hidden = client.post("/assist/note-reference", json=ask, headers=_h("U01"))
+    assert (hidden.status_code, hidden.json()) == (404, {"detail": FILE_NOT_AVAILABLE})
+
+
+def test_tp10_local_reference_with_a_paragraph_through_http(client: TestClient) -> None:
+    """Touchpoint 10: 88/2022 is superseded by 31/2025 from 12-05-2025; both paragraphs 2(v) are
+    shown; 31/2025 is not called current without full coverage (owner rule, 3 Nov 2026)."""
+    r = client.post(
+        "/assist/reference", json={"text": "G.O.Ms.No.88/2022 para 2(v)"}, headers=_h("U01")
+    ).json()
+    assert (r["status"], r["by"], r["since"]) == (
+        "superseded",
+        "AP-FIN01-GOMS-31-2025",
+        "2025-05-12",
+    )
+    assert r["cited_clause"]["clause_id"] == "AP-FIN01-GOMS-88-2022#para-2.v"
+    assert r["successor_clause"]["clause_id"] == "AP-FIN01-GOMS-31-2025#para-2.v"
+    assert "Spouse cases" in r["successor_clause"]["text"]
+    assert r["current_version"] is None and r["successor_is_current"] is False
+    assert "check it covers the same point" in r["clause_note"]
+
+
+def test_tp14_dfa_preview_then_draft_only_on_click(client: TestClient) -> None:
+    """Touchpoint 14: the Assistant Secretary's DFA preview lists 31/2025 in place of 88/2022,
+    leaves out 104/2026, carries the open flags, and writes nothing until "Create DFA draft"."""
+
+    def drafts() -> int:
+        page = client.get("/sandbox/files/2894562", headers=_h("U02")).json()
+        return len(page.get("drafts", []))
+
+    before = drafts()
+    r = client.post("/assist/dfa", json={"computer_no": "2894562"}, headers=_h("U02")).json()
+    assert drafts() == before  # the preview writes nothing
+    read = {i["canonical_id"]: i for i in r["read_list"]}
+    assert read["AP-FIN01-GOMS-31-2025"]["in_place_of"] == ["AP-FIN01-GOMS-88-2022"]
+    assert "AP-FIN01-GOMS-88-2022" not in read
+    assert [x["cited"] for x in r["left_out"]] == ["AP-FIN01-GOMS-104-2026"]
+    assert {f["type"] for f in r["flags"]} == {"A", "C", "E", "F"}
+    assert r["abstract"].endswith("– Orders – Issued.")
+    assert r["order_paragraphs"].startswith("not drafted")
+    assert any("awaiting review" in c for c in r["caveats"])  # D09 / D11 are scans, not read
+    made = client.post(
+        "/assist/draft",
+        json={
+            "computer_no": "2894562",
+            "kind": "dfa_draft",
+            "body": r["body"],
+            "citations": r["citations"],
+            "request_id": r["request_id"],
+        },
+        headers=_h("U02"),
+    ).json()
+    assert made["kind"] == "dfa_draft" and made["status"] == "draft"
+    assert drafts() == before + 1
+    words = {w for p in APP.openapi()["paths"] for w in re.split(r"[/{}_-]+", p) if w}
+    assert not words & {"sign", "send", "dispatch", "approve", "issue"}  # no such endpoint
+
+
+def test_tp06_first_cut_then_yellow_note_only_on_click(client: TestClient) -> None:
+    """Touchpoint 6: cited points for the Estt.I SO's spouse-ground note — 31/2025 (not 88/2022),
+    its ban / ceiling / authority / spouse paragraphs, the earlier decisions set against the
+    windows; nothing from the Vigilance files or the confidential 2025 rejection."""
+
+    def drafts() -> int:
+        page = client.get("/sandbox/files/2894562", headers=_h("U01")).json()
+        return len(page.get("drafts", []))
+
+    before = drafts()
+    r = client.post("/assist/first-cut", json={"computer_no": "2894562"}, headers=_h("U01"))
+    cut = r.json()
+    assert drafts() == before  # the preview writes nothing
+    orders = {o["canonical_id"] for o in cut["orders"]}
+    assert "AP-FIN01-GOMS-31-2025" in orders and "AP-FIN01-GOMS-88-2022" not in orders
+    points = {p["clause_id"] for p in cut["points"]}
+    assert {f"AP-FIN01-GOMS-31-2025#para-{x}" for x in ("2.i", "2.iv", "2.v", "2.viii", "3")} <= (
+        points
+    )
+    decided = {p["source"]: p["in_window"] for p in cut["precedents"]}
+    assert decided == {
+        "AP-USD01-NOTE-USD0112-31-2022": True,
+        "AP-USD01-NOTE-USD0112-77-2023": False,
+        "AP-USD01-NOTE-USD0112-44-2025": True,
+    }
+    assert {f["type"] for f in cut["flags"]} == {"A", "C", "E", "F"}
+    assert cut["note_text"].startswith("not drafted")
+    for hidden in ("VIG", "AP-USD01-NOTE-USD0112-58-2025"):  # Vigilance files; D20
+        assert hidden not in json.dumps(cut)
+    made = client.post(
+        "/assist/draft",
+        json={
+            "computer_no": "2894562",
+            "kind": "yellow_note",
+            "body": cut["body"],
+            "citations": cut["citations"],
+            "request_id": cut["request_id"],
+        },
+        headers=_h("U01"),
+    ).json()
+    assert made["kind"] == "yellow_note" and made["status"] == "draft"
+    assert drafts() == before + 1
+
+
+# ---- citation highlights + document preview / download (ADR-0014, ADR-0015) --------------------
+
+UNKNOWN_DOC = "AP-FIN01-GOMS-9999-2022"
+
+
+def _runtime() -> Any:
+    run = APP.state.assist_runtime
+    return run() if callable(run) else run
+
+
+def _row(cid: str) -> dict[str, str]:
+    did = _doc_id(cid)
+    assert did is not None, cid
+    return next(r for r in IDX.values() if r["id"] == did)
+
+
+def _notes(client: TestClient, cno: str, uid: str) -> list[dict[str, str]]:
+    page = client.get(f"/sandbox/files/{cno}", headers=_h(uid)).json()
+    return [{"note_id": n["note_id"], "text": n["text"] or ""} for n in page["notes"]]
+
+
+def test_highlights_mark_each_cited_order_with_its_state(client: TestClient) -> None:
+    notes = _notes(client, "2894562", "U01")
+    r = client.post(
+        "/assist/highlights", json={"computer_no": "2894562", "notes": notes}, headers=_h("U01")
+    )
+    assert r.status_code == 200
+    by_id = {n["note_id"]: n["highlights"] for n in r.json()["notes"]}
+    text = {n["note_id"]: n["text"] for n in notes}
+    hs = [(nid, h) for nid, hl in by_id.items() for h in hl]
+    for nid, h in hs:  # offsets point at the citation in the text the officer sees
+        assert re.sub(r"\s+", " ", text[nid][h["start"] : h["end"]]) == h["raw"]
+    states = {h["raw"].split(",")[0]: h for _, h in hs}
+    old = states["G.O.Ms.No.88"]  # superseded by 31/2025: a potential conflict, openable
+    assert old["state"] == "conflict" and old["canonical_id"] == "AP-FIN01-GOMS-88-2022"
+    assert [f["type"] for f in old["flags"]] == ["A"]
+    held = states["G.O.Ms.No.104"]  # the scan in review: not found, uncertain, never linked
+    assert held["state"] == "not_found" and held["canonical_id"] is None
+    assert held["flags"] and not any(f["certain"] for f in held["flags"])
+
+
+def test_highlights_on_a_file_out_of_reach_answer_like_an_unknown_file(
+    client: TestClient,
+) -> None:
+    body = {"notes": [{"note_id": "n1", "text": "G.O.Ms.No.88, Finance Department, Dt.03-06-2022"}]}
+    hidden = client.post(
+        "/assist/highlights", json={"computer_no": "2894562", **body}, headers=_h("U03")
+    )
+    unknown = client.post(
+        "/assist/highlights", json={"computer_no": "999999", **body}, headers=_h("U03")
+    )
+    assert hidden.status_code == unknown.status_code == 404
+    assert hidden.json() == unknown.json() == {"detail": FILE_NOT_AVAILABLE}
+
+
+def test_preview_and_download_serve_the_exact_stored_file(client: TestClient) -> None:
+    cid = "AP-FIN01-GOMS-88-2022"
+    on_disk = (CORPUS / _row(cid)["file"]).read_bytes()
+    info = client.get(f"/assist/documents/{cid}", headers=_h("U01")).json()
+    assert info["previewable"] and info["media_type"] == "application/pdf"
+    assert info["filename"] == f"{cid}.pdf" and info["version"] == _runtime().sources[cid]
+    for kind, disposition in (("preview", "inline"), ("download", "attachment")):
+        r = client.get(f"/assist/documents/{cid}/{kind}", headers=_h("U01"))
+        assert r.status_code == 200 and r.content == on_disk  # the very bytes ingested
+        assert r.headers["content-disposition"] == f'{disposition}; filename="{cid}.pdf"'
+        assert r.headers["cache-control"] == "private, no-store"
+        assert r.headers["x-document-version"] == info["version"]
+
+
+def test_office_files_download_but_are_not_shown_inline(client: TestClient) -> None:
+    run = _runtime()
+    cid = next(
+        c for c in run.sources if run.documents.get(run.sources[c]).media_type.endswith("document")
+    )
+    uid = next(u for u in USERS if MATRIX[(_row(cid)["id"], u)])
+    assert not client.get(f"/assist/documents/{cid}", headers=_h(uid)).json()["previewable"]
+    assert client.get(f"/assist/documents/{cid}/preview", headers=_h(uid)).status_code == 415
+    r = client.get(f"/assist/documents/{cid}/download", headers=_h(uid))
+    assert r.status_code == 200 and r.content == (CORPUS / _row(cid)["file"]).read_bytes()
+
+
+def test_a_hidden_document_answers_exactly_like_an_unknown_one(client: TestClient) -> None:
+    pairs = [
+        (cid, uid)
+        for cid in _runtime().sources
+        for uid in USERS
+        if not MATRIX[(_row(cid)["id"], uid)]
+    ]
+    assert len(pairs) > 20
+    for cid, uid in pairs:
+        for suffix in ("", "/preview", "/download"):
+            got = client.get(f"/assist/documents/{cid}{suffix}", headers=_h(uid))
+            ref = client.get(f"/assist/documents/{UNKNOWN_DOC}{suffix}", headers=_h(uid))
+            assert got.status_code == ref.status_code == 404, (cid, uid, suffix)
+            assert got.content == ref.content, (cid, uid, suffix)
+            assert "x-document-version" not in got.headers
+
+
+def test_every_view_and_download_is_audited_with_ids_only(client: TestClient) -> None:
+    cid = "AP-FIN01-GOMS-88-2022"
+    hidden, outsider = next(
+        (c, u) for c in _runtime().sources for u in USERS if not MATRIX[(_row(c)["id"], u)]
+    )
+    before = len(APP.state.audit.events())
+    client.get(f"/assist/documents/{cid}/preview", headers=_h("U01"))
+    client.get(f"/assist/documents/{cid}/download", headers=_h("U01"))
+    client.get(f"/assist/documents/{hidden}/download", headers=_h(outsider))
+    new = APP.state.audit.events()[before:]
+    got = [(e.action, e.outcome, e.user_id) for e in new]
+    assert got == [
+        ("assist.document.preview", "ok", "U01"),
+        ("assist.document.download", "ok", "U01"),
+        ("assist.document.download", "not_available", outsider),
+    ]
+    assert new[0].ids == (cid, _runtime().sources[cid])
+    assert new[2].ids == ()  # a denied request records nothing about the document
+    dumped = json.dumps([e.model_dump(mode="json") for e in new], ensure_ascii=False)
+    assert "General Transfers" not in dumped and "%PDF" not in dumped
+
+
+def test_zero_disclosures_through_highlights_and_documents(client: TestClient) -> None:
+    """Leakage matrix, two new paths (ADR-0014 rule 6): a crafted note citing every order in the
+    corpus, and every stored document requested by every officer."""
+    disclosures: list[tuple[str, str, str]] = []
+    refs = [r["raw_reference"] for r in IDX.values() if not r["raw_reference"].startswith("File")]
+    crafted = "\n".join(f"{i}. As per {ref}." for i, ref in enumerate(refs, 1))
+    for uid in USERS:
+        for cno in COMPUTER_NOS:
+            r = client.post(
+                "/assist/highlights",
+                json={"computer_no": cno, "notes": [{"note_id": "x", "text": crafted}]},
+                headers=_h(uid),
+            )
+            if r.status_code != 200:
+                continue
+            for h in r.json()["notes"][0]["highlights"]:
+                linked = h["canonical_id"]
+                if linked and not MATRIX[(_row(linked)["id"], uid)]:
+                    disclosures.append((uid, f"highlight link {cno}", linked))
+                for f in h["flags"]:
+                    for e in f["evidence_ids"]:
+                        if (d := _doc_id(e)) and not MATRIX[(d, uid)]:
+                            disclosures.append((uid, f"highlight evidence {cno}", e))
+                    disclosures.extend(
+                        (uid, f"highlight flag {cno}", d)
+                        for d in _named_docs({"c": f["cited"], "e": f["explanation"]})
+                        if not MATRIX[(d, uid)]
+                    )
+        for cid in _runtime().sources:
+            for suffix in ("", "/preview", "/download"):
+                got = client.get(f"/assist/documents/{cid}{suffix}", headers=_h(uid))
+                if got.status_code in (200, 415) and not MATRIX[(_row(cid)["id"], uid)]:
+                    disclosures.append((uid, f"document{suffix}", cid))
+    assert disclosures == []
+
+
+def test_a_hidden_order_cited_in_a_note_reads_like_one_that_does_not_exist(
+    client: TestClient,
+) -> None:
+    """Regression (OPP-19, 10 Nov 2026): the not-found flag named the order by the ID resolved
+    from the note, which looked like a record we hold. Now only the note's own words are used."""
+
+    def ask(raw: str) -> str:
+        body = {"computer_no": "2899017", "notes": [{"note_id": "n", "text": f"1. As per {raw}."}]}
+        r = client.post("/assist/highlights", json=body, headers=_h("U03")).json()
+        r.pop("request_id")
+        return json.dumps(r).replace(raw, "<cited>")
+
+    hidden = ask("Standing Order No.2/2020")  # D11: DENY for U03 (access matrix)
+    assert hidden == ask("Standing Order No.7/2020")  # no such order
+    assert "AP-USD01-SO-2-2020" not in hidden
+
+
+def test_unavailable_answers_guide_the_officer_without_revealing_existence(
+    client: TestClient,
+) -> None:
+    """ADR-0016 (owner, 11 Nov 2026): one message for hidden and non-existent records, which
+    points the officer to the competent authority in e-Office for access or approval."""
+    hidden_doc, outsider = next(
+        (c, u) for c in _runtime().sources for u in USERS if not MATRIX[(_row(c)["id"], u)]
+    )
+    cases = [
+        ("/sandbox/files/2894562", "/sandbox/files/999999", "U03", FILE_NOT_AVAILABLE),
+        (
+            f"/assist/documents/{hidden_doc}/preview",
+            f"/assist/documents/{UNKNOWN_DOC}/preview",
+            outsider,
+            DOCUMENT_NOT_AVAILABLE,
+        ),
+    ]
+    for hidden, unknown, uid, msg in cases:
+        a = client.get(hidden, headers=_h(uid))
+        b = client.get(unknown, headers=_h(uid))
+        assert a.status_code == b.status_code == 404
+        assert a.content == b.content and a.json() == {"detail": msg}
+        assert "competent authority" in msg and "e-Office" in msg
+        for leak in ("restricted", "not authorised", "classified", "confidential", "secret"):
+            assert leak not in msg.lower()
+    assert RECEIPT_NOT_AVAILABLE.startswith("This receipt isn't available to you.")

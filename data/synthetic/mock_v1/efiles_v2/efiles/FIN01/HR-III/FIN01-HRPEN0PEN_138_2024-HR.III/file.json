@@ -1,0 +1,24 @@
+{
+  "file_no": "FIN01-HRPEN0PEN/138/2024-HR.III",
+  "computer_no": "4113632",
+  "subject": "Second voluntary enhancement of APGLI premium in a financial year – Reg.",
+  "department_code": "FIN01",
+  "section": "HR-III",
+  "section_label": "Finance (HR.III-Pension & GPF) Department",
+  "classification": "UNCLASSIFIED",
+  "status": "decided",
+  "opened": "2024-06-07",
+  "scenario": "FIN01-G-HG2",
+  "touchpoints": [
+    1,
+    2,
+    10,
+    11,
+    13
+  ],
+  "origin": "synthetic",
+  "banner": "Synthetic — not a real government file",
+  "cites": [
+    "AP-GAZ-GAZETTE-EI-3880-2024"
+  ]
+}

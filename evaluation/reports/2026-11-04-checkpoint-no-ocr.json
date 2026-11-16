@@ -1,0 +1,1211 @@
+{
+ "meta": {
+  "run_at": "2026-11-04T14:33:13+00:00",
+  "corpus": "mock_v1 (SYNTHETIC)",
+  "ocr_stand_in": false,
+  "slots": "slots_v1 (2026-11-04)",
+  "ladder_config": {
+   "l2_top_k": 10,
+   "l2_min_score": 1.0,
+   "l3_max_hops": 2,
+   "_note": "test values, NOT calibrated (plan §3.2 thresholds still open)"
+  },
+  "stack": {
+   "indexed": 21,
+   "held_files": {
+    "D01": "low_confidence_extraction",
+    "D02": "low_confidence_extraction",
+    "D09": "low_confidence_extraction",
+    "D11": "low_confidence_extraction",
+    "D13": "low_confidence_extraction",
+    "D15": "low_confidence_extraction",
+    "D16": "low_confidence_extraction",
+    "D22": "low_confidence_extraction"
+   },
+   "indexed_from_transcription": [],
+   "not_indexed": [
+    "D01",
+    "D02",
+    "D09",
+    "D11",
+    "D13",
+    "D15",
+    "D16",
+    "D22"
+   ],
+   "l2": "keyword stand-in (BM25-style), not Vertex AI Search",
+   "rules": "mock"
+  }
+ },
+ "retrieval": {
+  "summary": {
+   "answerable_questions": 19,
+   "recall@5": 0.5,
+   "recall@10": 0.543859649122807,
+   "precision@5": 0.21052631578947367,
+   "mrr": 0.631578947368421,
+   "ndcg@10": 0.5209576755768126,
+   "full_recall_questions": 7,
+   "ladder_level_accuracy": 0.5789473684210527,
+   "ladder_level_questions": 19,
+   "no_answer_questions": 5,
+   "no_answer_with_forbidden_docs": 0,
+   "no_answer_retrieved_nothing": 0,
+   "answer_status_accuracy": "not measurable yet — needs Gemini generation (GCP)"
+  },
+  "questions": [
+   {
+    "id": "Q01",
+    "user": "U01",
+    "intent": "precedent_lookup",
+    "answer_status": "answered",
+    "expected_level": "L2",
+    "level": "L2",
+    "expected_docs": [
+     "D17",
+     "D18",
+     "D19"
+    ],
+    "ranked": [
+     "D27",
+     "D18",
+     "D03",
+     "D04",
+     "D17",
+     "D19",
+     "D26",
+     "D29",
+     "D10"
+    ],
+    "forbidden_hits": [],
+    "matrix_disclosures": [],
+    "note": "",
+    "recall@5": 0.6666666666666666,
+    "recall@10": 1.0,
+    "precision@5": 0.4,
+    "rr": 0.5,
+    "ndcg@10": 0.6447841584694202
+   },
+   {
+    "id": "Q02",
+    "user": "U02",
+    "intent": "precedent_lookup",
+    "answer_status": "answered",
+    "expected_level": "L2",
+    "level": "L2",
+    "expected_docs": [
+     "D17",
+     "D18",
+     "D19",
+     "D20"
+    ],
+    "ranked": [
+     "D27",
+     "D18",
+     "D20",
+     "D03",
+     "D04",
+     "D17",
+     "D19",
+     "D26",
+     "D29",
+     "D10"
+    ],
+    "forbidden_hits": [],
+    "matrix_disclosures": [],
+    "note": "",
+    "recall@5": 0.5,
+    "recall@10": 1.0,
+    "precision@5": 0.4,
+    "rr": 0.5,
+    "ndcg@10": 0.710675276578257
+   },
+   {
+    "id": "Q03",
+    "user": "U01",
+    "intent": "current_rule",
+    "answer_status": "answered",
+    "expected_level": "L1",
+    "level": "L1",
+    "expected_docs": [
+     "D04",
+     "D05"
+    ],
+    "ranked": [
+     "D04",
+     "D03"
+    ],
+    "forbidden_hits": [],
+    "matrix_disclosures": [],
+    "note": "",
+    "recall@5": 0.5,
+    "recall@10": 0.5,
+    "precision@5": 0.2,
+    "rr": 1.0,
+    "ndcg@10": 0.6131471927654584
+   },
+   {
+    "id": "Q04",
+    "user": "U07",
+    "intent": "current_rule",
+    "answer_status": "answered",
+    "expected_level": "L1+L3",
+    "level": "—",
+    "expected_docs": [
+     "D01",
+     "D02"
+    ],
+    "ranked": [],
+    "forbidden_hits": [],
+    "matrix_disclosures": [],
+    "note": "",
+    "recall@5": 0.0,
+    "recall@10": 0.0,
+    "precision@5": 0.0,
+    "rr": 0.0,
+    "ndcg@10": 0.0
+   },
+   {
+    "id": "Q05",
+    "user": "U03",
+    "intent": "document_status",
+    "answer_status": "answered",
+    "expected_level": "L0+L3",
+    "level": "—",
+    "expected_docs": [
+     "D13",
+     "D14"
+    ],
+    "ranked": [],
+    "forbidden_hits": [],
+    "matrix_disclosures": [],
+    "note": "reference lookup: not_found",
+    "recall@5": 0.0,
+    "recall@10": 0.0,
+    "precision@5": 0.0,
+    "rr": 0.0,
+    "ndcg@10": 0.0
+   },
+   {
+    "id": "Q06",
+    "user": "U03",
+    "intent": "current_rule",
+    "answer_status": "answered",
+    "expected_level": "L1",
+    "level": "L1",
+    "expected_docs": [
+     "D14",
+     "D16"
+    ],
+    "ranked": [
+     "D14"
+    ],
+    "forbidden_hits": [],
+    "matrix_disclosures": [],
+    "note": "",
+    "recall@5": 0.5,
+    "recall@10": 0.5,
+    "precision@5": 0.2,
+    "rr": 1.0,
+    "ndcg@10": 0.6131471927654584
+   },
+   {
+    "id": "Q07",
+    "user": "U01",
+    "intent": "file_check",
+    "answer_status": "answered",
+    "expected_level": "L0+L1+L3",
+    "level": "L3",
+    "expected_docs": [
+     "D03",
+     "D04",
+     "D09",
+     "D11",
+     "D18",
+     "D26"
+    ],
+    "ranked": [
+     "D03",
+     "D27",
+     "D17",
+     "D18",
+     "D04",
+     "D19",
+     "D05"
+    ],
+    "forbidden_hits": [],
+    "matrix_disclosures": [],
+    "note": "draft D27",
+    "recall@5": 0.5,
+    "recall@10": 0.5,
+    "precision@5": 0.6,
+    "rr": 1.0,
+    "ndcg@10": 0.5499887725471477
+   },
+   {
+    "id": "Q08",
+    "user": "U03",
+    "intent": "file_check",
+    "answer_status": "answered",
+    "expected_level": "L0+L3",
+    "level": "—",
+    "expected_docs": [
+     "D13",
+     "D14",
+     "D25"
+    ],
+    "ranked": [],
+    "forbidden_hits": [],
+    "matrix_disclosures": [],
+    "note": "draft D28",
+    "recall@5": 0.0,
+    "recall@10": 0.0,
+    "precision@5": 0.0,
+    "rr": 0.0,
+    "ndcg@10": 0.0
+   },
+   {
+    "id": "Q09",
+    "user": "U01",
+    "intent": "file_check",
+    "answer_status": "answered",
+    "expected_level": "L0+L3",
+    "level": "L0+L3",
+    "expected_docs": [
+     "D06",
+     "D08"
+    ],
+    "ranked": [
+     "D08",
+     "D29"
+    ],
+    "forbidden_hits": [],
+    "matrix_disclosures": [],
+    "note": "draft D29",
+    "recall@5": 0.5,
+    "recall@10": 0.5,
+    "precision@5": 0.2,
+    "rr": 1.0,
+    "ndcg@10": 0.6131471927654584
+   },
+   {
+    "id": "Q10",
+    "user": "U01",
+    "intent": "precedent_lookup",
+    "answer_status": "no_supported_answer",
+    "expected_level": "—",
+    "level": "L2",
+    "expected_docs": [],
+    "ranked": [
+     "D10",
+     "D17",
+     "D19",
+     "D27",
+     "D18",
+     "D04"
+    ],
+    "forbidden_hits": [],
+    "matrix_disclosures": [],
+    "note": ""
+   },
+   {
+    "id": "Q11",
+    "user": "U01",
+    "intent": "decision_history",
+    "answer_status": "answered",
+    "expected_level": "L1",
+    "level": "L1",
+    "expected_docs": [
+     "D19"
+    ],
+    "ranked": [
+     "D19",
+     "D18",
+     "D17"
+    ],
+    "forbidden_hits": [],
+    "matrix_disclosures": [],
+    "note": "",
+    "recall@5": 1.0,
+    "recall@10": 1.0,
+    "precision@5": 0.2,
+    "rr": 1.0,
+    "ndcg@10": 1.0
+   },
+   {
+    "id": "Q12",
+    "user": "U03",
+    "intent": "precedent_lookup",
+    "answer_status": "no_supported_answer",
+    "expected_level": "—",
+    "level": "L2",
+    "expected_docs": [],
+    "ranked": [
+     "D07",
+     "D08",
+     "D10",
+     "D05",
+     "D06",
+     "D03",
+     "D04",
+     "D12",
+     "D14"
+    ],
+    "forbidden_hits": [],
+    "matrix_disclosures": [],
+    "note": ""
+   },
+   {
+    "id": "Q13",
+    "user": "U02",
+    "intent": "precedent_lookup",
+    "answer_status": "answered",
+    "expected_level": "L2",
+    "level": "L2",
+    "expected_docs": [
+     "D20"
+    ],
+    "ranked": [
+     "D10",
+     "D20",
+     "D19",
+     "D17",
+     "D04",
+     "D29",
+     "D06",
+     "D03",
+     "D07",
+     "D26"
+    ],
+    "forbidden_hits": [],
+    "matrix_disclosures": [],
+    "note": "",
+    "recall@5": 1.0,
+    "recall@10": 1.0,
+    "precision@5": 0.2,
+    "rr": 0.5,
+    "ndcg@10": 0.6309297535714575
+   },
+   {
+    "id": "Q14",
+    "user": "U05",
+    "intent": "precedent_lookup",
+    "answer_status": "no_supported_answer",
+    "expected_level": "—",
+    "level": "L2",
+    "expected_docs": [],
+    "ranked": [
+     "D10",
+     "D21",
+     "D20",
+     "D28",
+     "D24",
+     "D19",
+     "D17",
+     "D04"
+    ],
+    "forbidden_hits": [],
+    "matrix_disclosures": [],
+    "note": ""
+   },
+   {
+    "id": "Q15",
+    "user": "U06",
+    "intent": "precedent_lookup",
+    "answer_status": "answered",
+    "expected_level": "L2",
+    "level": "L2",
+    "expected_docs": [
+     "D23"
+    ],
+    "ranked": [
+     "D23",
+     "D10",
+     "D21",
+     "D20",
+     "D28",
+     "D24",
+     "D19",
+     "D17",
+     "D04"
+    ],
+    "forbidden_hits": [],
+    "matrix_disclosures": [],
+    "note": "",
+    "recall@5": 1.0,
+    "recall@10": 1.0,
+    "precision@5": 0.2,
+    "rr": 1.0,
+    "ndcg@10": 1.0
+   },
+   {
+    "id": "Q16",
+    "user": "U07",
+    "intent": "precedent_lookup",
+    "answer_status": "no_supported_answer",
+    "expected_level": "—",
+    "level": "L2",
+    "expected_docs": [],
+    "ranked": [
+     "D04",
+     "D03",
+     "D10",
+     "D05",
+     "D08",
+     "D07",
+     "D12",
+     "D14",
+     "D06"
+    ],
+    "forbidden_hits": [],
+    "matrix_disclosures": [],
+    "note": ""
+   },
+   {
+    "id": "Q17",
+    "user": "U01",
+    "intent": "clause_lookup",
+    "answer_status": "answered",
+    "expected_level": "L0",
+    "level": "L0",
+    "expected_docs": [
+     "D04"
+    ],
+    "ranked": [
+     "D04"
+    ],
+    "forbidden_hits": [],
+    "matrix_disclosures": [],
+    "note": "",
+    "recall@5": 1.0,
+    "recall@10": 1.0,
+    "precision@5": 0.2,
+    "rr": 1.0,
+    "ndcg@10": 1.0
+   },
+   {
+    "id": "Q18",
+    "user": "U01",
+    "intent": "clause_lookup",
+    "answer_status": "answered",
+    "expected_level": "L0",
+    "level": "L0",
+    "expected_docs": [
+     "D03",
+     "D04"
+    ],
+    "ranked": [
+     "D03"
+    ],
+    "forbidden_hits": [],
+    "matrix_disclosures": [],
+    "note": "",
+    "recall@5": 0.5,
+    "recall@10": 0.5,
+    "precision@5": 0.2,
+    "rr": 1.0,
+    "ndcg@10": 0.6131471927654584
+   },
+   {
+    "id": "Q19",
+    "user": "U03",
+    "intent": "precedent_lookup",
+    "answer_status": "answered",
+    "expected_level": "L2",
+    "level": "—",
+    "expected_docs": [
+     "D14",
+     "D16"
+    ],
+    "ranked": [],
+    "forbidden_hits": [],
+    "matrix_disclosures": [],
+    "note": "",
+    "recall@5": 0.0,
+    "recall@10": 0.0,
+    "precision@5": 0.0,
+    "rr": 0.0,
+    "ndcg@10": 0.0
+   },
+   {
+    "id": "Q20",
+    "user": "U01",
+    "intent": "current_rule",
+    "answer_status": "answered",
+    "expected_level": "L1+L3",
+    "level": "L1",
+    "expected_docs": [
+     "D06",
+     "D07",
+     "D08"
+    ],
+    "ranked": [
+     "D08",
+     "D07",
+     "D06"
+    ],
+    "forbidden_hits": [],
+    "matrix_disclosures": [],
+    "note": "",
+    "recall@5": 1.0,
+    "recall@10": 1.0,
+    "precision@5": 0.6,
+    "rr": 1.0,
+    "ndcg@10": 1.0
+   },
+   {
+    "id": "Q21",
+    "user": "U01",
+    "intent": "current_rule",
+    "answer_status": "answered",
+    "expected_level": "L3",
+    "level": "L1",
+    "expected_docs": [
+     "D04",
+     "D05"
+    ],
+    "ranked": [
+     "D05"
+    ],
+    "forbidden_hits": [],
+    "matrix_disclosures": [],
+    "note": "",
+    "recall@5": 0.5,
+    "recall@10": 0.5,
+    "precision@5": 0.2,
+    "rr": 1.0,
+    "ndcg@10": 0.6131471927654584
+   },
+   {
+    "id": "Q22",
+    "user": "U03",
+    "intent": "precedent_lookup",
+    "answer_status": "answered",
+    "expected_level": "L0",
+    "level": "L2",
+    "expected_docs": [
+     "D15"
+    ],
+    "ranked": [
+     "D28",
+     "D25",
+     "D12",
+     "D14",
+     "D24",
+     "D07",
+     "D08"
+    ],
+    "forbidden_hits": [],
+    "matrix_disclosures": [],
+    "note": "",
+    "recall@5": 0.0,
+    "recall@10": 0.0,
+    "precision@5": 0.0,
+    "rr": 0.0,
+    "ndcg@10": 0.0
+   },
+   {
+    "id": "Q23",
+    "user": "U01",
+    "intent": "precedent_lookup",
+    "answer_status": "no_supported_answer",
+    "expected_level": "—",
+    "level": "—",
+    "expected_docs": [],
+    "ranked": [
+     "D29",
+     "D06",
+     "D04",
+     "D03",
+     "D07",
+     "D10",
+     "D26",
+     "D18",
+     "D05",
+     "D14"
+    ],
+    "forbidden_hits": [],
+    "matrix_disclosures": [],
+    "note": ""
+   },
+   {
+    "id": "Q24",
+    "user": "U02",
+    "intent": "current_rule",
+    "answer_status": "answered",
+    "expected_level": "L1",
+    "level": "L1",
+    "expected_docs": [
+     "D04",
+     "D09",
+     "D11"
+    ],
+    "ranked": [
+     "D05",
+     "D04",
+     "D10",
+     "D03"
+    ],
+    "forbidden_hits": [],
+    "matrix_disclosures": [],
+    "note": "",
+    "recall@5": 0.3333333333333333,
+    "recall@10": 0.3333333333333333,
+    "precision@5": 0.2,
+    "rr": 0.5,
+    "ndcg@10": 0.2960819109658652
+   }
+  ]
+ },
+ "conflict": {
+  "summary": {
+   "deterministic_A_C_E_F": {
+    "tp": 7,
+    "fp": 2,
+    "fn": 0,
+    "precision": 0.7777777777777778,
+    "recall": 1.0,
+    "f1": 0.8750000000000001
+   },
+   "clean_control_false_flags": 1,
+   "clean_controls_reported_clear": 0,
+   "note": "with the mock rule file (ADR-0010) no control can be 'clear' — 'review_needed' is the correct outcome"
+  },
+  "per_type": {
+   "A": {
+    "tp": 1,
+    "fp": 0,
+    "fn": 0,
+    "precision": 1.0,
+    "recall": 1.0,
+    "f1": 1.0,
+    "implemented": true
+   },
+   "B": {
+    "tp": 0,
+    "fp": 0,
+    "fn": 1,
+    "precision": null,
+    "recall": 0.0,
+    "f1": null,
+    "implemented": false,
+    "status": "needs grounded Gemini judgment (GCP) — not implemented yet"
+   },
+   "C": {
+    "tp": 3,
+    "fp": 0,
+    "fn": 0,
+    "precision": 1.0,
+    "recall": 1.0,
+    "f1": 1.0,
+    "implemented": true
+   },
+   "D": {
+    "tp": 0,
+    "fp": 0,
+    "fn": 2,
+    "precision": null,
+    "recall": 0.0,
+    "f1": null,
+    "implemented": false,
+    "status": "needs grounded Gemini judgment (GCP) — not implemented yet"
+   },
+   "E": {
+    "tp": 1,
+    "fp": 2,
+    "fn": 0,
+    "precision": 0.3333333333333333,
+    "recall": 1.0,
+    "f1": 0.5,
+    "implemented": true
+   },
+   "F": {
+    "tp": 2,
+    "fp": 0,
+    "fn": 0,
+    "precision": 1.0,
+    "recall": 1.0,
+    "f1": 1.0,
+    "implemented": true
+   },
+   "G": {
+    "tp": 0,
+    "fp": 0,
+    "fn": 1,
+    "precision": null,
+    "recall": 0.0,
+    "f1": null,
+    "implemented": false,
+    "status": "needs grounded Gemini judgment (GCP) — not implemented yet"
+   }
+  },
+  "runs": [
+   {
+    "draft": "D27",
+    "user": "U01",
+    "control": false,
+    "outcome": "conflicts_found",
+    "expected_types": [
+     "A",
+     "B",
+     "C",
+     "D",
+     "E",
+     "F"
+    ],
+    "flagged_types": [
+     "A",
+     "C",
+     "E",
+     "F"
+    ],
+    "missed": [
+     "B",
+     "D"
+    ],
+    "false_flags": [],
+    "evidence_matches_answer_key": {
+     "A": true,
+     "F": true,
+     "C": true
+    },
+    "status_unconfirmed": [],
+    "fact_gaps": [],
+    "type_c_rules_verified": false
+   },
+   {
+    "draft": "D28",
+    "user": "U03",
+    "control": false,
+    "outcome": "conflicts_found",
+    "expected_types": [
+     "C",
+     "D",
+     "G"
+    ],
+    "flagged_types": [
+     "C",
+     "E"
+    ],
+    "missed": [
+     "D",
+     "G"
+    ],
+    "false_flags": [
+     "E"
+    ],
+    "evidence_matches_answer_key": {
+     "C": true
+    },
+    "status_unconfirmed": [],
+    "fact_gaps": [],
+    "type_c_rules_verified": false
+   },
+   {
+    "draft": "D29",
+    "user": "U01",
+    "control": false,
+    "outcome": "conflicts_found",
+    "expected_types": [
+     "C",
+     "F"
+    ],
+    "flagged_types": [
+     "C",
+     "F"
+    ],
+    "missed": [],
+    "false_flags": [],
+    "evidence_matches_answer_key": {
+     "F": true,
+     "C": true
+    },
+    "status_unconfirmed": [],
+    "fact_gaps": [
+     "proposed_authority"
+    ],
+    "type_c_rules_verified": false
+   },
+   {
+    "draft": "D19",
+    "user": "U01",
+    "control": true,
+    "outcome": "review_needed",
+    "expected_types": [],
+    "flagged_types": [],
+    "missed": [],
+    "false_flags": [],
+    "evidence_matches_answer_key": {},
+    "status_unconfirmed": [
+     "D04"
+    ],
+    "fact_gaps": [
+     "proposed_authority"
+    ],
+    "type_c_rules_verified": false
+   },
+   {
+    "draft": "D24",
+    "user": "U03",
+    "control": true,
+    "outcome": "conflicts_found",
+    "expected_types": [],
+    "flagged_types": [
+     "E"
+    ],
+    "missed": [],
+    "false_flags": [
+     "E"
+    ],
+    "evidence_matches_answer_key": {},
+    "status_unconfirmed": [],
+    "fact_gaps": [
+     "proposed_authority"
+    ],
+    "type_c_rules_verified": false
+   },
+   {
+    "draft": "D25",
+    "user": "U06",
+    "control": true,
+    "outcome": "review_needed",
+    "expected_types": [],
+    "flagged_types": [],
+    "missed": [],
+    "false_flags": [],
+    "evidence_matches_answer_key": {},
+    "status_unconfirmed": [],
+    "fact_gaps": [],
+    "type_c_rules_verified": false
+   }
+  ]
+ },
+ "leakage": {
+  "summary": {
+   "checks": 1014,
+   "disclosures": 0,
+   "pass": true
+  },
+  "paths": {
+   "question → retrieved set": {
+    "checks": 208,
+    "disclosures": 0
+   },
+   "question → evidence package": {
+    "checks": 208,
+    "disclosures": 0
+   },
+   "file check → pre-send evidence": {
+    "checks": 11,
+    "disclosures": 0
+   },
+   "exact ID + graph": {
+    "checks": 168,
+    "disclosures": 0
+   },
+   "keyword (L2) by subject": {
+    "checks": 168,
+    "disclosures": 0
+   },
+   "count / list-all (L1)": {
+    "checks": 8,
+    "disclosures": 0
+   },
+   "reference lookup (existence)": {
+    "checks": 232,
+    "disclosures": 0
+   },
+   "pre-send report": {
+    "checks": 11,
+    "disclosures": 0
+   }
+  },
+  "disclosures": []
+ },
+ "touchpoints": {
+  "summary": {
+   "scenarios": 17,
+   "run": 13,
+   "passed": 11
+  },
+  "scenarios": [
+   {
+    "id": "TP02-a",
+    "touchpoint": "Receipt inbox",
+    "user": "U01",
+    "run": true,
+    "pass": true,
+    "docs": [
+     "D04",
+     "D05"
+    ],
+    "flags": [],
+    "expected_flags": [],
+    "suggestion": "new_file"
+   },
+   {
+    "id": "TP02-b",
+    "touchpoint": "Receipt inbox",
+    "user": "U01",
+    "run": true,
+    "pass": true,
+    "docs": [
+     "D06",
+     "D07",
+     "D08"
+    ],
+    "flags": [
+     [
+      "F",
+      "D07"
+     ],
+     [
+      "F",
+      "D08"
+     ]
+    ],
+    "expected_flags": [
+     [
+      "F",
+      "D07"
+     ],
+     [
+      "F",
+      "D08"
+     ]
+    ],
+    "suggestion": "new_file"
+   },
+   {
+    "id": "TP03",
+    "touchpoint": "Put in a file",
+    "user": "U01",
+    "run": true,
+    "pass": true,
+    "docs": [
+     "D04",
+     "D05"
+    ],
+    "flags": [],
+    "expected_flags": [],
+    "suggestion": "new_file"
+   },
+   {
+    "id": "TP04",
+    "touchpoint": "Received letters (other dept)",
+    "user": "U02",
+    "run": true,
+    "pass": true,
+    "files": [
+     "2894562"
+    ],
+    "changes": [
+     [
+      "SUPERSEDES",
+      "D03"
+     ]
+    ]
+   },
+   {
+    "id": "TP06",
+    "touchpoint": "Writing a note (Yellow Note)",
+    "user": "U01",
+    "run": false,
+    "why": "needs the sandbox screen flow (P8)"
+   },
+   {
+    "id": "TP07",
+    "touchpoint": "Referencing in a note",
+    "user": "U04",
+    "run": false,
+    "why": "needs the sandbox screen flow (P8)"
+   },
+   {
+    "id": "TP08",
+    "touchpoint": "Catching up on a long file",
+    "user": "U05",
+    "run": true,
+    "pass": false,
+    "expected_gaps": [
+     [
+      4,
+      5
+     ]
+    ],
+    "expected_docs": [
+     "D21",
+     "D22"
+    ],
+    "sources": [
+     "D21"
+    ],
+    "gaps": [],
+    "last_direction": 3
+   },
+   {
+    "id": "TP09",
+    "touchpoint": "Link file",
+    "user": "U03",
+    "run": true,
+    "pass": true,
+    "expected_files": [
+     "2003377",
+     "2447780"
+    ],
+    "files": [
+     "2003377",
+     "2447780"
+    ],
+    "docs": [
+     "D24",
+     "D25"
+    ]
+   },
+   {
+    "id": "TP10",
+    "touchpoint": "Local reference",
+    "user": "U01",
+    "run": false,
+    "why": "needs the sandbox screen flow (P8)"
+   },
+   {
+    "id": "TP11-a",
+    "touchpoint": "Before Send",
+    "user": "U01",
+    "run": true,
+    "pass": true,
+    "deterministic_expected": [
+     "A",
+     "C",
+     "E",
+     "F"
+    ],
+    "flagged": [
+     "A",
+     "C",
+     "E",
+     "F"
+    ],
+    "outcome": "conflicts_found"
+   },
+   {
+    "id": "TP11-b",
+    "touchpoint": "Before Send",
+    "user": "U03",
+    "run": true,
+    "pass": true,
+    "deterministic_expected": [
+     "C"
+    ],
+    "flagged": [
+     "C",
+     "E"
+    ],
+    "outcome": "conflicts_found"
+   },
+   {
+    "id": "TP11-c",
+    "touchpoint": "Before Send",
+    "user": "U01",
+    "run": true,
+    "pass": true,
+    "deterministic_expected": [
+     "C",
+     "F"
+    ],
+    "flagged": [
+     "C",
+     "F"
+    ],
+    "outcome": "conflicts_found"
+   },
+   {
+    "id": "TP13",
+    "touchpoint": "Senior opens a file",
+    "user": "U06",
+    "run": true,
+    "pass": false,
+    "missing_required": [
+     "D09",
+     "D11"
+    ],
+    "waiting_for_gemini": [
+     "D26"
+    ],
+    "flags": [
+     "A",
+     "C",
+     "E",
+     "F"
+    ]
+   },
+   {
+    "id": "TP14",
+    "touchpoint": "Draft (DFA)",
+    "user": "U02",
+    "run": false,
+    "why": "needs the sandbox screen flow (P8)"
+   },
+   {
+    "id": "TP15-a",
+    "touchpoint": "Advance search",
+    "user": "U03",
+    "run": true,
+    "pass": true,
+    "expected_docs": [
+     "D24"
+    ],
+    "ranked": [
+     "D24",
+     "D28",
+     "D10",
+     "D04"
+    ],
+    "level": "L2",
+    "expected_level": "L2",
+    "files_checked": false
+   },
+   {
+    "id": "TP15-b",
+    "touchpoint": "Advance search",
+    "user": "U05",
+    "run": true,
+    "pass": true,
+    "expected_docs": [
+     "D24"
+    ],
+    "ranked": [
+     "D24",
+     "D28",
+     "D20",
+     "D27",
+     "D21",
+     "D18",
+     "D10",
+     "D04"
+    ],
+    "level": "L2",
+    "expected_level": "L2",
+    "files_checked": false
+   },
+   {
+    "id": "TP20",
+    "touchpoint": "Search privilege respected",
+    "user": "U01",
+    "run": true,
+    "pass": true,
+    "questions": [
+     "Q01",
+     "Q02",
+     "Q14",
+     "Q15",
+     "Q10",
+     "Q12",
+     "Q13",
+     "Q23"
+    ],
+    "criterion": "no forbidden or matrix-disallowed document for any officer"
+   }
+  ]
+ }
+}

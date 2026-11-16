@@ -21,10 +21,12 @@ ONTOLOGY = REPO_ROOT / "data" / "ontology"
 
 def test_hierarchy_matches_plan_draft() -> None:
     h = load_hierarchy(ONTOLOGY / "hierarchy.yaml")
-    assert [lv.level for lv in h.levels] == list(range(1, 10))
+    assert [lv.level for lv in h.levels] == list(range(1, 11))  # ADR-0027: Proceedings added
     assert h.levels[3].instrument == "GO_MS"
+    assert h.levels[6].instrument == "PROCEEDINGS"
     assert h.levels[-1].instrument == "DECISION_NOTING"
-    assert h.status == "draft"  # stays draft until department confirmation
+    assert h.status == "mock"  # never "confirmed" without the department (CLAUDE.md §5.9)
+    assert all(lv.basis for lv in h.levels)  # every placing names its source or says assumption
 
 
 def test_classification_follows_csmop_order() -> None:
