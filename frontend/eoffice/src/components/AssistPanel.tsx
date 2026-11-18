@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { fmtDate } from "../format";
 import type { Api } from "../api";
 import { FLAG_NAMES, outcomeLabel, yellowNoteFrom } from "../presend";
 import { Feedback } from "./Feedback";
@@ -35,9 +36,14 @@ export function AssistPanel({ api, computerNo, report, onReport, onInserted, onO
   const [dfaBody, setDfaBody] = useState("");
   const [dfaMade, setDfaMade] = useState<string | null>(null);
 
-  const run = async <T,>(f: () => Promise<T>, then: (x: T) => void) => {
-    setBusy(true); setError(null);
-    try { then(await f()); } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
+  const [working, setWorking] = useState<string | null>(null);
+  // runs one tool: says what is being prepared, then brings its result into view
+  const run = async <T,>(f: () => Promise<T>, then: (x: T) => void, label?: string, show?: string) => {
+    setBusy(true); setError(null); setWorking(label ?? null);
+    try {
+      then(await f());
+      if (show) requestAnimationFrame(() => document.querySelector(`.assist ${show}`)?.scrollIntoView({ block: "nearest", behavior: "smooth" }));
+    } catch (e) { setError((e as Error).message); } finally { setBusy(false); setWorking(null); }
   };
 
   const insert = () => {
@@ -50,17 +56,33 @@ export function AssistPanel({ api, computerNo, report, onReport, onInserted, onO
 
   return (
     <aside className="assist">
-      <h3>✦ C2-24 Assist — this file</h3>
-      <div className="chips">
-        <button disabled={busy} onClick={() => void run(() => api.brief(computerNo), setBrief)}>Approval brief</button>
-        <button disabled={busy} onClick={() => void run(() => api.fileSoFar(computerNo), setSoFar)}>File so far</button>
-        <button disabled={busy} onClick={() => void run(() => api.movements(computerNo), setMoves)}>Movement summary</button>
-        <button disabled={busy} onClick={() => void run(() => api.sinceDecision(computerNo), setSince)}>What changed since the decision</button>
-        <button disabled={busy} onClick={() => void run(() => api.closingRemarks(computerNo), setClosing)}>Closing remarks</button>
-        <button disabled={busy} onClick={() => void run(() => api.linkSuggestions(computerNo), setLinks)}>Link file</button>
-        <button disabled={busy} onClick={() => void run(() => api.presend(computerNo), onReport)}>Pre-send check</button>
-        <button disabled={busy} onClick={() => void run(() => api.firstCut(computerNo), (c) => { setCut(c); setCutBody(c.body); setCutMade(null); })}>First-cut note</button>
-        <button disabled={busy} onClick={() => void run(() => api.dfa(computerNo), (d) => { setDfa(d); setDfaBody(d.body); setDfaMade(null); })}>Draft (DFA)</button>
+      <h3>C2-24 assistant <span className="h3-sub">for this file</span></h3>
+      {working && <p className="busyline" role="status">{working}</p>}
+      <div className="toolgroups">
+        <div className="toolgroup">
+          <h4>Understand the file</h4>
+          <div className="chips">
+            <button disabled={busy} onClick={() => void run(() => api.fileSoFar(computerNo), setSoFar, "Reading the notes…", ".sofar")}>File so far</button>
+            <button disabled={busy} onClick={() => void run(() => api.movements(computerNo), setMoves, "Reading the movements…", ".moves")}>Movement summary</button>
+            <button disabled={busy} onClick={() => void run(() => api.brief(computerNo), setBrief, "Preparing the approval brief…", ".brief")}>Approval brief</button>
+            <button disabled={busy} onClick={() => void run(() => api.sinceDecision(computerNo), setSince, "Checking the orders it relied on…", ".since")}>Changes since the decision</button>
+          </div>
+        </div>
+        <div className="toolgroup">
+          <h4>Check before sending</h4>
+          <div className="chips">
+            <button disabled={busy} onClick={() => void run(() => api.presend(computerNo), onReport, "Running the pre-send check…", ".presend")}>Pre-send check</button>
+            <button disabled={busy} onClick={() => void run(() => api.linkSuggestions(computerNo), setLinks, "Finding related files…", ".links")}>Related files</button>
+          </div>
+        </div>
+        <div className="toolgroup">
+          <h4>Draft</h4>
+          <div className="chips">
+            <button disabled={busy} onClick={() => void run(() => api.firstCut(computerNo), (c) => { setCut(c); setCutBody(c.body); setCutMade(null); }, "Writing a first-cut note…", ".dfa")}>First-cut note</button>
+            <button disabled={busy} onClick={() => void run(() => api.dfa(computerNo), (d) => { setDfa(d); setDfaBody(d.body); setDfaMade(null); }, "Preparing the draft…", ".dfa")}>Draft for approval</button>
+            <button disabled={busy} onClick={() => void run(() => api.closingRemarks(computerNo), setClosing, "Preparing closing remarks…", ".closing")}>Closing remarks</button>
+          </div>
+        </div>
       </div>
 
       <form className="refbox" onSubmit={(e) => { e.preventDefault(); if (refText.trim()) void run(() => api.reference(refText), setRef); }}>
@@ -140,7 +162,7 @@ export function AssistPanel({ api, computerNo, report, onReport, onInserted, onO
       )}
 
       {report && (
-        <section>
+        <section className="presend">
           <h4 className={report.outcome === "conflicts_found" ? "warn" : ""}>{outcomeLabel(report)}</h4>
           {report.message && <p className="card">{report.message}</p>}
           {report.flags?.map((f, i) => (
@@ -173,7 +195,7 @@ export function AssistPanel({ api, computerNo, report, onReport, onInserted, onO
               {report.awaiting_review.join(" · ")}
             </p>
           )}
-          {!!report.fact_gaps?.length && <p className="card">Not stated clearly in the note: {report.fact_gaps.join(", ")}</p>}
+          {!!report.fact_gaps?.length && <p className="card">Not stated clearly in the note: {report.fact_gaps.map(factWords).join(", ")}</p>}
           {report.authority_message && <p className="card">{report.authority_message}</p>}
           <Caveats calibrated={report.calibrated} mockRules={report.mock_rules} />
           {!!report.flags?.length && (
@@ -207,7 +229,7 @@ export function BriefCard({ b }: { b: Brief }) {
           {p.proposed_authority ? ` · approval sought from ${p.proposed_authority}` : ""}
         </p>
         {p.evidence.proposed_authority && <p className="src">“{p.evidence.proposed_authority}”</p>}
-        {p.not_stated.length > 0 && <p className="muted">Not stated clearly in the note: {p.not_stated.join(", ")}</p>}
+        {p.not_stated.length > 0 && <p className="muted">Not stated clearly in the note: {p.not_stated.map(factWords).join(", ")}</p>}
         {b.put_up && <p className="muted">Put up by {b.put_up.post ?? "—"}{b.put_up.signed_at ? ` on ${b.put_up.signed_at.slice(0, 10)}` : ""}</p>}
       </div>
       <div className="card">
@@ -247,7 +269,7 @@ export function SoFarCard({ s }: { s: FileSoFar }) {
         {s.notes.map((n) => (
           <li key={n.note_no} className={n.note_no === s.last_direction ? "last" : ""}>
             <strong>Note #{n.note_no}</strong> · {n.post ?? "post not stated"}
-            {n.signed_at && <> · {n.signed_at.slice(0, 10)}</>}
+            {n.signed_at && <>, {fmtDate(n.signed_at)}</>}
             {n.note_no === s.last_direction && <span className="badge">last direction</span>}
             <p>{n.text}</p>
             <p className="src">Source: {n.source}</p>
@@ -260,7 +282,14 @@ export function SoFarCard({ s }: { s: FileSoFar }) {
   );
 }
 
-const ddmmyyyy = (iso: string | null) => (iso ? iso.slice(0, 10).split("-").reverse().join("-") : "—");
+const ddmmyyyy = (iso: string | null) => fmtDate(iso);
+
+/** The rule engine names the facts it needs by field; the officer reads them in words. */
+const FACT_WORDS: Record<string, string> = {
+  action: "what is proposed", post_level: "the post level", amount: "the amount",
+  proposed_authority: "who is proposed to approve it", "note identity/date/department": "the note's number, date or department",
+};
+const factWords = (f: string) => FACT_WORDS[f] ?? f.replace(/_/g, " ");
 
 /** Touchpoint 12 ("Initiate action"): the remarks at each movement, the note each sender put up,
  *  and where the file is pending — e-Office's own records, nothing inferred. */
@@ -274,7 +303,7 @@ export function MovementsCard({ m }: { m: Movements }) {
         {m.steps.map((s) => (
           <li key={s.seq} className={s.sent_back ? "back" : ""}>
             <div><strong>{s.from_post ?? s.from_user}</strong> → <strong>{s.to_post ?? s.to_user}</strong>
-              <span className="muted"> · {ddmmyyyy(s.sent_at)}{s.days_held != null ? ` · held ${s.days_held} day(s)` : ""}</span>
+              <span className="muted">, {ddmmyyyy(s.sent_at)}{s.days_held != null ? `, held ${s.days_held} day(s)` : ""}</span>
               {s.sent_back && <span className="pill warn">sent back</span>}
               {s.priority !== "normal" && <span className="pill">{s.priority}</span>}
               {s.due_on && <span className="pill">due {ddmmyyyy(s.due_on)}</span>}
@@ -503,7 +532,6 @@ export function NoteReferenceCard({ r, done, busy, onInsert }: {
   );
 }
 
-const fmtDate = (iso: string) => iso.split("-").reverse().join("-");
 
 export function ReferenceCard({ r }: { r: ReferenceResult }) {
   if (r.choices?.length) return <p className="card">More than one order matches — which one? {r.choices.join(" · ")}</p>;

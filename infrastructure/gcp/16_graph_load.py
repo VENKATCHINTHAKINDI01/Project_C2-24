@@ -11,8 +11,11 @@ Run from backend/ (dry run by default; APPLY=1 executes):
 
 Like 12_cloudsql_schema.py: sets a random one-time password on `postgres`, loads through the
 Cloud SQL connector (no open IP ranges), then resets the password to a value nobody sees. The two
-files are read straight from the bucket and nothing is written to disk. Rows are upserted: safe to
-run again. A node without access tags is refused.
+files are read straight from the bucket and nothing is written to disk. The tables are made equal to
+the build (ADR-0055): links and nodes it no longer produces are deleted, the rest upserted.
+APPLY=1 PLAN_ONLY=1 connects and prints what would change, changing nothing; a sync deleting more
+than MAX_DELETE_SHARE (0.2) is refused unless ALLOW_LARGE_DELETE=1. A node without access tags is
+refused.
 """
 
 from __future__ import annotations
@@ -74,8 +77,17 @@ def main() -> None:
         pg = Pg(lambda: connector.connect(name, "pg8000", user="postgres", password=pw, db=prefix))
         try:
             repo = PostgresGraphRepository(pg)
-            done = repo.load_rows(nodes, edges)
-            print(f"+ wrote {done[0]} nodes, {done[1]} edges; tables now hold {repo.counts()}")
+            p = repo.sync_rows(
+                nodes,
+                edges,
+                max_delete_share=float(os.environ.get("MAX_DELETE_SHARE", "0.2")),
+                allow_large_delete=os.environ.get("ALLOW_LARGE_DELETE") == "1",
+                dry_run=os.environ.get("PLAN_ONLY") == "1",
+            )
+            verb = (
+                "PLAN ONLY, nothing changed:" if os.environ.get("PLAN_ONLY") == "1" else "+ synced:"
+            )
+            print(f"{verb} {p.summary()}; tables now hold {repo.counts()}")
         finally:
             pg.close()
     finally:

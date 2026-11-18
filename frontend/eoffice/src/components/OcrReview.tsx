@@ -22,7 +22,7 @@ export function OcrReview({ api }: { api: Api }) {
   if (!items) return <p className="muted page">Loading the review queue…</p>;
   return (
     <main className="page review">
-      <h2>OCR review</h2>
+      <h1>OCR review</h1>
       <p className="muted">
         Scanned pages read by Document AI wait here. Check the text against the scan, correct it if needed, and confirm.
         Nothing is used as evidence until you do.
@@ -43,6 +43,9 @@ export function OcrReview({ api }: { api: Api }) {
             </li>
           ))}
         </ul>
+        {!open && items.length > 0 && (
+          <p className="review-empty muted">Choose a scan on the left to check its text against the page.</p>
+        )}
         {open && (
           <ReviewItem
             key={open}

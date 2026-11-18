@@ -8,7 +8,7 @@ scopes, and compares answer by answer.
     cd backend
     C2_GCP_PROJECT_ID=<project> C2_GCP_REGION=asia-south1 \\
       env -u VIRTUAL_ENV uv run python ../evaluation/cloud_ladder_check.py \\
-      --sql-user <your gcloud account e-mail> [--sample 150]
+      --sql-user <your gcloud account e-mail> [--sample 150] [--spanner-instance c2-spanner]
 
 Needs your gcloud login + Application Default Credentials. Read-only: a few hundred small
 BigQuery queries (well inside the free tier) and Cloud SQL reads with your IAM login.
@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+import importlib
 import json
 import random
 import re
@@ -146,6 +147,11 @@ def main() -> int:
     ap.add_argument("--prefix", default="c2")
     ap.add_argument("--skip-graph", action="store_true")
     ap.add_argument("--sql-user", help="your IAM database login (your gcloud account e-mail)")
+    ap.add_argument(
+        "--spanner-instance",
+        help="also compare the Spanner Graph copy (ADR-0048), e.g. c2-spanner",
+    )
+    ap.add_argument("--spanner-database", default="c2graph")
     a = ap.parse_args()
     s = get_settings()
     if not (s.gcp_project_id and s.gcp_region):
@@ -154,7 +160,7 @@ def main() -> int:
         sys.exit("give --sql-user <your gcloud account e-mail> (or --skip-graph)")
     project, region = s.gcp_project_id, s.gcp_region
 
-    from google.cloud import storage
+    storage = importlib.import_module("google.cloud.storage")  # no type stubs
 
     bucket = storage.Client(project=project).bucket(f"{project}-{a.prefix}-artifacts")
 
@@ -250,6 +256,18 @@ def main() -> int:
                     confirmed=bool(e["confirmed"]),
                 )
             )
+        stores: list[tuple[str, Any]] = []
+        if a.spanner_instance:
+            from app.graph.spanner import CloudSpannerPort, SpannerGraphRepository
+
+            stores.append(
+                (
+                    "Spanner",
+                    SpannerGraphRepository(
+                        CloudSpannerPort(project, a.spanner_instance, a.spanner_database)
+                    ),
+                )
+            )
         pg = pg_from_settings(
             s.model_copy(
                 update={
@@ -262,26 +280,28 @@ def main() -> int:
         )
         assert pg is not None  # noqa: S101
         try:
-            cloud = PostgresGraphRepository(pg)
-            tally(
-                "L3 graph size (Cloud SQL)",
-                cloud.counts() == (len(mem.node_ids()), len(mem.edges())),
-                f"cloud {cloud.counts()} vs files {(len(mem.node_ids()), len(mem.edges()))}",
-            )
+            stores.insert(0, ("Cloud SQL", PostgresGraphRepository(pg)))
             linked = sorted({e["from"] for e in edges})
-            for name, sc in scopes.items():
-                for cid in rng.sample(linked, min(40, len(linked))):
-                    kw: dict[str, Any] = {
-                        "kinds": frozenset(EdgeKind),
-                        "direction": Direction.BOTH,
-                        "max_hops": 2,
-                        "include_unconfirmed": True,
-                    }
-                    tally(
-                        "L3 walk, 2 hops (Cloud SQL)",
-                        cloud.walk([cid], sc, **kw) == mem.walk([cid], sc, **kw),
-                        f"{name} · {cid}",
-                    )
+            picks = {name: rng.sample(linked, min(40, len(linked))) for name in scopes}
+            for store, cloud in stores:
+                tally(
+                    f"L3 graph size ({store})",
+                    cloud.counts() == (len(mem.node_ids()), len(mem.edges())),
+                    f"{store} {cloud.counts()} vs files {(len(mem.node_ids()), len(mem.edges()))}",
+                )
+                for name, sc in scopes.items():
+                    for cid in picks[name]:  # the same walks for every store
+                        kw: dict[str, Any] = {
+                            "kinds": frozenset(EdgeKind),
+                            "direction": Direction.BOTH,
+                            "max_hops": 2,
+                            "include_unconfirmed": True,
+                        }
+                        tally(
+                            f"L3 walk, 2 hops ({store})",
+                            cloud.walk([cid], sc, **kw) == mem.walk([cid], sc, **kw),
+                            f"{name} · {cid}",
+                        )
         finally:
             pg.close()
 
@@ -320,11 +340,11 @@ def main() -> int:
                     score = 0.7 * cos + 0.3 * hits / max(1, len(terms))
                     best[r["canonical_id"]] = max(best.get(r["canonical_id"], -1.0), score)
                 want = sorted(best.items(), key=lambda x: (-round(x[1], 4), x[0]))[:10]
-                got = [(h.doc.canonical_id, h.score) for h in l2.search(q, sc, 10)]
-                got.sort(key=lambda x: (-round(x[1], 4), x[0]))
+                ranked = [(h.doc.canonical_id, h.score) for h in l2.search(q, sc, 10)]
+                ranked.sort(key=lambda x: (-round(x[1], 4), x[0]))
                 tally(
                     "L2 meaning + keywords, top 10 (BigQuery)",
-                    [c for c, _ in got] == [c for c, _ in want],
+                    [c for c, _ in ranked] == [c for c, _ in want],
                     f"{name} · {q[:40]}",
                 )
         calib = l2_calibration(l2, passages, scopes["outsider (public only)"], rng)

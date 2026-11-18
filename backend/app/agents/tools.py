@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import datetime as dt
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Any
 
@@ -29,8 +29,10 @@ from app.agents.intents import Intent, IntentSlots, build_request
 from app.auth.models import AccessPolicy, StatusCoverage
 from app.auth.policy import ScopeError, check, scope_for
 from app.auth.store import AuthzStore
+from app.citation.confidence import ConfidenceConfig, default_confidence_config
 from app.config import Classification, Hierarchy
 from app.graph.repository import WalkableGraph
+from app.identifiers.entities import EntityIndex
 from app.retrieval.ladder import (
     HybridRetriever,
     LadderConfig,
@@ -82,6 +84,11 @@ class ToolContext:
     hierarchy: Hierarchy
     instruments: Mapping[str, Instrument]  # temporal facts (BigQuery/Spanner later)
     relations: tuple[TemporalRelation, ...]
+    # how far each statement can be relied on (ADR-0054; MOCK values in config/confidence.yaml)
+    confidence: ConfidenceConfig | None = field(default_factory=default_confidence_config)
+    # people and offices named in trusted texts (ADR-0058). NOT an access boundary: every record
+    # it returns is re-checked with `visible_document` before anything is said about it
+    entities: EntityIndex | None = None
 
 
 class DocRef(_Frozen):
@@ -102,6 +109,7 @@ class ToolResult(_Frozen):
     precedence: Precedence | None = None
     ladder_level: str | None = None
     status_unconfirmed: tuple[DocRef, ...] = ()  # found, but status not reportable (coverage)
+    unavailable: tuple[str, ...] = ()  # rungs whose store failed this time (plan §14.4)
     message: str | None = None
 
 
@@ -184,7 +192,15 @@ def search_authorized_documents(ctx: ToolContext, slots: IntentSlots) -> ToolRes
         available=bool(res.documents),
         documents=tuple(_ref(d) for d in res.documents),
         ladder_level=ladder_label(res),
+        unavailable=tuple(r.value for r in res.unavailable),
     )
+
+
+def draft_matches(ctx: ToolContext, text: str) -> LadderResult:
+    """Records close to a draft being prepared (ADR-0044): the precedent-lookup template over the
+    draft's own words — L0 exact reference, L1 filter, L2 hybrid search, L3 graph expansion —
+    with the officer's scope in every rung (plan §3.2). The text fills a slot; never a query."""
+    return _ladder(ctx, Intent.PRECEDENT_LOOKUP, IntentSlots(text=text[:500]))
 
 
 def get_document(ctx: ToolContext, canonical_id: str) -> ToolResult:

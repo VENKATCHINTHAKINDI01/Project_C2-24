@@ -32,15 +32,16 @@ from app.agents.answer import AskStatus, AskTrace, ask, named_orders
 from app.agents.intents import Intent
 from app.agents.state import AgentState
 from app.agents.streaming import Emit
-from app.agents.tools import ToolContext
+from app.agents.tools import ToolContext, visible_document
 from app.auth.models import AccessPolicy, DocumentAccessTags
 from app.auth.policy import ScopeError, scope_for
 from app.auth.store import AuthzStore
 from app.cache.answers import AnswerCache
+from app.cache.semantic import SemanticIndex, anchors, is_reask
 from app.config import Classification
 from app.connectors.eoffice import OfficerContext
 from app.identifiers.resolver import DepartmentTable, reference_candidates
-from app.memory.session import Turn
+from app.memory.session import SessionError, Turn
 from app.tracking.query_log import QueryLog, QueryRecord, query_hash
 from app.tracking.signals import SignalConfig, question_flags
 
@@ -105,6 +106,7 @@ class TurnServices:
     emit: Emit | None = None  # streaming (ADR-0033): progress and checked statements
     log_question: bool = False  # keep the question text in the query log (ADR-0035)
     signals: SignalConfig | None = None  # unusual-activity signal codes (ADR-0036)
+    reworded: SemanticIndex | None = None  # reworded repeats (plan §10.3; ADR-0053)
 
 
 def classify(question: str, named: Sequence[str], file_nos: Sequence[str]) -> Intent:
@@ -177,12 +179,33 @@ def build_graph(svc: TurnServices) -> Any:
     def key(s: AgentState) -> str:
         return f"{s.canonical_query}\x1f{s.as_of_date.isoformat()}"
 
+    def anchor(s: AgentState) -> str:
+        return anchors(s.raw_query, s.entities, s.intent.value if s.intent else "", s.as_of_date)
+
     def cache_node(state: AgentState) -> dict[str, Any]:
         s = state
-        hit = svc.cache.get(key(s), scope_holder.get("scope"))
+        scope = scope_holder.get("scope")
+        hit = svc.cache.get(key(s), scope)
+        if hit is None and svc.reworded is not None and scope is not None:
+            # a reworded repeat: same scope, same anchors, same content words (ADR-0053); the
+            # answer is still read through the scoped cache by its own key
+            earlier = svc.reworded.find(scope.signature, anchor(s), s.raw_query)
+            hit = svc.cache.get(earlier, scope) if earlier else None
+            if hit is not None:
+                svc.reworded.hits += 1
         if hit is None:
             return {}
         result = json.loads(hit)
+        # every record the cached answer cites must still be one this officer may open NOW
+        # (CLAUDE.md §4.6, §4.8): a grant withdrawn, a record reclassified or removed by any path
+        # — even one no invalidation hook saw — turns the hit into a miss
+        cited = {
+            c.get("canonical_id")
+            for st in [*result.get("statements", []), *result.get("review_needed", [])]
+            for c in st.get("citations", [])
+        }
+        if any(not cid or visible_document(ctx, cid) is None for cid in cited):
+            return {}
         return {"cache_hit": True, "result": result, "outcome": result.get("status")}
 
     def answer_node(state: AgentState) -> dict[str, Any]:
@@ -235,6 +258,25 @@ def build_graph(svc: TurnServices) -> Any:
                 for c in st.get("citations", [])
             )
         )
+        # re-ask (plan §10.3-§10.4): the same question again in other words in this session — a
+        # signal for query analytics that the first answer did not help; never changes an answer
+        reask = False
+        if s.outcome != "denied" and svc.reworded is not None and svc.reworded.enabled:
+            try:
+                earlier = svc.memory.turns(s.user, s.session_id)
+            except SessionError:
+                earlier = ()
+            light = anchors(s.raw_query, (), "", s.as_of_date)  # numbers, negation, outcome
+            reask = is_reask(
+                [
+                    (anchors(q, (), "", s.as_of_date), q)
+                    for t in earlier
+                    if (q := t.canonical_query.split(" | ", 1)[0])
+                ],
+                light,
+                s.raw_query,
+            )
+            svc.reworded.reasks += reask
         if s.outcome != "denied":
             svc.memory.append(
                 s.user,
@@ -256,7 +298,23 @@ def build_graph(svc: TurnServices) -> Any:
             svc.cache.put(
                 key(s), scope_holder.get("scope"), json.dumps(result), frozenset(cited_cids)
             )
+            scope = scope_holder.get("scope")
+            if svc.reworded is not None and scope is not None:
+                svc.reworded.remember(scope.signature, anchor(s), s.raw_query, key(s))
         o = svc.officer
+        flags = (
+            question_flags(
+                svc.signals,
+                s.raw_query,
+                references=mention.get("references", False),
+                named=mention.get("named", False),
+                entities=bool(s.entities),
+                outcome=s.outcome,
+                found=bool(s.authorized_candidates),
+            )
+            if svc.signals is not None and s.outcome != "denied"
+            else ()
+        )
         svc.query_log.write(
             QueryRecord(
                 query_id=s.request_id,
@@ -284,17 +342,7 @@ def build_graph(svc: TurnServices) -> Any:
                 clearance_rank=ctx.classification.rank_of(o.clearance)
                 if svc.log_question
                 else None,
-                flags=question_flags(
-                    svc.signals,
-                    s.raw_query,
-                    references=mention.get("references", False),
-                    named=mention.get("named", False),
-                    entities=bool(s.entities),
-                    outcome=s.outcome,
-                    found=bool(s.authorized_candidates),
-                )
-                if svc.signals is not None and s.outcome != "denied"
-                else (),
+                flags=flags + (("reask",) if reask else ()),
             )
         )
         return {}

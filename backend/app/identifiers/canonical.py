@@ -45,6 +45,7 @@ DOC_TYPES = frozenset(
         "NOTE",
         "RPT",
         "ANX",
+        "FILE",
     }
 )
 
@@ -140,7 +141,7 @@ def lookup_keys(text: str) -> tuple[str, ...]:
 
 
 _EFILE = re.compile(r"^(?P<dept>[A-Z]{2,6}\d{2})-(?P<head>[A-Z0-9]+)/(?P<num>\d+)/(?P<year>\d{4})-")
-EFILE_TYPES = frozenset({"NOTE", "RPT", "ANX"})
+EFILE_TYPES = frozenset({"NOTE", "RPT", "ANX", "FILE"})  # FILE: the e-File's own record
 
 
 def efile_document_id(file_no: str, doc_type: str) -> str:

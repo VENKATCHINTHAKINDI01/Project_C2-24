@@ -77,7 +77,9 @@ def repo() -> PostgresGraphRepository:
     return PostgresGraphRepository(Pg(lambda: conn))
 
 
-def node(cid: str, dept: str = "FIN", *, cls: str = "UNCLASSIFIED", file_no: str | None = None):
+def node(
+    cid: str, dept: str = "FIN", *, cls: str = "UNCLASSIFIED", file_no: str | None = None
+) -> GraphNode:
     return GraphNode(
         canonical_id=cid,
         tags=DocumentAccessTags(
@@ -199,7 +201,7 @@ def test_same_answers_as_the_reference(repo: PostgresGraphRepository, seed: int)
             }
             got = repo.walk(seeds, sc, **kw)
             assert got == ref.walk(seeds, sc, **kw)
-            assert all(sc.admits(n.tags) for h in got for c in h.path if (n := ref.node(c)))
+            assert all(sc.admits(gn.tags) for h in got for c in h.path if (gn := ref.node(c)))
     cid = nodes[3].canonical_id
     assert repo.edges_to(cid) == ref.edges_to(cid)
     assert repo.edges_from(cid) == ref.edges_from(cid)
@@ -210,6 +212,7 @@ def test_same_answers_as_the_reference(repo: PostgresGraphRepository, seed: int)
 def test_on_real_postgres() -> None:
     import psycopg
 
+    assert DSN is not None
     conn = psycopg.connect(DSN)
     with conn.cursor() as cur:
         cur.execute("DROP SCHEMA IF EXISTS c2_graph_test CASCADE; CREATE SCHEMA c2_graph_test")
@@ -238,7 +241,7 @@ def test_on_real_postgres() -> None:
 
 
 def test_job_files_load_and_an_untagged_node_is_refused(repo: PostgresGraphRepository) -> None:
-    nodes = [
+    nodes: list[dict[str, Any]] = [
         {"id": "A", "department": "FIN", "section": None, "classification": "UNCLASSIFIED",
          "file_no": None, "doc_type": "GO_MS", "issue_date": "2020-01-02"},
         {"id": "B", "department": "FIN", "classification": "UNCLASSIFIED"},

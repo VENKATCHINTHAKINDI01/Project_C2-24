@@ -30,8 +30,22 @@ log = logging.getLogger("c2.frontend")
 API_PREFIXES = ("/assist/", "/sandbox/", "/healthz")
 # request headers passed on to c2-api; everything else (cookies, Authorization, IAP's own
 # headers) stays here
-FORWARD_IN = ("content-type", "accept", "x-sandbox-user")
-FORWARD_OUT = ("content-type", "content-disposition", "x-c2-sandbox")
+FORWARD_IN = ("content-type", "accept", "x-sandbox-user", "x-request-id")
+# IAP's signed assertion for the signed-in person, passed on under our own name so c2-api can
+# verify who is asking itself (ADR-0039); it cannot be forged here: only IAP holds the key
+IAP_IN, IAP_OUT = "x-goog-iap-jwt-assertion", "x-c2-iap-assertion"
+# response headers passed back: the API's no-store (an authorised answer must never sit in a
+# browser or proxy cache, CLAUDE.md §4.8), the request ID (one ID end to end) and Retry-After
+# on a 429 (ADR-0039)
+FORWARD_OUT = (
+    "content-type",
+    "content-disposition",
+    "x-c2-sandbox",
+    "cache-control",
+    "pragma",
+    "x-request-id",
+    "retry-after",
+)
 SECURITY = {
     "x-content-type-options": "nosniff",
     "referrer-policy": "no-referrer",
@@ -82,6 +96,8 @@ def build_app(
 
     async def proxy(request: Request) -> Response:
         headers = {k: v for k, v in request.headers.items() if k.lower() in FORWARD_IN}
+        if request.headers.get(IAP_IN):
+            headers[IAP_OUT] = request.headers[IAP_IN]
         if tokens is not None:
             headers["authorization"] = f"Bearer {tokens.get()}"
         try:

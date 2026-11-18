@@ -99,7 +99,7 @@ def test_the_fast_image_check_says_what_pypdf_says() -> None:
             slow = len(page.images) > 0
         except ImportError:
             slow = True
-        fast = d._has_image(PdfReader(io.BytesIO(data)).pages[page.page_number])  # noqa: SLF001
+        fast = d._has_image(PdfReader(io.BytesIO(data)).pages[page.page_number or 0])  # noqa: SLF001
         assert fast is slow, page.page_number
     det = d.detect(data, "x.pdf")
     assert det.ocr_pages == (2, 3, 4)  # XObject image, image inside a form, inline image
@@ -108,14 +108,19 @@ def test_the_fast_image_check_says_what_pypdf_says() -> None:
 
 def test_each_pdf_is_read_once_per_file() -> None:
     data = _pdf()
-    calls = []
+    calls: list[int] = []
     real = d._read_pdf  # noqa: SLF001
-    d._read_pdf = lambda b: calls.append(1) or real(b)  # type: ignore[assignment]
+
+    def counted(data: bytes) -> tuple[tuple[str, bool], ...]:
+        calls.append(1)
+        return real(data)
+
+    d._read_pdf = counted
     try:
         d.detect(data, "a.pdf")
         d.pdf_scan(bytes(data))  # a copy of the same bytes
     finally:
-        d._read_pdf = real  # type: ignore[assignment]
+        d._read_pdf = real
     assert calls == [1]
 
 
@@ -135,7 +140,7 @@ def test_a_saved_read_is_used_only_when_parsing_would_give_the_same(tmp_path: Pa
     try:
         assert d.pdf_scan(data) == tuple((t, im) for t, im in rec["pages"])
     finally:
-        d._read_pdf = real  # type: ignore[assignment]
+        d._read_pdf = real
     # made by another pypdf version, or damaged: parsed as usual
     for bad in ({**rec, "pypdf": "0.0.1"}, {**rec, "pages": [["x", "yes"]]}, "not json"):
         d._SCANS.clear()  # noqa: SLF001

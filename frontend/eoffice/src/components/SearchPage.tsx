@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { fmtDate } from "../format";
 import type { Api } from "../api";
 import type { SearchResult } from "../types";
 
@@ -16,23 +17,32 @@ export function SearchPage({ api }: { api: Api }) {
   };
   return (
     <main className="page">
-      <h2>Advance search</h2>
-      <form onSubmit={submit} className="row">
-        <input value={q} maxLength={500} placeholder='e.g. "that 2023 drain case"' onChange={(e) => setQ(e.target.value)} />
-        <button disabled={busy || !q.trim()}>Search</button>
+      <h1>Advance search</h1>
+      <p className="muted">Describe what you are looking for in your own words: a subject, an order number, a year. Only records you may open are searched.</p>
+      <form onSubmit={submit} className="row searchrow">
+        <input aria-label="What are you looking for?" value={q} maxLength={500} placeholder="e.g. spouse transfer requests decided in 2023" onChange={(e) => setQ(e.target.value)} />
+        <button className="primary" disabled={busy || !q.trim()}>{busy ? "Searching…" : "Search"}</button>
       </form>
+      {!res && !busy && (
+        <div className="examples">
+          <span className="muted">Try:</span>
+          {["G.O.Ms.No.88/2022", "that 2023 drain case", "spouse ground transfer precedent"].map((x) => (
+            <button key={x} type="button" className="linkish" onClick={() => setQ(x)}>{x}</button>
+          ))}
+        </div>
+      )}
       {error && <p className="error">{error}</p>}
       {res && (
         <>
           <p className="muted">
-            Files: {res.files.length ? res.files.join(" · ") : "none"} · answered at {res.ladder_level ?? "—"}
-            {!res.calibrated && " · demo thresholds, not calibrated"}
+            {res.documents.length} record(s){res.files.length ? ` on ${res.files.length} file(s): ${res.files.join(", ")}` : ""}.
+            {!res.calibrated && " Search thresholds are demo values, not calibrated."}
           </p>
-          <table className="grid">
+          <table className="grid register">
             <thead><tr><th>Document</th><th>Type</th><th>Date</th><th>Subject</th><th>File No.</th></tr></thead>
             <tbody>
               {res.documents.map((d) => (
-                <tr key={d.canonical_id}><td>{d.canonical_id}</td><td>{d.doc_type}</td><td>{d.issue_date ?? ""}</td><td>{d.subject}</td><td>{d.file_no ?? ""}</td></tr>
+                <tr key={d.canonical_id}><td>{d.canonical_id}</td><td>{d.doc_type}</td><td className="date">{fmtDate(d.issue_date)}</td><td>{d.subject}</td><td>{d.file_no ?? ""}</td></tr>
               ))}
             </tbody>
           </table>

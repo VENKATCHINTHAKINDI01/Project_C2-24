@@ -20,13 +20,20 @@ def web(tmp_path: Path) -> Path:
     return tmp_path
 
 
-def _client(web: Path, seen: list[httpx.Request], status: int = 200) -> TestClient:
+def _client(
+    web: Path, seen: list[httpx.Request], status: int = 200, extra: dict[str, str] | None = None
+) -> TestClient:
     def handler(req: httpx.Request) -> httpx.Response:
         seen.append(req)
         return httpx.Response(
             status,
             content=b'{"ok": true}',
-            headers={"content-type": "application/json", "set-cookie": "x=1", "server": "u"},
+            headers={
+                "content-type": "application/json",
+                "set-cookie": "x=1",
+                "server": "u",
+                **(extra or {}),
+            },
         )
 
     tokens = IdTokens("https://c2-api", fetch=lambda aud: f"token-for-{aud}")
@@ -52,7 +59,27 @@ def test_api_calls_carry_this_services_token_never_the_browsers(web: Path) -> No
     assert req.headers["authorization"] == "Bearer token-for-https://c2-api"
     assert req.headers["x-sandbox-user"] == "V14"
     assert "cookie" not in req.headers and "x-goog-iap-jwt-assertion" not in req.headers
+    assert req.headers["x-c2-iap-assertion"] == "jwt"  # verified by c2-api itself (ADR-0039)
     assert "set-cookie" not in r.headers and r.headers["x-content-type-options"] == "nosniff"
+
+
+def test_no_store_request_id_and_retry_after_reach_the_browser(web: Path) -> None:
+    """Found by the container check (ADR-0043): these were dropped, so a browser could keep an
+    authorised answer in its cache and an officer over the limit got no Retry-After."""
+    seen: list[httpx.Request] = []
+    api = {
+        "cache-control": "no-store",
+        "pragma": "no-cache",
+        "x-request-id": "abc12345",
+        "retry-after": "7",
+    }
+    r = _client(web, seen, status=429, extra=api).post(
+        "/assist/chat", json={"message": "hi"}, headers={"X-Request-ID": "trace-0001"}
+    )
+    assert r.status_code == 429
+    for k, v in api.items():
+        assert r.headers[k] == v
+    assert seen[0].headers["x-request-id"] == "trace-0001"  # the API validates its format
 
 
 def test_errors_and_files_pass_through_unchanged(web: Path) -> None:

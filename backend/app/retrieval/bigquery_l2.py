@@ -130,7 +130,12 @@ class VertexEmbedder:
         if client is None:
             from google import genai
 
-            client = genai.Client(vertexai=True, project=project, location=location)
+            client = genai.Client(
+                vertexai=True,
+                project=project,
+                location=location,
+                http_options=types.HttpOptions(timeout=60_000),  # ms (ADR-0039)
+            )
         self._types = types
         self._client = client
         self._model, self._dims, self._batch = model, dimensions, max(1, batch)

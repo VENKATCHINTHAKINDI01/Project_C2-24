@@ -25,4 +25,5 @@ REVIEW_ITEM_NOT_AVAILABLE = f"This review item isn't available to you. {GUIDE}"
 
 # Anything that failed inside (a store timed out, an engine broke): the same words every time,
 # with nothing about the cause (CLAUDE.md §4.4)
+TOO_MANY = "Too many requests just now. Please wait a moment and try again."
 NEUTRAL_FAILURE = "The request could not be completed right now. Please try again later."

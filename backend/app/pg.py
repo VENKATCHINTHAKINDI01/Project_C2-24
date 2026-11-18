@@ -1,7 +1,8 @@
 """PostgreSQL access for application state (plan §3.5: Cloud SQL holds app data, review decisions,
 authz tuples and the checkpointer; CLAUDE.md §2.2).
 
-`Pg` holds one DB-API connection behind a lock and hands out transactions. Each transaction
+`Pg` keeps a small pool of DB-API connections and hands out transactions, with a connect timeout
+and a statement timeout on every connection (ADR-0039). Each transaction
 commits, or rolls back on any error, and the error propagates: callers fail closed, nothing is
 retried silently. Two ways to connect:
 - `C2_PG_DSN`: local or test Postgres (psycopg);
@@ -31,42 +32,65 @@ class PgError(Exception):
 
 
 class Pg:
-    def __init__(self, connect: Callable[[], Any]) -> None:
+    """A small pool of connections (ADR-0039). Each `tx()` borrows one connection for one
+    transaction; at most `size` run at once, the rest wait up to `wait_s` and then fail closed
+    (`PgError`) instead of queueing forever. A connection that errors is dropped, not reused."""
+
+    def __init__(self, connect: Callable[[], Any], size: int = 4, wait_s: float = 10.0) -> None:
         self._connect = connect
-        self._conn: Any = None
+        self._idle: list[Any] = []
+        self._slots = threading.BoundedSemaphore(max(1, size))
         self._lock = threading.Lock()
+        self._wait_s = wait_s
 
     @contextmanager
     def tx(self) -> Iterator[Any]:
         """A cursor inside one transaction: commit on success, roll back and re-raise on error."""
-        with self._lock:
-            if self._conn is None:
-                self._conn = self._connect()
-            cur = self._conn.cursor()
+        if not self._slots.acquire(timeout=self._wait_s):
+            raise PgError("no database connection free in time")
+        conn: Any = None
+        healthy = True
+        try:
+            with self._lock:
+                conn = self._idle.pop() if self._idle else None
+            if conn is None:
+                conn = self._connect()
+            cur = conn.cursor()
             try:
                 yield cur
-                self._conn.commit()
+                conn.commit()
             except BaseException:
                 try:
-                    self._conn.rollback()
+                    conn.rollback()
                 except Exception:  # broken connection: drop it, the next call reconnects
-                    self._drop()
+                    healthy = False
                 raise
             finally:
                 try:
                     cur.close()
                 except Exception:
-                    self._drop()
+                    healthy = False
+        except BaseException:
+            if conn is not None and not healthy:
+                self._close(conn)
+                conn = None
+            raise
+        finally:
+            if conn is not None and healthy:
+                with self._lock:
+                    self._idle.append(conn)
+            self._slots.release()
 
-    def _drop(self) -> None:
-        conn, self._conn = self._conn, None
-        if conn is not None:
-            with contextlib.suppress(Exception):  # already broken; the next call reconnects
-                conn.close()
+    @staticmethod
+    def _close(conn: Any) -> None:
+        with contextlib.suppress(Exception):  # already broken
+            conn.close()
 
     def close(self) -> None:
         with self._lock:
-            self._drop()
+            idle, self._idle = self._idle, []
+        for c in idle:
+            self._close(c)
 
 
 def apply_migrations(pg: Pg, directory: Path) -> list[str]:
@@ -87,9 +111,13 @@ def pg_from_settings(settings: Settings) -> Pg | None:
         dsn = settings.pg_dsn
 
         def local() -> Any:
-            return importlib.import_module("psycopg").connect(dsn)
+            return importlib.import_module("psycopg").connect(
+                dsn,
+                connect_timeout=settings.pg_connect_timeout_s,
+                options=f"-c statement_timeout={settings.pg_statement_timeout_ms}",
+            )
 
-        return Pg(local)
+        return Pg(local, size=settings.pg_pool_size)
     if not (settings.cloudsql_instance and settings.cloudsql_user):
         raise PgError("postgres state needs C2_PG_DSN or C2_CLOUDSQL_INSTANCE + C2_CLOUDSQL_USER")
     instance, user, db = settings.cloudsql_instance, settings.cloudsql_user, settings.cloudsql_db
@@ -100,6 +128,19 @@ def pg_from_settings(settings: Settings) -> Pg | None:
         if connector is None:
             mod = importlib.import_module("google.cloud.sql.connector")
             connector = mod.Connector(refresh_strategy="lazy")
-        return connector.connect(instance, "pg8000", user=user, db=db, enable_iam_auth=True)
+        conn = connector.connect(
+            instance,
+            "pg8000",
+            user=user,
+            db=db,
+            enable_iam_auth=True,
+            timeout=settings.pg_connect_timeout_s,
+        )
+        # every statement on this connection is cut off after the limit (fail closed, not hang)
+        cur = conn.cursor()
+        cur.execute(f"SET statement_timeout = {int(settings.pg_statement_timeout_ms)}")
+        cur.close()
+        conn.commit()
+        return conn
 
-    return Pg(cloud)
+    return Pg(cloud, size=settings.pg_pool_size)

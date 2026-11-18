@@ -27,7 +27,11 @@ class AuditEvent(BaseModel):
 
 
 class AuditLog:
-    def __init__(self) -> None:
+    """In-memory audit trail (sandbox, tests). Bounded (ADR-0039): past `max_events` the oldest
+    go. A real deployment keeps the trail in Cloud SQL (`PostgresAuditLog`), unbounded."""
+
+    def __init__(self, max_events: int = 200_000) -> None:
+        self._max = max_events
         self._events: list[AuditEvent] = []
         self._seq = itertools.count(1)
         self._lock = threading.Lock()
@@ -53,10 +57,13 @@ class AuditLog:
                 detail=detail[:200],
             )
             self._events.append(ev)
+            if len(self._events) > self._max * 1.1:
+                del self._events[: len(self._events) - self._max]
             return ev
 
     def events(self) -> tuple[AuditEvent, ...]:
-        return tuple(self._events)
+        with self._lock:
+            return tuple(self._events)
 
     def refused_since(self, since: dt.datetime) -> tuple[AuditEvent, ...]:
         """Refused requests ("denied" / "not_available") from `since` on, for the monitoring

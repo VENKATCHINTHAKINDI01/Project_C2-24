@@ -7,10 +7,13 @@ without changing the connector contract.
 from __future__ import annotations
 
 import datetime as dt
+import functools
 import itertools
 import re
+import threading
 from collections.abc import Iterable
 from pathlib import Path
+from typing import Any
 
 from app.connectors.eoffice import (
     ConnectorError,
@@ -29,10 +32,12 @@ from app.connectors.eoffice import (
     PageRef,
     ReceiptContext,
     SearchScope,
+    Signer,
     SourceArtefact,
 )
 from app.eoffice_mock.models import (
     BANNER,
+    Attachment,
     Correspondence,
     Draft,
     DraftStatus,
@@ -49,6 +54,28 @@ from app.eoffice_mock.models import (
 from app.hitl.feedback import edit_share, strip_watermark
 
 
+def _serialised(cls: type) -> type:
+    """Every public method of the sandbox runs under one re-entrant lock (ADR-0039). The sandbox
+    keeps e-Office's state in dicts and lists; FastAPI runs sync routes on a thread pool, so a file
+    created while another officer's handover iterates the files raised "dictionary changed size
+    during iteration" (seen under load). The methods are quick, in-memory, and never call out."""
+    for name, fn in list(vars(cls).items()):
+        if name.startswith("_") or not callable(fn) or isinstance(fn, (staticmethod, classmethod)):
+            continue
+
+        def wrap(f: Any) -> Any:
+            @functools.wraps(f)
+            def locked(self: Any, *a: Any, **k: Any) -> Any:
+                with self._state_lock:
+                    return f(self, *a, **k)
+
+            return locked
+
+        setattr(cls, name, wrap(fn))
+    return cls
+
+
+@_serialised
 class MockEOfficeAdapter:
     """Plan §11.3 mock adapter. `now` is injectable so tests stay deterministic."""
 
@@ -68,7 +95,18 @@ class MockEOfficeAdapter:
         receipts: Iterable[Receipt] = (),
         holdback: Iterable[str] = (),
         arrivals: Iterable[SourceArtefact] = (),
+        approver_posts: Iterable[str] = (),
+        office_date: dt.date | None = None,
     ) -> None:
+        self._state_lock = threading.RLock()
+        # the sandbox's working day (the seed's as-of date): what an issued order is dated, so it
+        # is in force in the same world the assistant reasons in. None: the clock's date (IST).
+        self._office_date = office_date
+        # posts that may approve and issue a DFA (sandbox.yaml; MOCK, [To confirm] against the
+        # Business Rules — in e-Office the competent authority depends on the subject)
+        self._approver_posts = tuple(approver_posts)
+        self._attachments: list[Attachment] = []
+        self._issued_no: dict[tuple[str, str, int], int] = {}
         self._profiles = {p.user_id: p for p in profiles}
         self._files = {f.computer_no: f for f in files}
         self._movements = sorted(movements, key=lambda m: (m.computer_no, m.seq))
@@ -79,7 +117,7 @@ class MockEOfficeAdapter:
         self.drafts: dict[str, Draft] = {}
         self._notes = sorted(notes, key=lambda n: (n.computer_no, n.note_no))
         self._correspondence = sorted(correspondence, key=lambda c: (c.computer_no, c.page_from))
-        self._artefacts = list(artefacts)
+        self._artefacts = [self._with_signers(a) for a in artefacts]
         self._receipts = {r.computer_no: r for r in receipts}
         # Replay (sandbox demo): letters held back from the initial load until they "arrive".
         held = set(holdback)
@@ -366,6 +404,10 @@ class MockEOfficeAdapter:
             None,
         )
 
+    def post_of(self, user_id: str) -> str | None:
+        """The post of a profile (officer or staff post); None if unknown."""
+        return self._post(user_id)
+
     def _post(self, user_id: str) -> str | None:
         p = self._profiles.get(user_id)
         return p.post if p is not None else None
@@ -453,7 +495,227 @@ class MockEOfficeAdapter:
             previous_references=[r for r in dict.fromkeys(previous_references) if r in reach],
         )
         self._files[cno] = f
+        self._emit(EventKind.FILE_CREATED, f, cno, self._file_record(f))
         return f
+
+    # ---- what goes to ingestion (official acts only; a saved draft never does) ----------------
+
+    def _emit(self, kind: EventKind, f: EFile, object_id: str, art: SourceArtefact) -> None:
+        self._artefacts = [a for a in self._artefacts if a.source_uri != art.source_uri] + [art]
+        self._events.append(
+            EOfficeEvent(
+                event_id=f"MOCK-EV-{next(self._seq):05d}",
+                kind=kind,
+                occurred_at=self._clock(),
+                computer_no=f.computer_no,
+                object_id=object_id,
+                source_uri=art.source_uri,
+            )
+        )
+
+    def _signers(self, computer_no: str, typed_only: bool = False) -> tuple[Signer, ...]:
+        """Officers (sandbox profiles) who signed the file's notes, by officer ID (ADR-0058)."""
+        out: dict[str, Signer] = {}
+        for n in self._notes:
+            if n.computer_no != computer_no or (typed_only and n.source_uri is not None):
+                continue
+            p = self._profiles.get(n.author)
+            if p is not None:  # a draft (yellow) note's paper shows its author's signature too
+                out.setdefault(
+                    p.user_id, Signer(officer_id=p.user_id, name=p.name, post=n.author_post)
+                )
+        return tuple(out.values())
+
+    def _with_signers(self, a: SourceArtefact) -> SourceArtefact:
+        """Every paper of an e-File carries the IDs of the officers who signed the file's notes:
+        a signature in the paper resolves to one of THEM by name, never to anyone else."""
+        if not a.file_no:
+            return a
+        f = next((x for x in self._files.values() if x.file_no == a.file_no), None)
+        if f is None:
+            return a
+        return a.model_copy(update={"signers": self._signers(f.computer_no)})
+
+    def _artefact(
+        self, f: EFile, uri: str, filename: str, data: bytes, attachment: bool = False
+    ) -> SourceArtefact:
+        """The file's own access tags travel with every paper (source-system metadata)."""
+        return SourceArtefact(
+            source_uri=uri,
+            filename=filename,
+            department=f.department,
+            section=f.dealing_section,
+            classification=f.classification,
+            file_no=f.file_no,
+            attachment=attachment,
+            data=data,
+        )
+
+    def _file_record(self, f: EFile) -> SourceArtefact:
+        """The file's particulars as e-Office records them when it is opened: subject, section,
+        date, previous references (each becomes a link to that file's papers)."""
+        lines = [
+            "e-File record",
+            f"File No.{f.file_no} (Computer No.{f.computer_no})",
+            f"Section: {f.dealing_section}",
+            f"Opened on: {f.created_on.strftime('%d-%m-%Y')}",
+        ]
+        if f.previous_references:
+            lines.append(
+                "Previous references: " + "; ".join(f"File No.{x}" for x in f.previous_references)
+            )
+        lines.append("SYNTHETIC — mock e-Office sandbox")
+        lines.append(f"Subject: {f.subject}")  # last: the reader runs a subject to the end
+        uri = f"sandbox://files/{f.computer_no}/record"
+        return self._artefact(f, uri, f"file-record-{f.computer_no}.txt", "\n".join(lines).encode())
+
+    def _typed_note_sheet(self, f: EFile) -> SourceArtefact:
+        """The Green Notes typed in this sandbox, as one note sheet. Every confirmation (and the
+        closing remarks) gives a new version of the same paper; earlier versions are kept."""
+        sheet = self._note_sheet(f, [n for n in self.notes(f.computer_no) if n.source_uri is None])
+        uri = f"sandbox://files/{f.computer_no}/note-sheet"
+        art = self._artefact(f, uri, f"note-sheet-{f.computer_no}.txt", sheet.encode("utf-8"))
+        return art.model_copy(update={"signers": self._signers(f.computer_no, typed_only=True)})
+
+    _UPLOADABLE = (".pdf", ".docx", ".txt", ".jpg", ".jpeg", ".png", ".heic", ".tif", ".tiff")
+
+    def add_attachment(
+        self, computer_no: str, user_id: str, filename: str, data: bytes
+    ) -> Attachment:
+        """The officer attaches a paper to an open file they can reach (sandbox "Attach"). It
+        goes to ingestion: native text is read; a scan is OCR'd and waits for review when the
+        reading is not confident enough. Nothing is guessed."""
+        f = self.open_file(computer_no, user_id)
+        if f.state is FileState.CLOSED:
+            raise ValueError("a closed file takes no new papers")
+        name = re.sub(r"[^A-Za-z0-9._-]+", "_", Path(filename).name)[-100:].lstrip("._") or "paper"
+        if not name.lower().endswith(self._UPLOADABLE):
+            raise ValueError("attach a PDF, Word (.docx), text or image file")
+        if not data:
+            raise ValueError("the file is empty")
+        aid = f"MOCK-ATT-{next(self._seq):05d}"
+        uri = f"sandbox://files/{computer_no}/attachments/{aid}/{name}"
+        att = Attachment(
+            attachment_id=aid,
+            computer_no=computer_no,
+            filename=name,
+            size=len(data),
+            uploaded_by=user_id,
+            uploaded_at=self._clock(),
+            source_uri=uri,
+        )
+        self._attachments.append(att)
+        self._emit(EventKind.ATTACHMENT_ADDED, f, aid, self._artefact(f, uri, name, data, True))
+        return att
+
+    def attachments(self, computer_no: str) -> list[Attachment]:
+        return [a for a in self._attachments if a.computer_no == computer_no]
+
+    # ---- a DFA's way to issue: put up → approved and issued by another officer (simulated) ----
+
+    def is_approver(self, user_id: str) -> bool:
+        p = self._profiles.get(user_id)
+        return bool(p and p.login and any(p.post.startswith(x) for x in self._approver_posts))
+
+    def submit_draft(self, computer_no: str, draft_id: str, user_id: str) -> Draft:
+        """The author puts their DFA up for approval. From now on it is the approver's to act on:
+        the author no longer edits it (they can see it until it is returned or issued)."""
+        d = self._own_draft(computer_no, draft_id, user_id)
+        if d.kind != DraftKind.DFA_DRAFT.value:
+            raise ValueError("only a draft for approval (DFA) is put up for approval")
+        _check_issuable(d.versions[-1].text or "")
+        up = d.model_copy(update={"status": DraftStatus.SUBMITTED, "submitted_at": self._clock()})
+        self.drafts[draft_id] = up
+        return up
+
+    def submitted_by_me(self, computer_no: str, user_id: str) -> list[Draft]:
+        self.open_file(computer_no, user_id)
+        return [
+            d
+            for d in self.drafts.values()
+            if d.computer_no == computer_no
+            and d.requested_by == user_id
+            and d.status in (DraftStatus.SUBMITTED, DraftStatus.DISPATCHED)
+        ]
+
+    def awaiting_approval(self, computer_no: str, user_id: str) -> list[Draft]:
+        """DFAs on this file waiting for an approving officer — never the approver's own."""
+        self.open_file(computer_no, user_id)
+        if not self.is_approver(user_id):
+            return []
+        return [
+            d
+            for d in self.drafts.values()
+            if d.computer_no == computer_no
+            and d.status is DraftStatus.SUBMITTED
+            and d.requested_by != user_id
+        ]
+
+    def _awaiting(self, computer_no: str, draft_id: str, user_id: str) -> Draft:
+        d = next(
+            (x for x in self.awaiting_approval(computer_no, user_id) if x.draft_id == draft_id),
+            None,
+        )
+        if d is None:
+            raise ConnectorError("draft not available")
+        return d
+
+    def return_draft(self, computer_no: str, draft_id: str, user_id: str) -> Draft:
+        """The approver sends the DFA back to its author, who can edit and put it up again."""
+        d = self._awaiting(computer_no, draft_id, user_id)
+        back = d.model_copy(update={"status": DraftStatus.DRAFT, "submitted_at": None})
+        self.drafts[draft_id] = back
+        return back
+
+    def approve_and_issue(self, computer_no: str, draft_id: str, user_id: str) -> Draft:
+        """The approving officer approves and signs (a simulated click — no DSC/eSign); the order
+        is numbered and dated (SYNTHETIC numbers from 9001, so they never meet a real one) and
+        issued. Only now does it go to ingestion, as the order it is."""
+        d = self._awaiting(computer_no, draft_id, user_id)
+        f = self._files[computer_no]
+        p = self.profile(user_id)
+        now = self._clock()
+        text = _issuable_text(d.versions[-1].text or "")
+        m = _NUMBER_LINE.search(text)
+        if m is None:
+            raise ValueError("the draft has no number line to fill (… No.____ Dated: ____)")
+        label = m.group("label")
+        day = self._office_date or now.astimezone(dt.timezone(dt.timedelta(hours=5, minutes=30)))
+        key = (f.department, label, day.year)
+        n = self._issued_no.get(key, 9000) + 1
+        self._issued_no[key] = n
+        number = (
+            str(n)
+            if label.startswith("G.O.")
+            else f"{f.department}-{f.dealing_section}/{n}/{day.year}"
+        )
+        dated = day.strftime("%d-%m-%Y")
+        issued = (
+            text[: m.start()] + f"{label}{number}{m.group('gap')}Dated: {dated}" + text[m.end() :]
+        )
+        issued += (
+            "\n\nSYNTHETIC — issued in the mock e-Office sandbox; approved and signed by "
+            f"{p.post} (simulated)."
+        )
+        uri = f"sandbox://issued/{draft_id}"
+        art = self._artefact(
+            f, uri, f"{draft_id}.txt", issued.encode("utf-8"), attachment=label == "Letter No."
+        )
+        version = NoteVersion(
+            version=len(d.versions) + 1, text=issued, saved_at=now, saved_by=user_id
+        )
+        done = d.model_copy(
+            update={
+                "status": DraftStatus.DISPATCHED,
+                "versions": [*d.versions, version],
+                "approved_by": user_id,
+                "issued_as": f"{label}{number} Dated: {dated}",
+                "issued_uri": uri,
+            }
+        )
+        self.drafts[draft_id] = done
+        self._emit(EventKind.DRAFT_DISPATCHED, f, draft_id, art)
+        return done
 
     def holder(self, computer_no: str) -> str | None:
         moves = [m for m in self._movements if m.computer_no == computer_no]
@@ -497,29 +759,7 @@ class MockEOfficeAdapter:
         self._notes = sorted([*self._notes, closing], key=lambda n: (n.computer_no, n.note_no))
         closed = f.model_copy(update={"state": FileState.CLOSED})
         self._files[computer_no] = closed
-        sheet = self._note_sheet(
-            closed, [n for n in self.notes(computer_no) if n.source_uri is None]
-        )
-        art = SourceArtefact(
-            source_uri=f"sandbox://files/{computer_no}/closing-note-sheet",
-            filename=f"closing-note-sheet-{computer_no}.txt",
-            department=closed.department,
-            section=closed.dealing_section,
-            classification=closed.classification,
-            file_no=closed.file_no,
-            data=sheet.encode("utf-8"),
-        )
-        self._artefacts.append(art)
-        self._events.append(
-            EOfficeEvent(
-                event_id=f"MOCK-EV-{next(self._seq):05d}",
-                kind=EventKind.FILE_CLOSED,
-                occurred_at=now,
-                computer_no=computer_no,
-                object_id=computer_no,
-                source_uri=art.source_uri,
-            )
-        )
+        self._emit(EventKind.FILE_CLOSED, closed, computer_no, self._typed_note_sheet(closed))
         return closed
 
     def _note_sheet(self, f: EFile, notes: list[Note]) -> str:
@@ -665,15 +905,13 @@ class MockEOfficeAdapter:
         self.drafts[draft_id] = d.model_copy(
             update={"status": DraftStatus.CONFIRMED, "note_id": note_id}
         )
-        self._events.append(
-            EOfficeEvent(
-                event_id=f"MOCK-EV-{next(self._seq):05d}",
-                kind=EventKind.NOTE_CONFIRMED,
-                occurred_at=now,
-                computer_no=computer_no,
-                object_id=note_id,
-                source_uri=f"sandbox://notes/{note_id}",
-            )
+        # the confirmed note is an official act: the file's typed note sheet (new version) goes
+        # to ingestion. A Yellow Note never does.
+        self._emit(
+            EventKind.NOTE_CONFIRMED,
+            self._files[computer_no],
+            note_id,
+            self._typed_note_sheet(self._files[computer_no]),
         )
         return DraftOutcome(
             draft_id=draft_id,
@@ -701,6 +939,31 @@ class MockEOfficeAdapter:
             outcome=DraftOutcomeKind.DISCARDED,
             at=now,
         )
+
+
+_NUMBER_LINE = re.compile(
+    r"(?P<label>G\.O\.Ms\.No\.|G\.O\.Rt\.No\.|Circular Memo No\.|Memo No\.|Letter No\.)____"
+    r"(?P<gap>\s+)Dated:\s*____"
+)
+_GAP = re.compile(r"\[[^\]\n]{2,120}\]")
+_OPEN_POINTS = re.compile(r"\n?— Open points for the approving officer[\s\S]*$")
+
+
+def _issuable_text(text: str) -> str:
+    """The order as it will be issued: the assistant's watermark and the open points for the
+    approving officer (never part of the order) are taken out."""
+    return _OPEN_POINTS.sub("", strip_watermark(text)).rstrip()
+
+
+def _check_issuable(text: str) -> None:
+    gaps = _GAP.findall(_issuable_text(text))
+    if gaps:
+        raise ValueError(
+            f"Fill the {len(gaps)} gap{'s' if len(gaps) != 1 else ''} marked [ ] first "
+            f"(the first is {gaps[0]})."
+        )
+    if _NUMBER_LINE.search(_issuable_text(text)) is None:
+        raise ValueError("Keep the number line (… No.____ Dated: ____): it is filled on issue.")
 
 
 def load_seed(path: Path) -> Seed:
@@ -759,6 +1022,7 @@ def adapter_from_seed(
     artefacts: Iterable[SourceArtefact] = (),
     holdback: Iterable[str] = (),
     arrivals: Iterable[SourceArtefact] = (),
+    approver_posts: Iterable[str] = (),
 ) -> MockEOfficeAdapter:
     return MockEOfficeAdapter(
         seed.profiles,
@@ -772,4 +1036,6 @@ def adapter_from_seed(
         receipts=seed.receipts,
         holdback=holdback,
         arrivals=arrivals,
+        approver_posts=approver_posts,
+        office_date=seed.as_of,
     )

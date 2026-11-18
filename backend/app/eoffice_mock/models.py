@@ -109,6 +109,7 @@ class Correspondence(_Model):
 
 class DraftStatus(StrEnum):
     DRAFT = "draft"
+    SUBMITTED = "submitted"  # a DFA put up to the approving officer; the author can no longer edit
     APPROVED = "approved"
     SIGNED = "signed"  # simulated click only — no DSC/eSign
     DISPATCHED = "dispatched"
@@ -126,6 +127,23 @@ class Draft(_Model):
     request_id: str | None = None
     requested_by: str | None = None  # the officer who clicked Insert / Create (owns the draft)
     note_id: str | None = None  # the Green Note a confirmed Yellow Note became
+    submitted_at: dt.datetime | None = None
+    approved_by: str | None = None  # the approving officer (simulated signature, no DSC/eSign)
+    issued_as: str | None = None  # the number and date allotted on issue (SYNTHETIC numbering)
+    issued_uri: str | None = None  # where the issued order went to ingestion
+
+
+class Attachment(_Model):
+    """A paper an officer attached to an e-File (sandbox "Attach"). SYNTHETIC store; the bytes go
+    to ingestion as a SourceArtefact with the file's access tags."""
+
+    attachment_id: str
+    computer_no: str
+    filename: str
+    size: int = Field(ge=1)
+    uploaded_by: str
+    uploaded_at: dt.datetime
+    source_uri: str
 
 
 class Movement(_Model):

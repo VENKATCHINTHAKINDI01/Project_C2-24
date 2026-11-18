@@ -1,13 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { fmtDate, fmtDateTime } from "../format";
 import type { Api } from "../api";
-import type { ActivityRow, Alert, AlertsView, FrequentQuestion, MonitorData, OfficerActivity, Severity } from "../types";
+import type { ActivityRow, Alert, AlertsView, Breakdown, FrequentQuestion, MonitorData, OfficerActivity, Severity, Topic } from "../types";
 import { BarChart, LineChart, ShareList } from "./Charts";
 
 /** The monitoring officer's pad (ADR-0035). Only a monitoring officer reaches it; the server
  *  decides that and withholds the words of questions asked under a clearance above theirs. */
-type Tab = "alerts" | "activity" | "frequent" | "gaps" | "officers" | "slowest" | "feedback" | "cache";
+type Tab = "alerts" | "activity" | "frequent" | "asked" | "gaps" | "officers" | "slowest" | "feedback" | "cache";
 const TABS: [Tab, string][] = [
-  ["alerts", "Alerts"], ["activity", "Activity"], ["frequent", "Frequent questions"], ["gaps", "Unanswered"],
+  ["alerts", "Alerts"], ["activity", "Activity"], ["frequent", "Frequent questions"], ["asked", "What is asked"],
+  ["gaps", "Unanswered"],
   ["officers", "Officers"], ["slowest", "Slowest"], ["feedback", "Feedback"], ["cache", "Cache"],
 ];
 const OUTCOME: Record<string, string> = {
@@ -27,9 +29,18 @@ const whatOf = (w: string) => WHAT[w] ?? (w.startsWith("assist.") ? `Refused: ${
 const SEV: Record<Severity, string> = { high: "High", medium: "Medium", low: "Low" };
 const SEV_ICON: Record<Severity, string> = { high: "▲", medium: "◆", low: "●" };
 
+/** Intent codes from the orchestrator, in words. */
+const INTENT: Record<string, string> = {
+  precedent_lookup: "Precedent lookup", current_rule: "Current rule", document_status: "Order status",
+  clause_lookup: "Clause lookup", supersession_chain: "Supersession chain",
+  decision_history: "Decision history", conflict_check: "Conflict check",
+};
+const intentOf = (i: string | null | undefined) =>
+  !i || i === "—" ? "Not classified" : INTENT[i] ?? i.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
+
 const pct = (r: number | null | undefined) => (r == null ? "—" : `${Math.round(r * 100)}%`);
 const secs = (ms: number | null | undefined) => (ms == null ? "—" : ms < 1000 ? `${ms} ms` : `${(ms / 1000).toFixed(1)} s`);
-const when = (iso: string) => new Date(iso).toLocaleString(undefined, { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
+const when = (iso: string) => fmtDateTime(iso);
 
 export function MonitorPad({ api }: { api: Api }) {
   const [days, setDays] = useState(14);
@@ -67,8 +78,8 @@ export function MonitorPad({ api }: { api: Api }) {
     <main className="monitor">
       <header className="monitor-head">
         <div>
-          <h2>Monitoring · C2-24 Assist</h2>
-          <p>Every question, answer time, outcome and feedback since {data.since}. Question words appear only where your clearance covers the officer who asked.</p>
+          <h2>Monitoring</h2>
+          <p>Every question, answer time, outcome and feedback since {fmtDate(data.since)}. Question words appear only where your clearance covers the officer who asked.</p>
         </div>
         <div className="controls">
           <select aria-label="Window" value={days} onChange={(e) => setDays(Number(e.target.value))}>
@@ -76,7 +87,7 @@ export function MonitorPad({ api }: { api: Api }) {
           </select>
           <label className="toggle"><input type="checkbox" checked={auto} onChange={(e) => setAuto(e.target.checked)} /> Live (30 s)</label>
           <button onClick={load} disabled={busy}>{busy ? "Refreshing…" : "Refresh"}</button>
-          {updated && <span className="stamp">Updated {updated.toLocaleTimeString()}</span>}
+          {updated && <span className="updated">Updated {updated.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}</span>}
         </div>
       </header>
       {data.truncated && <p className="caveat">More records than the pad reads in this window: the newest 5,000 are shown.</p>}
@@ -95,7 +106,8 @@ export function MonitorPad({ api }: { api: Api }) {
         <Kpi label="No answer" value={pct(o.no_answer_rate)} note="nothing in the authorised records" tone={(o.no_answer_rate ?? 0) > 0.3 ? "warn" : undefined} />
         <Kpi label="Cache hits" value={pct(o.cache_hit_rate)} note={String(data.cache.backend ?? "")} />
         <Kpi label="Median answer" value={secs(o.p50_ms)} note={`90% within ${secs(o.p90_ms)}`} />
-        <Kpi label="Feedback" value={`👍 ${thumbsUp} · 👎 ${thumbsDown}`} note={`${(o.feedback.confirmed ?? 0) + (o.feedback.confirmed_edited ?? 0)} notes confirmed`} />
+        <Kpi label="Re-asked" value={String(data.reasked ?? 0)} note="asked again by the same officer" tone={o.questions && (data.reasked ?? 0) / o.questions > 0.15 ? "warn" : undefined} />
+        <Kpi label="Feedback (up / down)" value={`${thumbsUp} / ${thumbsDown}`} note={`${(o.feedback.confirmed ?? 0) + (o.feedback.confirmed_edited ?? 0)} notes confirmed`} />
         <Kpi label="Last start" value={o.start.build_seconds != null ? `${o.start.build_seconds} s` : "—"}
           note={o.start.built_at ? `${o.start.warm_start ? "warm start, " : ""}${when(o.start.built_at)}` : "not started yet"} />
       </section>
@@ -124,7 +136,13 @@ export function MonitorPad({ api }: { api: Api }) {
       <section className="tab-body">
         {tab === "alerts" && (al ? <Alerts view={al} api={api} onChange={load} /> : <p className="muted">Alerts are not available on this server.</p>)}
         {tab === "activity" && <Activity rows={data.activity} />}
-        {tab === "frequent" && <Questions rows={data.frequent} empty="No question asked in this window." />}
+        {tab === "frequent" && (
+          <>
+            <p className="muted">The same question asked in other words counts once; the wordings are listed under it.</p>
+            <Questions rows={data.frequent} empty="No question asked in this window." />
+          </>
+        )}
+        {tab === "asked" && <WhatIsAsked data={data} />}
         {tab === "gaps" && (
           <>
             <p className="muted">Questions no authorised record answered: candidates for new records, better wording, or access the officer lacks.</p>
@@ -223,7 +241,7 @@ function Activity({ rows, compact = false }: { rows: ActivityRow[]; compact?: bo
   );
 }
 
-function Questions({ rows, empty }: { rows: FrequentQuestion[]; empty: string }) {
+export function Questions({ rows, empty }: { rows: FrequentQuestion[]; empty: string }) {
   if (!rows.length) return <p className="muted">{empty}</p>;
   const top = Math.max(...rows.map((r) => r.times));
   return (
@@ -232,7 +250,14 @@ function Questions({ rows, empty }: { rows: FrequentQuestion[]; empty: string })
       <tbody>
         {rows.map((r, i) => (
           <tr key={i}>
-            <td><Question q={r.question} withheld={r.withheld} /></td>
+            <td>
+              <Question q={r.question} withheld={r.withheld} />
+              <div className="sub">
+                {intentOf(r.intent)}
+                {(r.variants ?? 1) > 1 && <> · {r.variants} wordings</>}
+                {(r.reasked ?? 0) > 0 && <> · <span className="warn-text">re-asked {r.reasked}×</span></>}
+              </div>
+            </td>
             <td className="num"><span className="inline-bar" style={{ width: `${(r.times / top) * 60}px` }} />{r.times}</td>
             <td className="num">{r.officers}</td>
             <td className="num">{pct(r.answered_rate)}</td>
@@ -242,6 +267,72 @@ function Questions({ rows, empty }: { rows: FrequentQuestion[]; empty: string })
         ))}
       </tbody>
     </table>
+  );
+}
+
+/** FAQ analytics (plan §10.4; ADR-0059): what officers ask about, and where answers are missing. */
+export function WhatIsAsked({ data }: { data: MonitorData }) {
+  const topics = data.topics ?? [];
+  return (
+    <div className="asked">
+      <section>
+        <h3>Subjects asked about</h3>
+        <p className="muted">Words from the questions your clearance lets you read, counted once per question.</p>
+        <p className="legend"><span className="key s1">answered or other outcome</span><span className="key s2">no authorised record answered</span></p>
+        {topics.length ? <Topics rows={topics} /> : <p className="muted">Too few readable questions in this window.</p>}
+      </section>
+      <div className="breakdowns">
+        <BreakdownTable title="By department · section" rows={data.by_department ?? []} />
+        <BreakdownTable title="By role" rows={data.by_role ?? []} />
+        <BreakdownTable title="By kind of question (as the assistant classified it)" rows={(data.by_intent ?? []).map((b) => ({ ...b, name: intentOf(b.name) }))} />
+      </div>
+    </div>
+  );
+}
+
+function Topics({ rows }: { rows: Topic[] }) {
+  const top = Math.max(...rows.map((t) => t.questions));
+  return (
+    <ul className="topics">
+      {rows.map((t) => (
+        <li key={t.word} title={`${t.questions} question(s), ${t.no_answer} without an answer`}>
+          <span className="word">{t.word}</span>
+          <span className="track" style={{ width: `${30 + (t.questions / top) * 70}%` }}>
+            <span className="gap" style={{ width: `${(t.no_answer / t.questions) * 100}%` }} />
+          </span>
+          <span className="num">{t.questions}</span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function BreakdownTable({ title, rows }: { title: string; rows: Breakdown[] }) {
+  return (
+    <section>
+      <h3>{title}</h3>
+      {!rows.length ? <p className="muted">No questions in this window.</p> : (
+        <table className="grid mon">
+          <thead><tr><th>{title.replace("By ", "").replace(/ \(.*\)$/, "").replace(/^./, (c) => c.toUpperCase())}</th><th>Asked</th><th>Answered</th><th>Re-asked</th></tr></thead>
+          <tbody>
+            {rows.map((b) => (
+              <tr key={b.name}>
+                <td>{b.name}</td>
+                <td className="num">{b.questions}</td>
+                <td className="outcome">
+                  <span className="stack" title={`${b.answered} answered · ${b.no_answer} no answer · ${b.questions - b.answered - b.no_answer} other`}>
+                    <span className="ok" style={{ width: `${(b.answered / b.questions) * 100}%` }} />
+                    <span className="no" style={{ width: `${(b.no_answer / b.questions) * 100}%` }} />
+                  </span>
+                  <span className="sub"> {pct(b.answered / b.questions)}</span>
+                </td>
+                <td className="num">{b.reasked || "—"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </section>
   );
 }
 
@@ -275,6 +366,8 @@ const CACHE_LABEL: Record<string, string> = {
   used_memory: "Memory used", max_memory: "Memory limit", evicted_keys: "Evicted", connected_clients: "Clients",
   server_hits: "Server hits", server_misses: "Server misses", version: "Server version", ttl_s: "Answer lifetime (s)",
   embedding_hits: "Embedding hits", embedding_misses: "Embedding misses",
+  reworded_repeats: "Reworded repeats", semantic_hits: "Reworded repeats served (this instance)",
+  reasks: "Questions asked again (this instance)", scopes: "Access groups remembered",
 };
 
 function Cache({ c }: { c: MonitorData["cache"] }) {

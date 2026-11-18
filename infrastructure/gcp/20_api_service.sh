@@ -32,6 +32,12 @@ ENV="${ENV},C2_SANDBOX_WARM_START=true,C2_PDF_SCAN_CACHE_DIR=/mnt/pdf_scans"
 # c2-api reads the saved page reads (public orders only) from the artifacts bucket, read-only
 run gcloud storage buckets add-iam-policy-binding "gs://${ART}" \
   --member "serviceAccount:$(sa_email api)" --role roles/storage.objectViewer
+# L3 graph store (ADR-0048): unset = Cloud SQL (default); GRAPH=spanner reads Spanner Graph
+# (26_spanner_graph.sh, loaded by 27, compared by cloud_ladder_check.py --spanner-instance first)
+if [[ "${GRAPH:-}" == "spanner" ]]; then
+  ENV="${ENV},C2_GRAPH_BACKEND=spanner,C2_SPANNER_INSTANCE=${SPANNER_INSTANCE:-${PREFIX}-spanner}"
+  ENV="${ENV},C2_SPANNER_DATABASE=${SPANNER_DATABASE:-${PREFIX}graph}"
+fi
 # monitoring officers besides the sandbox.yaml one (comma-separated sandbox IDs), optional
 [[ -n "${MONITORING_USERS:-}" ]] && ENV="${ENV},C2_MONITORING_USERS=${MONITORING_USERS}"
 # Memorystore (24_memorystore.sh): REDIS=1 adds the cache URL from Secret Manager and a private path
@@ -54,7 +60,7 @@ run gcloud run deploy "$SERVICE" --project "$PROJECT_ID" --region "$REGION" --im
   --add-volume-mount "volume=scans,mount-path=/mnt/pdf_scans" \
   --set-env-vars "$ENV" \
   --cpu 2 --memory 4Gi --cpu-boost \
-  --startup-probe "tcpSocket.port=8080,periodSeconds=10,timeoutSeconds=10,failureThreshold=60" --timeout 600 --min-instances 0 --max-instances 1 --port 8080 \
+  --startup-probe "httpGet.path=/readyz,httpGet.port=8080,periodSeconds=10,timeoutSeconds=10,failureThreshold=60" --timeout 600 --min-instances 0 --max-instances 1 --port 8080 \
   ${EXTRA[@]+"${EXTRA[@]}"}
 echo "check:  gcloud run services proxy ${SERVICE} --project ${PROJECT_ID} --region ${REGION} --port 8080"
 echo "then:   curl -s -H 'X-Sandbox-User: <officer id>' -X POST localhost:8080/assist/search \\"

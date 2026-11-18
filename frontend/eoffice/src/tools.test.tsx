@@ -10,7 +10,7 @@ import { NewFilePanel } from "./components/NewFile";
 import { PrefillCard } from "./components/Receipts";
 import { HandoverPanel } from "./components/Handover";
 import { Alerts, MonitorPad } from "./components/MonitorPad";
-import { TopBar } from "./components/TopBar";
+import { SideNav, TopBar } from "./components/TopBar";
 import type { AlertsView, ChatStatement, Highlight } from "./types";
 
 const text = (el: JSX.Element) => renderToString(el).replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
@@ -66,9 +66,10 @@ describe("monitoring pad (ADR-0035)", () => {
   it("the pad loads its figures; the menu offers it only to a monitoring officer", () => {
     expect(text(<MonitorPad api={createApi("M01")} />)).toContain("Loading the monitoring pad");
     const me = { user_id: "M01", name: "Monitoring Officer (mock)", post: "Monitoring Officer", department: "GAD01", section: null, clearance: "SECRET" };
-    const bar = (m: boolean) => text(<TopBar me={me as never} view={{ kind: "files" }} go={() => {}} signOut={() => {}} monitoring={m} />);
-    expect(bar(true)).toContain("OCR review Monitoring");
-    expect(bar(false)).not.toContain("OCR review Monitoring");
+    const nav = (m: boolean) => text(<SideNav view={{ kind: "files", folder: "inbox" }} go={() => {}} monitoring={m} />);
+    expect(nav(true)).toContain("Monitoring");
+    expect(nav(false)).not.toContain("Monitoring");
+    expect(text(<TopBar me={me as never} signOut={() => {}} />)).toContain("Monitoring Officer");
   });
 });
 

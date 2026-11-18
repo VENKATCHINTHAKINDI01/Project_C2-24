@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import datetime as dt
 import re
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Mapping
 
 from pydantic import BaseModel, ConfigDict
 
@@ -35,9 +35,11 @@ from app.auth.models import DocumentAccessTags
 from app.auth.policy import check
 from app.conflict.deterministic import ConflictFlag
 from app.conflict.procedural import Action
+from app.graph.repository import Direction, EdgeKind
 from app.identifiers.canonical import InvalidCanonicalIdError, lookup_keys, parse_canonical_id
 from app.ingestion.metadata import DocumentMetadata
-from app.temporal.engine import Status, status_as_of
+from app.retrieval.graph_expansion import expand
+from app.temporal.engine import Instrument, Status, TemporalRelation, status_as_of
 
 # The proposal's action → the word its orders carry in their subject (same vocabulary the facts
 # reader uses to recognise the action in a note).
@@ -113,6 +115,92 @@ def _base(cid: str) -> str | None:
         return None
 
 
+def _walk(
+    ctx: ToolContext, cid: str, inst: Mapping[str, Instrument], rels: list[TemporalRelation]
+) -> tuple[str, str | None]:
+    """Follow `cid` along its supersession chain (visible facts only) to the latest order;
+    the reason it cannot be read, if any (repealed / expired / not yet in force)."""
+    here, hops = cid, 0
+    while hops < _MAX_CHAIN and here in inst:
+        st = status_as_of(here, ctx.as_of, inst, rels)
+        if st.status is Status.SUPERSEDED and st.by:
+            here, hops = st.by, hops + 1
+            continue
+        if st.status is Status.REPEALED:
+            return here, f"repealed{' by ' + st.by if st.by else ''}"
+        if st.status is Status.EXPIRED:
+            return here, "no longer in force on the proposal date"
+        if st.status is Status.NOT_YET_EFFECTIVE:
+            return here, "not yet in force on the proposal date"
+        break
+    return here, None
+
+
+class OutdatedAuthority(BaseModel):
+    """An order a paper rests on that is no longer in force on the as-of date (ADR-0045)."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    order: str
+    status: str  # superseded / repealed / expired
+    use_instead: str | None  # the latest order in its chain the officer may see
+
+
+# plan §14.4: the graph store failed while checking what a decision rested on
+AUTHORITIES_UNVERIFIED = OutdatedAuthority(order="", status="unverified", use_instead=None)
+
+
+def outdated_authorities(ctx: ToolContext, cid: str) -> tuple[OutdatedAuthority, ...]:
+    """The orders a paper cites (its direct graph edges, walked within the officer's scope and
+    each re-checked) that are no longer in force on `ctx.as_of`. A decision that rested on one is
+    history, not current practice: callers say so wherever it is quoted. Facts about records the
+    officer may not see are never used."""
+    hop = expand(
+        ctx.user_id,
+        [cid],
+        graph=ctx.graph,
+        kinds=frozenset({EdgeKind.CITES, EdgeKind.REFERENCES}),
+        direction=Direction.OUT,
+        max_hops=1,  # what the paper itself cites: a structural choice, not a tuned threshold
+        store=ctx.store,
+        policy=ctx.policy,
+        classification=ctx.classification,
+    )
+    if hop.unavailable:  # nothing may be read as "still in force": say it could not be checked
+        return (AUTHORITIES_UNVERIFIED,)
+    cited = sorted(
+        {
+            h.canonical_id
+            for h in hop.hits
+            if (d := visible_document(ctx, h.canonical_id)) is not None
+            and d.doc_type in ORDER_TYPES
+        }
+    )
+    inst, rels = visible_facts(ctx, set(cited))
+    out: list[OutdatedAuthority] = []
+    for order in cited:
+        if order not in inst:
+            continue
+        st = status_as_of(order, ctx.as_of, inst, rels)
+        if st.status in (Status.SUPERSEDED, Status.REPEALED, Status.EXPIRED):
+            latest, _ = _walk(ctx, order, inst, rels)
+            out.append(
+                OutdatedAuthority(
+                    order=order,
+                    status=st.status.value,
+                    use_instead=latest if latest != order else None,
+                )
+            )
+    return tuple(out)
+
+
+def follow_chain(ctx: ToolContext, cid: str) -> tuple[str, str | None]:
+    """`cid` → the latest order in its chain the officer may see, and why it cannot be read
+    (None if it can). Only facts about records the officer may see are used."""
+    inst, rels = visible_facts(ctx, {cid})
+    return _walk(ctx, cid, inst, rels)
+
+
 def governing_orders(
     ctx: ToolContext, meta: DocumentMetadata | None, action: Action | None
 ) -> tuple[tuple[ReadItem, ...], tuple[LeftOut, ...]]:
@@ -143,20 +231,7 @@ def governing_orders(
     items: dict[str, ReadItem] = {}
     cited_ids = {c for _, c in cited}
     for cid in dict.fromkeys(found):
-        here, hops = cid, 0
-        reason = None
-        while hops < _MAX_CHAIN and here in inst:
-            st = status_as_of(here, ctx.as_of, inst, rels)
-            if st.status is Status.SUPERSEDED and st.by:
-                here, hops = st.by, hops + 1
-                continue
-            if st.status is Status.REPEALED:
-                reason = f"repealed{' by ' + st.by if st.by else ''}"
-            elif st.status is Status.EXPIRED:
-                reason = "no longer in force on the proposal date"
-            elif st.status is Status.NOT_YET_EFFECTIVE:
-                reason = "not yet in force on the proposal date"
-            break
+        here, reason = _walk(ctx, cid, inst, rels)
         if reason:
             if cid in cited_ids:
                 left_out.append(LeftOut(cited=cid, reason=reason))

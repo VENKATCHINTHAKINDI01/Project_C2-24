@@ -26,7 +26,8 @@ from tests.unit.test_graph_postgres import scope as gscope
 
 def _split(items: list[Any], rng: random.Random) -> tuple[list[Any], list[Any]]:
     """Two stores; about one item in ten is held in both (the cited orders are)."""
-    a, b = [], []
+    a: list[Any] = []
+    b: list[Any] = []
     for x in items:
         r = rng.random()
         (a if r < 0.45 else b).append(x)
@@ -197,7 +198,7 @@ class _Refusing:
 
 
 def test_a_refusing_cloud_store_fails_closed_with_a_neutral_message(client: TestClient) -> None:
-    from app.main import NEUTRAL_FAILURE
+    from app.auth.messages import NEUTRAL_FAILURE
     from tests.unit.test_sandbox_api import _h
 
     run = APP.state.assist_runtime()
@@ -252,7 +253,7 @@ def test_a_cloud_only_order_is_quoted_from_its_passages_within_scope(client: Tes
             _cloud_doc("AP-USD01-GOMS-9002-2024", "USD01", "CONFIDENTIAL"),
         ]
     )
-    run.cloud = CloudRungs(**{**keep.__dict__, "passages": texts})  # type: ignore[union-attr]
+    run.cloud = CloudRungs(**{**keep.__dict__, "passages": texts})
     try:
         from app.auth.policy import scope_for
 

@@ -14,6 +14,8 @@ What is scored (nothing here judges the wording of an answer):
 - cited: a statement survived the citation check (cites a passage, quote found in it);
 - on key: at least one cited record is one of the question's expected records;
 - forbidden: a record the officer must not see is named anywhere in the response (must be 0);
+- status withheld: for a question marked "status_reportable": false, the neutral notice is given
+  and no statement says whether the order still holds (must be all; ADR-0050 addendum 2);
 - expected no-answer questions must give no statement.
 
 Before asking, scans held for OCR review are confirmed UNCHANGED by a simulated reviewer through
@@ -40,13 +42,43 @@ for p in (ROOT, ROOT / "backend"):
 
 from fastapi.testclient import TestClient  # noqa: E402
 
+from app.agents.tools import STATUS_UNCONFIRMED  # noqa: E402
 from app.config import get_settings  # noqa: E402
 from app.identifiers.canonical import InvalidCanonicalIdError, lookup_keys  # noqa: E402
 from app.main import create_app  # noqa: E402
+from evaluation.harness.limits import NO_RATE_LIMITS, require_measured  # noqa: E402
 
 CORPUS = ROOT / "data" / "synthetic" / "mock_v1"
 REPORTS = ROOT / "evaluation" / "reports"
 ID_RX = re.compile(r"AP-[A-Z]{2,6}\d{2}-[A-Z]+-[A-Z0-9-]+")
+# a statement that says whether an order still holds (the regression check of ADR-0050 add. 2)
+STATUS_WORDS = re.compile(
+    r"withdrawn|in force|\bvalid|superseded|repealed|rescinded|cancell?ed|remains", re.I
+)
+
+
+def confirm_held_scans(client: TestClient, seed: dict[str, Any]) -> int:
+    """SIMULATED reviewer (see the module docstring): confirms each held scan's recorded reading
+    unchanged, through the production review endpoints. Returns how many were confirmed."""
+    confirmed = 0
+    for p in seed["profiles"]:
+        if not p.get("login"):
+            continue
+        hdr = {"X-Sandbox-User": p["user_id"]}
+        for item in client.get("/assist/review/ocr", headers=hdr).json().get("items", []):
+            detail = client.get(f"/assist/review/ocr/{item['item_id']}", headers=hdr).json()
+            if not detail.get("has_draft"):
+                continue
+            r = client.post(
+                f"/assist/review/ocr/{item['item_id']}/confirm",
+                json={
+                    "corrected_text": detail["draft_text"],
+                    "reason": "EVAL simulated reviewer: recorded OCR confirmed unchanged",
+                },
+                headers=hdr,
+            )
+            confirmed += r.status_code == 200
+    return confirmed
 
 
 def main() -> int:
@@ -60,6 +92,7 @@ def main() -> int:
             "sandbox": True,
             "llm_provider": "vertex" if a.live else "recorded",
             "state_store": "memory",
+            **NO_RATE_LIMITS,  # evaluation/harness/limits.py
         }
     )
     with (CORPUS / "documents_index.csv").open(encoding="utf-8", newline="") as fh:
@@ -73,34 +106,20 @@ def main() -> int:
             return None
 
     rows: list[dict[str, Any]] = []
+    statuses: list[int] = []
     seed = json.loads((CORPUS / "eoffice" / "seed.json").read_text("utf-8"))
     with TestClient(create_app(settings)) as client:
-        confirmed = 0
-        if not a.no_confirm_ocr:  # SIMULATED reviewer, recorded text unchanged (see docstring)
-            for p in seed["profiles"]:
-                if not p.get("login"):
-                    continue
-                hdr = {"X-Sandbox-User": p["user_id"]}
-                for item in client.get("/assist/review/ocr", headers=hdr).json().get("items", []):
-                    detail = client.get(f"/assist/review/ocr/{item['item_id']}", headers=hdr).json()
-                    if not detail.get("has_draft"):
-                        continue
-                    r = client.post(
-                        f"/assist/review/ocr/{item['item_id']}/confirm",
-                        json={
-                            "corrected_text": detail["draft_text"],
-                            "reason": "EVAL simulated reviewer: recorded OCR confirmed unchanged",
-                        },
-                        headers=hdr,
-                    )
-                    confirmed += r.status_code == 200
+        confirmed = 0 if a.no_confirm_ocr else confirm_held_scans(client, seed)
         for g in golden:
             r = client.post(
                 "/assist/ask",
                 json={"question": g["question"]},
                 headers={"X-Sandbox-User": g["user"]},
             )
-            out = r.json() if r.status_code == 200 else {"status": f"http {r.status_code}"}
+            statuses.append(r.status_code)
+            out: dict[str, Any] = (
+                r.json() if r.status_code == 200 else {"status": f"http {r.status_code}"}
+            )
             cited = sorted(
                 {
                     d
@@ -128,11 +147,42 @@ def main() -> int:
                     "package": package,
                     "expected_in_package": bool(set(package) & set(g.get("expected_docs", []))),
                     "forbidden_named": sorted(named & set(g.get("forbidden_docs", []))),
+                    # "status_reportable": false (ADR-0050 addendum 2): the neutral notice is
+                    # given and no statement says whether the order still holds
+                    "status_withheld_kept": None
+                    if g.get("status_reportable", True)
+                    else (
+                        any(STATUS_UNCONFIRMED in n for n in out.get("notices", []))
+                        and not any(
+                            STATUS_WORDS.search(s["text"])
+                            for s in (*out.get("statements", []), *out.get("review_needed", []))
+                        )
+                    ),
                     "message": out.get("message"),
+                    # per statement (ADR-0054): its confidence band, and whether it cites a
+                    # record on the answer key
+                    "bands": [
+                        (
+                            (s.get("confidence") or {}).get("band"),
+                            bool(
+                                {d for c in s["citations"] if (d := doc_id(c["canonical_id"]))}
+                                & set(g.get("expected_docs", []))
+                            ),
+                        )
+                        for s in out.get("statements", [])
+                    ],
                 }
             )
+    require_measured(statuses, "ask_golden")
     want = [r for r in rows if r["expected_status"] == "answered"]
     none = [r for r in rows if r["expected_status"] != "answered"]
+    # how often each confidence band is on the answer key (ADR-0054), over expected-answered
+    bands: dict[str, dict[str, int]] = {}
+    for row in want:
+        for band, ok in row["bands"]:
+            tally = bands.setdefault(str(band), {"statements": 0, "on_key": 0})
+            tally["statements"] += 1
+            tally["on_key"] += ok
     summary = {
         "questions": len(rows),
         "mode": "live" if a.live else "saved answers only",
@@ -142,11 +192,14 @@ def main() -> int:
         "expected_record_in_evidence_package": sum(r["expected_in_package"] for r in want),
         "answered_with_checked_citation": sum(r["status"] == "answered" for r in want),
         "answered_on_key": sum(r["status"] == "answered" and r["on_key"] for r in want),
+        "confidence_bands": bands,
         "not_run": sum(r["status"] == "not_run" for r in rows),
         "expected_no_answer": len(none),
         "no_answer_kept": sum(not r["statements"] for r in none),
         "statements_removed_by_citation_check": sum(r["removed"] for r in rows),
         "forbidden_records_named": sum(len(r["forbidden_named"]) for r in rows),
+        "status_not_reportable": sum(r["status_withheld_kept"] is not None for r in rows),
+        "status_withheld_kept": sum(r["status_withheld_kept"] is True for r in rows),
     }
     day = dt.date.today().isoformat()
     stem = f"{day}-ask-golden" + (f"-{a.label}" if a.label else "")
@@ -170,7 +223,8 @@ def main() -> int:
     for k, v in summary.items():
         print(f"{k}: {v}")
     print(f"report: evaluation/reports/{stem}.md")
-    return 1 if summary["forbidden_records_named"] else 0
+    held = summary["status_withheld_kept"] == summary["status_not_reportable"]
+    return 1 if summary["forbidden_records_named"] or not held else 0
 
 
 if __name__ == "__main__":

@@ -19,6 +19,7 @@ from app.agents.tools import ToolContext
 from app.auth.models import AccessPolicy, DocumentAccessTags
 from app.auth.policy import ScopeError, load_access_policy, scope_for
 from app.auth.store import InMemoryAuthzStore
+from app.concurrency import RWLock
 from app.config import Classification, Hierarchy
 from app.conflict.procedural import AuthorityRules, load_authority_rules
 from app.connectors.eoffice import (
@@ -30,6 +31,7 @@ from app.connectors.eoffice import (
 )
 from app.graph.repository import WalkableGraph
 from app.hitl.queue import ReviewItem, ReviewQueue
+from app.identifiers.entities import EntityIndex
 from app.identifiers.resolver import DepartmentTable, load_departments
 from app.ingestion.detect import detect
 from app.ingestion.document_store import (
@@ -79,6 +81,22 @@ class _FallbackTexts(Mapping[str, str]):
         return len(self._first)
 
 
+# The events that bring a paper into institutional memory (ADR-0045). A draft being saved, put up
+# or returned is none of them: only a confirmed note, an issued order, an opened / closed file, an
+# attached paper and a received order or letter are official acts.
+_OFFICIAL_ACTS = frozenset(
+    {
+        EventKind.FILE_CREATED,
+        EventKind.ATTACHMENT_ADDED,
+        EventKind.NOTE_CONFIRMED,
+        EventKind.DRAFT_DISPATCHED,
+        EventKind.ORDER_RECEIVED,
+        EventKind.RECEIPT_DIARISED,
+        EventKind.FILE_CLOSED,  # the closing note sheet joins the precedent index (TP16)
+    }
+)
+
+
 @dataclass
 class AssistRuntime:
     stores: IngestionStores
@@ -97,6 +115,8 @@ class AssistRuntime:
     held_by_file: dict[str, list[DocumentAccessTags]]  # e-File → access tags of held documents
 
     open_files: frozenset[str] = frozenset()
+    # changes to the in-memory stores run alone; assistant requests share it (ADR-0039)
+    rw: RWLock = field(default_factory=RWLock, repr=False)
     references: ReferenceConfig | None = None  # touchpoint 7 matching; None = not configured
     cursor: dt.datetime = dt.datetime.min.replace(tzinfo=dt.UTC)  # last connector event seen
     # ADR-0014: the stored source bytes, and canonical ID → the version its text came from
@@ -112,6 +132,8 @@ class AssistRuntime:
     llm: LLMClient | None = None  # Gemini for B / G judgment (plan §6.5); None: not checked
     auto_passed: dict[str, float] = field(default_factory=dict)  # source URI → lowest confidence
     cloud: CloudRungs | None = None  # public corpus read from BigQuery / Cloud SQL (ADR-0028)
+    # people and offices named in the indexed (trusted) texts (ADR-0058); not an access boundary
+    entities: EntityIndex = field(default_factory=EntityIndex)
 
     @classmethod
     def build(
@@ -167,9 +189,11 @@ class AssistRuntime:
         run._reindex_l2()
         return run
 
-    def _ingest(self, a: SourceArtefact, received_at: dt.datetime) -> IngestResult:
+    def _ingest(
+        self, a: SourceArtefact, received_at: dt.datetime, event: str = "loaded"
+    ) -> IngestResult:
         self.artefacts[a.source_uri] = (a, received_at)
-        src = self._src(a, received_at)
+        src = self._src(a, received_at, event)
         res = ingest(
             src,
             a.data,
@@ -200,7 +224,7 @@ class AssistRuntime:
         return None
 
     @staticmethod
-    def _src(a: SourceArtefact, received_at: dt.datetime) -> SourceDocument:
+    def _src(a: SourceArtefact, received_at: dt.datetime, event: str = "loaded") -> SourceDocument:
         return SourceDocument(
             source_uri=a.source_uri,
             filename=a.filename,
@@ -212,6 +236,8 @@ class AssistRuntime:
                 file_no=a.file_no,
             ),
             received_at=received_at,
+            attachment=a.attachment,
+            event=event,
         )
 
     def _account(self, res: IngestResult, a: SourceArtefact, src: SourceDocument) -> IngestResult:
@@ -220,6 +246,12 @@ class AssistRuntime:
             self.texts[res.canonical_id] = (
                 self.stores.text_of.get(res.version)
                 or extract_native(a.data, detect(a.data, a.filename)).native_text
+            )
+            self.entities.add(
+                res.canonical_id,
+                self.texts[res.canonical_id],
+                a.signers,
+                loose=not a.source_uri.startswith("public://"),  # OCR'd public orders: strict
             )
             self.documents.put(
                 StoredDocument(
@@ -246,6 +278,26 @@ class AssistRuntime:
         """Human review of an OCR'd file (plan §4.2; CLAUDE.md §8). Confirm (optionally with
         corrected text) re-runs the file through the pipeline; reject leaves it held for re-scan.
         The caller has already checked that the reviewer may see this file."""
+        with self.rw.write():
+            return self._review_ocr(
+                item,
+                reviewer=reviewer,
+                confirm=confirm,
+                reason=reason,
+                at=at,
+                corrected_text=corrected_text,
+            )
+
+    def _review_ocr(
+        self,
+        item: ReviewItem,
+        *,
+        reviewer: str,
+        confirm: bool,
+        reason: str,
+        at: dt.datetime,
+        corrected_text: str | None = None,
+    ) -> IngestResult | None:
         a, received_at = self.artefacts[item.subject]
         src = self._src(a, received_at)
         if not confirm:
@@ -283,6 +335,11 @@ class AssistRuntime:
     def sync(self, connector: EOfficeConnector) -> list[IngestResult]:
         """Events in (plan §11.3): ingest documents that arrived since the last call — through
         the normal pipeline, so reconciliation, notices and cache invalidation all run."""
+        with self.rw.write():
+            return self._sync(connector)
+
+    def _sync(self, connector: EOfficeConnector) -> list[IngestResult]:
+        """Only official acts bring a paper in (ADR-0045); a draft being saved raises no event."""
         events = connector.events_since(self.cursor)
         if not events:
             return []
@@ -292,12 +349,8 @@ class AssistRuntime:
         for ev in events:
             self.cursor = max(self.cursor, ev.occurred_at)
             art = by_uri.get(ev.source_uri)
-            if art is not None and ev.kind in (
-                EventKind.ORDER_RECEIVED,
-                EventKind.RECEIPT_DIARISED,
-                EventKind.FILE_CLOSED,  # the closing note sheet joins the precedent index (TP16)
-            ):
-                out.append(self._ingest(art, ev.occurred_at))
+            if art is not None and ev.kind in _OFFICIAL_ACTS:
+                out.append(self._ingest(art, ev.occurred_at, ev.kind.value))
         self._reindex_l2()
         return out
 
@@ -345,6 +398,7 @@ class AssistRuntime:
             hierarchy=self.hierarchy,
             instruments=self.stores.instruments,
             relations=tuple(self.stores.relations),
+            entities=self.entities,
         )
 
     def evidence_texts(self, user_id: str, store: InMemoryAuthzStore) -> Mapping[str, str]:

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { fmtDate } from "../format";
 import type { Api } from "../api";
 import type { Digest } from "../types";
 
@@ -24,7 +25,7 @@ export function DigestPanel({ api, open }: { api: Api; open: (computerNo: string
   return (
     <section className="digest" aria-label="Your digest">
       <header>
-        <h3>For you, as of {d.as_of}</h3>
+        <h3>For you, as of {fmtDate(d.as_of)}</h3>
         <label>Changes in the last{" "}
           <select value={days} onChange={(e) => setDays(Number(e.target.value))}>
             {[7, 14, 30, 90].map((n) => <option key={n} value={n}>{n} days</option>)}

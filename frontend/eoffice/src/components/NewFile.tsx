@@ -21,8 +21,9 @@ export function NewFilePanel({ api, open }: { api: Api; open: (computerNo: strin
   };
   const toggle = (f: string) => setChosen((c) => (c.includes(f) ? c.filter((x) => x !== f) : [...c, f]));
   return (
-    <details className="newfile">
-      <summary>Create a file</summary>
+    <section className="newfile">
+      <h1>Create a file</h1>
+      <p className="muted">Write the subject the way the file will be known. The assistant offers earlier files on the same subject as Previous References; you choose which to enter.</p>
       <label className="muted" htmlFor="nf-subject">Subject</label>
       <textarea id="nf-subject" rows={2} value={subject} onChange={(e) => setSubject(e.target.value)}
         placeholder="Establishment – Sri …, Senior Assistant – Request for transfer on spouse grounds – Reg." />
@@ -48,6 +49,6 @@ export function NewFilePanel({ api, open }: { api: Api; open: (computerNo: strin
         </ul>
       )}
       <p className="footnote">Suggestions only: you choose which earlier files to enter as Previous References.</p>
-    </details>
+    </section>
   );
 }

@@ -95,6 +95,7 @@ def pg() -> Iterator[Pg]:
             "0001_review_audit",
             "0002_graph",
             "0003_sessions",
+            "0004_draft_workspaces",
         ]
         apply_migrations(p, MIGRATIONS)  # idempotent
         yield p
@@ -176,3 +177,86 @@ def test_app_uses_postgres_state_when_configured() -> None:
     s = Settings(state_store="postgres", pg_dsn="host=127.0.0.1 dbname=unused")  # lazy: no connect
     assert isinstance(create_app(s).state.audit, PostgresAuditLog)
     assert not isinstance(create_app(Settings()).state.audit, PostgresAuditLog)
+
+
+# ---- pool and timeouts (ADR-0039) ----
+
+
+def test_pool_waits_for_a_free_connection_then_fails_closed() -> None:
+    import threading
+
+    made: list[int] = []
+
+    class C(_Conn):
+        pass
+
+    def make() -> C:
+        made.append(1)
+        return C()
+
+    pool = Pg(make, size=1, wait_s=0.2)
+    hold = threading.Event()
+    done = threading.Event()
+
+    def busy() -> None:
+        with pool.tx():
+            hold.set()
+            done.wait(2)
+
+    t = threading.Thread(target=busy)
+    t.start()
+    hold.wait(2)
+    with pytest.raises(PgError, match="no database connection free"):
+        with pool.tx():
+            pass
+    done.set()
+    t.join()
+    with pool.tx():  # the borrowed connection came back and is reused
+        pass
+    assert len(made) == 1
+
+
+@needs_pg
+def test_real_postgres_cuts_off_slow_statements_and_caps_connections() -> None:
+    import threading
+
+    s = Settings(state_store="postgres", pg_dsn=DSN, pg_pool_size=2, pg_statement_timeout_ms=300)
+    p = pg_from_settings(s)
+    assert p is not None
+    with pytest.raises(Exception, match="(?i)statement timeout|canceling statement"):
+        with p.tx() as cur:
+            cur.execute("SELECT pg_sleep(2)")
+    seen: list[int] = []
+
+    def work() -> None:
+        with p.tx() as cur:
+            cur.execute(
+                "SELECT count(*) FROM pg_stat_activity WHERE datname = current_database() "
+                "AND application_name = '' AND backend_type = 'client backend'"
+            )
+            seen.append(cur.fetchone()[0])
+            cur.execute("SELECT pg_sleep(0.05)")
+
+    ts = [threading.Thread(target=work) for _ in range(8)]
+    for t in ts:
+        t.start()
+    for t in ts:
+        t.join()
+    assert len(seen) == 8 and max(seen) <= 2 + 1  # this pool's 2 (+ the fixture's own session)
+    p.close()
+
+
+def test_a_draft_workspace_survives_a_restart_and_stays_its_officers(pg: Pg) -> None:
+    """ADR-0046: the server keeps an officer's interrupted draft; one row per officer and target."""
+    from app.noting.workspace import PostgresWorkspaceStore, Workspace
+
+    at = dt.datetime(2026, 11, 17, 18, 0, tzinfo=dt.UTC)
+    ws = Workspace.model_validate({"format_id": "go_ms", "text": "draft before the power cut"})
+    PostgresWorkspaceStore(pg).put("U01", "1771342", ws, at)
+    PostgresWorkspaceStore(pg).put("U01", "1771342", ws.model_copy(update={"text": "later"}), at)
+    again = PostgresWorkspaceStore(pg)  # a new process
+    got = again.get("U01", "1771342")
+    assert got is not None and got.workspace.text == "later" and got.saved_at == at
+    assert again.get("U02", "1771342") is None and again.get("U01", "new") is None
+    assert again.discard("U01", "1771342") and again.get("U01", "1771342") is None
+    assert not again.discard("U01", "1771342")

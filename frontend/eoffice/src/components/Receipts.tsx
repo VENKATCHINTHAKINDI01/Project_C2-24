@@ -1,6 +1,9 @@
 import { useEffect, useState } from "react";
+import { fmtDate } from "../format";
 import type { Api } from "../api";
 import { FLAG_NAMES } from "../presend";
+import { rowKeys } from "../keys";
+import { usePrefs } from "../prefs";
 import type { Diarise, DiaryPrefill, Notices, ReceiptReview, ReceiptRow } from "../types";
 
 const CHANGE: Record<string, string> = { SUPERSEDES: "supersedes", REPEALS: "repeals", AMENDS: "amends" };
@@ -28,10 +31,12 @@ export function ReceiptInbox({ api, open }: { api: Api; open: (computerNo: strin
   const [rows, setRows] = useState<ReceiptRow[] | null>(null);
   const [notices, setNotices] = useState<Notices | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const { show_notices: showNotices } = usePrefs();
   useEffect(() => {
     api.receipts().then((r) => setRows(r.receipts)).catch((e: Error) => setError(e.message));
-    api.notices().then(setNotices).catch(() => setNotices(null));
-  }, [api]);
+    if (showNotices) api.notices().then(setNotices).catch(() => setNotices(null));
+    else setNotices(null);
+  }, [api, showNotices]);
   if (error) return <p className="error page">{error}</p>;
   if (!rows) return <p className="muted page">Loading receipts…</p>;
   return (
@@ -42,8 +47,9 @@ export function ReceiptInbox({ api, open }: { api: Api; open: (computerNo: strin
         <thead><tr><th>Comp. No.</th><th>Receipt No.</th><th>Diary date</th><th>From</th><th>Letter</th><th>Subject</th></tr></thead>
         <tbody>
           {rows.map((r) => (
-            <tr key={r.computer_no} className="clickable" onClick={() => open(r.computer_no)}>
-              <td>{r.computer_no}</td><td>{r.receipt_no}</td><td>{r.diary_date}</td><td>{r.sender}</td>
+            <tr key={r.computer_no} className="clickable" tabIndex={0} onClick={() => open(r.computer_no)}
+              onKeyDown={(e) => rowKeys(e, () => open(r.computer_no))}>
+              <td>{r.computer_no}</td><td>{r.receipt_no}</td><td className="date">{fmtDate(r.diary_date)}</td><td>{r.sender}</td>
               <td>{r.letter_ref ?? ""}{r.letter_pending ? " (letter not yet arrived)" : ""}</td><td>{r.subject}</td>
             </tr>
           ))}
@@ -87,9 +93,9 @@ export function ReceiptView({ api, computerNo }: { api: Api; computerNo: string 
         <table className="grid kv">
           <tbody>
             <tr><th>Computer No.</th><td>{row.computer_no}</td></tr>
-            <tr><th>Diary date</th><td>{row.diary_date}</td></tr>
+            <tr><th>Diary date</th><td>{fmtDate(row.diary_date)}</td></tr>
             <tr><th>From</th><td>{row.sender}</td></tr>
-            <tr><th>Letter</th><td>{row.letter_ref ?? "—"} {row.letter_date ? `dated ${row.letter_date}` : ""}</td></tr>
+            <tr><th>Letter</th><td>{row.letter_ref ?? "—"}{row.letter_date ? `, dated ${fmtDate(row.letter_date)}` : ""}</td></tr>
             <tr><th>Category</th><td>{row.main_category}</td></tr>
             <tr><th>Subject</th><td>{row.subject}</td></tr>
             <tr><th>Section</th><td>{row.dealing_section}</td></tr>
@@ -102,12 +108,15 @@ export function ReceiptView({ api, computerNo }: { api: Api; computerNo: string 
         {arrived && <NoticesPanel n={arrived} />}
       </section>
       <aside className="assist">
-        <h3>✦ C2-24 Assist — this receipt</h3>
-        <div className="row">
-          <label className="muted" htmlFor="asof">As of</label>
-          <input id="asof" type="date" value={asOf} onChange={(e) => setAsOf(e.target.value)} title="Sandbox replay; leave empty for today" />
-          <button className="primary" disabled={busy} onClick={assist}>Summarise &amp; check</button>
+        <h3>C2-24 assistant <span className="h3-sub">for this receipt</span></h3>
+        <div className="chips">
+          <button disabled={busy} onClick={assist}>Summarise and check</button>
           <button disabled={busy} onClick={() => { setBusy(true); setError(null); api.diarise(computerNo).then(setPre).catch((e: Error) => setError(e.message)).finally(() => setBusy(false)); }}>Pre-fill diary details</button>
+        </div>
+        <div className="asof">
+          <label htmlFor="asof">Check as of</label>
+          <input id="asof" type="date" value={asOf} onChange={(e) => setAsOf(e.target.value)} />
+          <span className="muted">sandbox replay; leave empty for today</span>
         </div>
         {pre && <PrefillCard d={pre} entry={row} />}
         {error && <p className="error">{error}</p>}
@@ -124,7 +133,7 @@ export function ReceiptAssistCard({ r }: { r: ReceiptReview }) {
     <section>
       <div className="card">
         {r.summary.map((line, i) => <p key={i}>{line}</p>)}
-        <p className="src">Source: {r.document.canonical_id} · as of {r.as_of}</p>
+        <p className="src">Source: {r.document.canonical_id} , as of {fmtDate(r.as_of)}</p>
       </div>
       {r.flags.map((f, i) => (
         <div key={i} className="flag">
@@ -135,7 +144,7 @@ export function ReceiptAssistCard({ r }: { r: ReceiptReview }) {
           <p>{f.explanation}</p>
         </div>
       ))}
-      {r.flags.length === 0 && <p className="card">No validity flag as of {r.as_of}.</p>}
+      {r.flags.length === 0 && <p className="card">No validity flag as of {fmtDate(r.as_of)}.</p>}
       {r.status_unconfirmed.length > 0 && (
         <p className="card">Status not confirmed from your records: {r.status_unconfirmed.join(" · ")}</p>
       )}
@@ -174,7 +183,7 @@ export function PrefillCard({ d, entry }: { d: Diarise; entry?: ReceiptRow | nul
               <tr key={k}>
                 <th>{label}</th>
                 <td>
-                  {f.value ?? <span className="muted">not in the letter — fill in</span>}
+                  {f.value ? (k === "letter_date" ? fmtDate(f.value) : f.value) : <span className="muted">not in the letter — fill in</span>}
                   {f.read_from && <div className="sub">from: “{f.read_from}”</div>}
                   {diarised !== undefined && f.value && (
                     <div className="sub">{norm(diarised) === norm(f.value) ? "✓ same as the diary entry" : `diary entry: ${diarised ?? "—"}`}</div>

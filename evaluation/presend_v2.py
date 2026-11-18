@@ -37,6 +37,7 @@ from fastapi.testclient import TestClient  # noqa: E402
 from app.agents.llm import LLMError, RecordedLLM  # noqa: E402
 from app.config import get_settings  # noqa: E402
 from app.main import create_app  # noqa: E402
+from evaluation.harness.limits import NO_RATE_LIMITS, RefusedError  # noqa: E402
 
 V2 = ROOT / "data" / "synthetic" / "mock_v1" / "efiles_v2"
 REPORTS = ROOT / "evaluation" / "reports"
@@ -120,6 +121,7 @@ def main() -> int:
             "sandbox_public_corpus_dir": a.public_dir.expanduser(),
             "llm_provider": provider,
             "state_store": "memory",
+            **NO_RATE_LIMITS,  # ~200 checks per simulated head in a burst (harness/limits.py)
         }
     )
     app = create_app(settings)
@@ -140,6 +142,7 @@ def main() -> int:
     planted = {g["file_no"]: g["type"] for g in gt}
 
     score: collections.Counter[tuple[str, str]] = collections.Counter()
+    refused: collections.Counter[int] = collections.Counter()  # a refused check measured nothing
     incomplete, rows = 0, []
     for f in seed["files"]:
         r = client.post(
@@ -147,6 +150,8 @@ def main() -> int:
             json={"computer_no": f["computer_no"]},
             headers={"X-Sandbox-User": HEAD[f["department"]]},
         )
+        if r.status_code != 200:
+            refused[r.status_code] += 1
         body = r.json() if r.status_code == 200 else {}
         types = sorted({x.get("type") for x in body.get("flags", [])})
         if any("contradiction check" in g for g in body.get("fact_gaps", [])):
@@ -164,6 +169,8 @@ def main() -> int:
             f"{settings.gemini_model}). Nothing was sent."
         )
         return 0
+    if refused:  # every head may open every file of the department: any non-200 is a failure
+        raise RefusedError(f"presend_v2: checks refused with HTTP {dict(refused)}; no report")
     now = dt.datetime.now(dt.UTC).isoformat(timespec="seconds")
     lines = [
         f"# Pre-send on synthetic set v2 — {now}",

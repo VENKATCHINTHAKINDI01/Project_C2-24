@@ -104,6 +104,31 @@ def main(argv: Sequence[str] | None = None) -> int:
         "(C2_PG_DSN, or C2_CLOUDSQL_INSTANCE + C2_CLOUDSQL_USER)",
     )
     ap.add_argument(
+        "--load-spanner",
+        action="store_true",
+        help="after the files are written, copy the graph into Spanner Graph (ADR-0048): "
+        "C2_GCP_PROJECT_ID, C2_SPANNER_INSTANCE, C2_SPANNER_DATABASE. Use instead of "
+        "--load-postgres once the API reads Spanner: one graph store is written, not two",
+    )
+    ap.add_argument(
+        "--load-dry-run",
+        action="store_true",
+        help="with --load-postgres / --load-spanner: report what the load would add, update and "
+        "DELETE (links the build no longer produces), and change nothing (ADR-0055)",
+    )
+    ap.add_argument(
+        "--max-delete-share",
+        type=float,
+        default=0.2,
+        help="refuse a load that would delete more than this share of the links or nodes held "
+        "(default 0.2); nothing is changed when refused",
+    )
+    ap.add_argument(
+        "--allow-large-delete",
+        action="store_true",
+        help="load even past --max-delete-share (after checking a dry run)",
+    )
+    ap.add_argument(
         "--load-bigquery",
         metavar="PROJECT.DATASET.TABLE",
         help="after the files are written, replace this BigQuery table with the documents' "
@@ -246,23 +271,45 @@ def main(argv: Sequence[str] | None = None) -> int:
     # The files above are the record of the run. Each store is loaded on its own: one failing
     # does not stop the other, and any failure makes the run exit non-zero.
     failed = []
+    # each store is made equal to this build (ADR-0055): links it no longer produces are deleted
+    sync_opts: dict[str, Any] = {
+        "max_delete_share": a.max_delete_share,
+        "allow_large_delete": a.allow_large_delete,
+        "dry_run": a.load_dry_run,
+    }
     if a.load_postgres:
         try:
             pg = pg_from_settings(settings.model_copy(update={"state_store": "postgres"}))
             assert pg is not None  # noqa: S101 — postgres was just selected
             try:
                 repo = PostgresGraphRepository(pg)
-                done = repo.load_rows(nodes, _edge_rows(edges))
+                p = repo.sync_rows(nodes, _edge_rows(edges), **sync_opts)
+                verb = "DRY RUN, nothing changed —" if a.load_dry_run else "synced —"
                 print(
-                    f"postgres: wrote {done[0]} nodes, {done[1]} edges; tables now hold "
-                    f"{repo.counts()}",
-                    flush=True,
+                    f"postgres: {verb} {p.summary()}; tables now hold {repo.counts()}", flush=True
                 )
             finally:
                 pg.close()
         except Exception as exc:  # noqa: BLE001 — reported, then the next store is tried
             failed.append("postgres")
             print(f"postgres: FAILED ({type(exc).__name__}: {exc})", flush=True)
+    if a.load_spanner:
+        try:
+            if not (settings.gcp_project_id and settings.spanner_instance):
+                raise ValueError("C2_GCP_PROJECT_ID and C2_SPANNER_INSTANCE are required")
+            from app.graph.spanner import CloudSpannerPort, SpannerGraphRepository
+
+            sp = SpannerGraphRepository(
+                CloudSpannerPort(
+                    settings.gcp_project_id, settings.spanner_instance, settings.spanner_database
+                )
+            )
+            p = sp.sync_rows(nodes, _edge_rows(edges), **sync_opts)
+            verb = "DRY RUN, nothing changed —" if a.load_dry_run else "synced —"
+            print(f"spanner: {verb} {p.summary()}; it now holds {sp.counts()}", flush=True)
+        except Exception as exc:  # noqa: BLE001 — reported, then the next store is tried
+            failed.append("spanner")
+            print(f"spanner: FAILED ({type(exc).__name__}: {exc})", flush=True)
     if a.load_bigquery:
         try:
             if not (settings.gcp_project_id and settings.gcp_region):

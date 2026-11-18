@@ -92,10 +92,18 @@ def request_key(model: str, prompt_id: str, system: str, user: str, schema: dict
 class GeminiVertexClient:
     """Live Gemini on the regional Vertex AI endpoint. Temperature 0; JSON answer with a schema."""
 
-    def __init__(self, project: str, location: str, model: str, client: Any = None) -> None:
+    def __init__(
+        self,
+        project: str,
+        location: str,
+        model: str,
+        client: Any = None,
+        timeout_s: float = 60.0,
+    ) -> None:
         if not (project and location and model):
             raise LLMError("Gemini needs project, location and model")
         self.project, self.location, self.model = project, location, model
+        self.timeout_s = timeout_s  # a stuck call ends closed, never hangs a request (ADR-0039)
         self.name = f"{model}@{location}"
         self._client = client
 
@@ -105,7 +113,14 @@ class GeminiVertexClient:
                 from google import genai  # noqa: PLC0415 — optional `gcp` extra
             except ImportError as exc:  # pragma: no cover - depends on installed extras
                 raise LLMError("google-genai not installed (uv sync --extra gcp)") from exc
-            self._client = genai.Client(vertexai=True, project=self.project, location=self.location)
+            from google.genai import types  # noqa: PLC0415
+
+            self._client = genai.Client(
+                vertexai=True,
+                project=self.project,
+                location=self.location,
+                http_options=types.HttpOptions(timeout=int(self.timeout_s * 1000)),
+            )
         return self._client
 
     def generate_json(
@@ -375,6 +390,7 @@ def llm_from_settings(settings: Settings) -> LLMClient | None:
         settings.gcp_project_id or "",
         settings.gemini_location or settings.gcp_region or "",
         settings.gemini_model,
+        timeout_s=settings.llm_timeout_s,
     )
     primary = CachingLLM(live, settings.llm_recorded_dir)
     if settings.llm_fallback == "none":

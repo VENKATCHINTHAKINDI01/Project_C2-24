@@ -2,7 +2,7 @@
 # Build the backend image on GCP (Cloud Build) and push it to Artifact Registry repo "$PREFIX".
 # Dry run by default; APPLY=1 executes. Nothing is built on the laptop and Docker is not needed there.
 # Only what the image needs is sent (an allowlist copied to a temp folder): backend/{app,config,prompts},
-# the lock files, data/ontology and the Dockerfile. Never: .env, data/synthetic, tests, the corpus.
+# the lock files, data/ontology, data/schemas/postgres and the Dockerfile. Never: .env, data/synthetic, tests, the corpus.
 # Billing: a few build-minutes per run. BUILD_REGION=global if the regional build pool is refused.
 source "$(dirname "$0")/lib.sh"
 ROOT="$(cd "$HERE/../.." && pwd)"
@@ -10,7 +10,7 @@ TAG="${TAG:-$(date +%Y%m%d-%H%M)}"
 IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/${PREFIX}/backend"
 BUILD_REGION="${BUILD_REGION:-$REGION}"
 KEEP=(backend/Dockerfile backend/pyproject.toml backend/uv.lock backend/.python-version
-      backend/app backend/config backend/prompts data/ontology)
+      backend/app backend/config backend/prompts data/ontology data/schemas/postgres)
 for p in "${KEEP[@]}"; do [[ -e "$ROOT/$p" ]] || { echo "missing $p" >&2; exit 1; }; done
 CTX="$(mktemp -d)"; trap 'rm -rf "$CTX"' EXIT
 for p in "${KEEP[@]}"; do

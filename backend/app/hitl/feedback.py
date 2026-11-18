@@ -24,6 +24,7 @@ from typing import Any, Protocol
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.connectors.eoffice import DraftOutcome, DraftOutcomeKind
+from app.tracking.retry_buffer import RetryBuffer
 
 log = logging.getLogger(__name__)
 
@@ -83,6 +84,7 @@ class HumanAction(BaseModel):
 _DRAFT_MARKERS = (
     (re.compile(r"(?m)^[ \t]*(?:AI FIRST-CUT|FIRST-CUT NOTE —)[^\n]*\n?"), ""),
     (re.compile(r" \(C2-24 pre-send check, draft\)"), ""),
+    (re.compile(r"(?m)^[ \t]*DRAFT(?: NOTE)? — prepared with C2-24 Assist\.[^\n]*\n?"), ""),
 )
 
 
@@ -111,11 +113,14 @@ class ActionLog(Protocol):
 class InMemoryActionLog:
     """Reference log (sandbox default, tests)."""
 
-    def __init__(self) -> None:
+    def __init__(self, max_rows: int = 50_000) -> None:
         self.actions: list[HumanAction] = []
+        self._max = max_rows  # bounded memory (ADR-0039): the oldest rows go first
 
     def write(self, action: HumanAction) -> None:
         self.actions.append(action)
+        if len(self.actions) > self._max * 1.1:
+            del self.actions[: len(self.actions) - self._max]
 
 
 def bq_row(a: HumanAction) -> dict[str, Any]:
@@ -127,8 +132,9 @@ def bq_row(a: HumanAction) -> dict[str, Any]:
 class BigQueryActionLog:
     """Streaming insert into `<project>.<prefix>_audit.human_action` (schema:
     data/schemas/bigquery/human_action.json). Append-only: the latest action per output wins in
-    the `query_log_actions` view (script 22). A failed insert is logged (type only) and dropped —
-    the officer's action in e-Office has already happened; tracking must not undo it."""
+    the `query_log_actions` view (script 22). A failed insert is kept and retried (RetryBuffer,
+    plan §14.4): the officer's action in e-Office has already happened; tracking must not undo
+    it."""
 
     def __init__(self, project: str, table: str, client: Any | None = None) -> None:
         if client is None:
@@ -137,15 +143,12 @@ class BigQueryActionLog:
             client = bigquery.Client(project=project)
         self._client = client
         self._table = table
+        self.buffer = RetryBuffer(
+            "human_action", lambda rows: self._client.insert_rows_json(self._table, rows)
+        )
 
     def write(self, action: HumanAction) -> None:
-        try:
-            errors = self._client.insert_rows_json(self._table, [bq_row(action)])
-        except Exception as exc:  # noqa: BLE001 — tracking never breaks the officer's action
-            log.error("human action not logged: %s", type(exc).__name__)
-            return
-        if errors:
-            log.error("human action not logged: %d row error(s)", len(errors))
+        self.buffer.write(bq_row(action))
 
 
 def action_from_outcome(out: DraftOutcome) -> HumanAction:

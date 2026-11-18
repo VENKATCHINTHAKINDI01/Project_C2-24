@@ -42,6 +42,7 @@ class DocType(StrEnum):
     NOTING_DRAFT = "Noting (draft proposal)"
     REPORT = "Report"
     ANNEXURE = "Annexure"
+    FILE_RECORD = "File record"  # an e-File's own particulars (subject, previous references)
     GAZETTE = "Gazette Notification"
     UNKNOWN = "Unknown"
 
@@ -57,13 +58,14 @@ INSTRUMENT_FOR_TYPE = {  # canonical-ID type → instrument code in data/ontolog
     "NOTE": "DECISION_NOTING",
     "RPT": "DECISION_NOTING",
     "ANX": "DECISION_NOTING",
-}
+}  # "FILE" (a file record) is no instrument: it governs nothing
 
 
 class RelKind(StrEnum):
     SUPERSEDES = "SUPERSEDES"
     AMENDS = "AMENDS"
     CLARIFIES = "CLARIFIES"
+    REPEALS = "REPEALS"  # withdrawn / cancelled / rescinded by this order
     REFERENCES = "REFERENCES"  # orders citing orders
     CITES = "CITES"  # notes citing orders
 
@@ -255,6 +257,8 @@ _FILE = re.compile(
 _FILE_CITE = re.compile(
     r"\bfile\s+No\.?\s*(?P<file>[A-Z]{2,6}\d{2}-[A-Z0-9]+/\d+/\d{4}-[A-Z][A-Z0-9.]*[A-Z0-9])", re.I
 )
+_FILE_RECORD = re.compile(r"\s*e-File record\b", re.I)
+_OPENED_ON = re.compile(r"^\s*Opened on:\s*(\d{1,2}[-./]\d{1,2}[-./]\d{4})", re.I | re.M)
 _SIGN_DATE = re.compile(r"(?:^|/)\s*(\d{2}/\d{2}/\d{4})\s+\d{1,2}:\d{2}\s*[AP]M", re.I | re.M)
 _AS_ON = re.compile(r"\bAs\s+on\s+(\d{1,2}[-./]\d{1,2}[-./]\d{4})", re.I)
 # A department heading is upper case; the section in brackets may not be:
@@ -295,6 +299,7 @@ def _norm_ordinals(text: str) -> str:
         lambda m: m[1] + m[2].replace(" ", ""),
         text,
     )
+    t = re.sub(r"\b(\d{1,2})(st|nd|rd|th)(read)\b", r"\1\2 \3", t, flags=re.I)  # "4thread"
 
     def word(m: re.Match[str]) -> str:
         n = _ORD_WORDS[m[1].lower()]
@@ -449,7 +454,7 @@ def _stated_effective_from(subject: str | None, body: str) -> dt.date | None:
 
 def _read_list(text: str) -> list[tuple[int, str]]:
     m = re.search(
-        r"Read the following\s*[:.]?\s*-?\s*\n(?P<b>.+?)\n\s*"
+        r"Read\s*the\s*following\s*[:.]?\s*-?\s*\n(?P<b>.+?)\n\s*"
         r"(?:\*\s*\*|<>|&\s*&|#\s*#|ORDER\s*[:.-]|O\s+R\s+D\s+E\s+R\b|NOTIFICATION\b)",
         text,
         re.S | re.I,
@@ -457,14 +462,26 @@ def _read_list(text: str) -> list[tuple[int, str]]:
     if m:
         items: list[tuple[int, str]] = []
         for line in m.group("b").splitlines():
-            if lm := _REF_LINE.match(line):
+            # items are numbered 1, 2, 3 …: a line that only looks numbered ("15.10.2019." — the
+            # end of item 1's date, wrapped) continues the previous item
+            if (lm := _REF_LINE.match(line)) and int(lm.group(1)) == len(items) + 1:
                 items.append((int(lm.group(1)), lm.group(2).strip()))
             elif items and line.strip():
                 n, prev = items[-1]
                 # a date broken after its hyphen ("Dt.27-" / "03-2024") joins without a space
                 sep = "" if re.search(r"\d-$", prev) and re.match(r"\d", line.strip()) else " "
                 items[-1] = (n, f"{prev}{sep}{line.strip()}")
-        return items
+        if not items:
+            # "Read the Following: G.O.Ms.No.101, Finance (Budget.I) Dept. dated 14.08.2019": one
+            # unnumbered entry is position 1, only when it names one order (as for "Read:-")
+            body = re.sub(r"\s+", " ", m.group("b")).strip()
+            if body and len(re.findall(r"\bNo\s*\.", body, re.I)) == 1:
+                return [(1, body)]
+        # OCR glues words: "dated30.04.2015", "Finance(HR.VI-TFR)Department" (G.O.Ms.No.17/2017 FIN)
+        return [
+            (n, re.sub(r"\)(?=[A-Za-z])", ") ", re.sub(r"(?i)\b(dated|dt)(?=\d)", r"\1 ", t)))
+            for n, t in items
+        ]
     # "Read:-" with a single unnumbered entry (e.g. G.O.Rt.No.2740/2019 GA: "Read:- G.O.Rt.No.2657,
     # G.A (Cabinet.I) Department, Dated.26.11.2019."): position 1, only when it names one order
     one = re.search(
@@ -485,6 +502,8 @@ def _sentences_with(body: str, pattern: str) -> list[str]:
     flat = re.sub(
         r"\b(No|Dt|dt|Rc|Lr|Ms|Rt)\.\s+(?=[\dA-Z(])", r"\1.", flat
     )  # "No. 34": no full stop
+    # "G. O. Ms. No. 67" / "the G.O. 1st read above": the order's name is not a sentence end
+    flat = re.sub(r"\bG\s?\.\s?O\s?\.\s+(?=\(?\s*(?:Ms|Rt|P)\b|\d)", "G.O.", flat)
     return [
         s.strip()
         for s in re.split(r"(?<=[.;:])\s+(?=\(?[A-Z0-9])", flat)
@@ -559,6 +578,11 @@ def extract_metadata(
         doc_type, typ, dept = DocType.REPORT, "RPT", dept or file_dept
         if dm := _DATE.search(text):
             issue = _date(dm.group(1))
+    elif own_raw is None and _FILE_RECORD.match(text):
+        # the e-File's own particulars, written by the e-Office when the file is opened
+        doc_type, typ, dept = DocType.FILE_RECORD, "FILE", dept or file_dept
+        if om := _OPENED_ON.search(text):
+            issue = _date(om.group(1))
     elif own_raw is None and re.search(r"^\s*(?:Statement|Annexure)\b", text, re.M | re.I):
         doc_type, typ, dept = DocType.ANNEXURE, "ANX", dept or file_dept
         if am := _AS_ON.search(text):
@@ -590,17 +614,10 @@ def extract_metadata(
 
     # references: "Read the following" list (orders) or in-text citations (notes)
     refs: list[Reference] = []
-    if is_note:
+    reads_citations = is_note or doc_type is DocType.FILE_RECORD
+    if reads_citations:
         flat_text = re.sub(r"\s+", " ", text)  # citations wrap across lines in PDF layout
-        for m in _ORDER_CITE.finditer(flat_text):
-            r = resolve_reference(m.group(0), departments, dept)
-            refs.append(
-                Reference(
-                    position=None, raw=re.sub(r"\s+", " ", m.group(0)), canonical_id=r.canonical_id
-                )
-            )
-        for m in _GAZ_CITE.finditer(flat_text):
-            refs.append(Reference(position=None, raw=m.group(0), canonical_id=_gazette_cite(m)))
+        refs.extend(cited_references(flat_text, departments, dept))
         own_file = file_m.group("file") if file_m else None
         for m in _FILE_CITE.finditer(flat_text):
             if m.group("file") != own_file:  # another e-file: resolved against the file index later
@@ -612,7 +629,7 @@ def extract_metadata(
             r = resolve_reference(raw, departments, dept)
             refs.append(Reference(position=pos, raw=raw, canonical_id=r.canonical_id))
 
-    relations = _relations(text, refs, doc_type, subject, is_note)
+    relations = _relations(text, refs, doc_type, subject, reads_citations)
     seen: set[str] = set()
     unique: list[RelationCandidate] = []
     for rel in relations:
@@ -620,7 +637,7 @@ def extract_metadata(
         if key not in seen:
             seen.add(key)
             unique.append(rel)
-    if canonical is None and typ not in ("NOTE", "RPT", "ANX"):
+    if canonical is None and typ not in ("NOTE", "RPT", "ANX", "FILE"):
         reasons.append("no own reference found")
 
     return DocumentMetadata(
@@ -646,6 +663,28 @@ def extract_metadata(
     )
 
 
+def cited_references(
+    text: str, departments: DepartmentTable, department: str | None
+) -> tuple[Reference, ...]:
+    """Orders and gazette notifications cited in running text, as a note cites them (plan §5.6).
+
+    Also reads what an officer typed for a new draft. Unresolved citations keep their raw form."""
+    flat = re.sub(r"\s+", " ", text)
+    refs = [
+        Reference(
+            position=None,
+            raw=m.group(0),
+            canonical_id=resolve_reference(m.group(0), departments, department).canonical_id,
+        )
+        for m in _ORDER_CITE.finditer(flat)
+    ]
+    refs += [
+        Reference(position=None, raw=m.group(0), canonical_id=_gazette_cite(m))
+        for m in _GAZ_CITE.finditer(flat)
+    ]
+    return tuple(refs)
+
+
 # Real orders often name the earlier order by number rather than by its place in the Read list
 # ("in supersession of the orders issued in G.O.Ms.No.230 …", "the following amendments to the
 # guidelines issued in G.O.Ms.No.25 …"). Such a number counts only when it matches exactly one
@@ -665,9 +704,40 @@ _CHANGE_SUBJECT = re.compile(
     r"\b(?:Amendments?|Modifi\w*|Modified|Substitution|Replacement|Revised|Revision|Enhancement)\b",
     re.I,
 )
+# "In partial modification of the orders issued in the reference first read above, …": the order
+# named is changed, not replaced (G.O.Ms.No.63/2016 and 123/2016 FIN; efiles_v2 type F, 18 Nov)
+_PARTIAL_MOD = re.compile(
+    r"in\s+partial\s+modification\s+of(?:(?!\bhereby\b|\bGovernment\b).){0,160}?read\s+above",
+    re.I,
+)
+# a rate revised "from 15.196% … to 18.340%" of a Dearness Relief / Allowance sanctioned in an order
+# of the Read list: that order is changed (G.O.Ms.No.17/2017, 115/2023 FIN)
+_RATE_REVISION = re.compile(
+    r"\brevision\s+of\s+(?:(?:the\s+)?rates?\s+of\s+)?Dearness\s+(?:Relief|Allowance)[^.]{0,80}?"
+    r"\bsanctioned\s+in\s+the\s+(?:G\.?\s?O\.?s?|Government\s+orders?)\s*"
+    r"(?P<o>\d{1,2})(?:st|nd|rd|th)\s+read\s+above.{0,200}?\bfrom\s+\d+(?:\.\d+)?\s*%"
+    r".{0,120}?\bto\s+\d+(?:\.\d+)?\s*%",
+    re.I,
+)
+# "Government … hereby withdraw the above G.O.Ms.No.187 … read with amendment G.O.Ms.No.190 …"
+# (G.O.Ms.No.39/2023 SE): the orders named in the operative clause are withdrawn (efiles_v2, 18 Nov)
+_WITHDRAW = re.compile(
+    r"\bhereby\s+(?:withdraws?|cancels?|rescinds?)\b(?P<what>.{0,300}?)(?:\.\s+[A-Z0-9(]|$)",
+    re.I,
+)
+# "… issued in G.O.Ms.No.32 … read with G.O.Ms.No.38 … and G.O.Ms.No.43 …": orders read together
+# make up the Rules changed (G.O.Ms.No.50/2017 SE); "as amended in …" stays history
+_READ_WITH = re.compile(r"^(?:(?!\bas\s+amended\b|\bAMENDMENTS?\b).){0,260}", re.S)
+_DA_REVISION = re.compile(r"\brevision\s+of\s+(?:the\s+)?rates?\s+of\s+Dearness", re.I)
 _OWN_CHANGE = re.compile(
     r"hereby\s+(?:make|makes|issue|issues)\s+the\s+following\s+(?:amendments?|modifications?)", re.I
 )
+
+
+def _is_letter(ref: Reference) -> bool:
+    """A Read-list entry that is correspondence ("From the Commissioner …, Lr.Rc.No …"), not an
+    order: it is never the order an amendment changes."""
+    return bool(re.match(r"\s*From\b", ref.raw, re.I))
 
 
 def _number_of(cid: str | None) -> int | None:
@@ -688,6 +758,21 @@ def _by_number(sentence: str, refs: list[Reference]) -> list[Reference]:
         if len(same) == 1 and same[0] not in out:
             out.append(same[0])
     return out
+
+
+def _changed_by(after: str, refs: list[Reference]) -> list[Reference]:
+    """The order(s) an amendment phrase changes: the first order named, and those "read with" it
+    (they make up the Rules together); an order named "as amended in …" is history, not changed."""
+    first = _by_number(after, refs)[:1]
+    if not first:
+        return []
+    m = _GO_NUM.search(after)
+    rest = after[m.end() :] if m else ""
+    if not re.match(r".{0,90}?\bread\s+with\b", rest, re.I | re.S):
+        return first
+    clause = _READ_WITH.match(rest)
+    more = _by_number(clause.group(0), refs) if clause else []
+    return first + [r for r in more if r not in first]
 
 
 def _relations(
@@ -731,10 +816,45 @@ def _relations(
                     explicit_targets.add(ref.position)
     if doc_type is DocType.AMENDMENT:
         for sentence in _sentences_with(body, r"amendment"):
-            for n in (int(x) for x in _ORD.findall(sentence)):
-                if n in by_pos and n not in explicit_targets and by_pos[n].canonical_id:
-                    add(RelKind.AMENDS, by_pos[n], True, sentence)
-                    explicit_targets.add(n)
+            own = _OWN_CHANGE.search(sentence)
+            named = _changed_by(sentence[own.end() :], refs) if own else []
+            picks = named or [
+                by_pos[n] for n in (int(x) for x in _ORD.findall(sentence)) if n in by_pos
+            ]
+            for ref in picks:
+                at = ref.position
+                if at is None or at in explicit_targets or not ref.canonical_id:
+                    continue
+                if not _is_letter(ref):
+                    add(RelKind.AMENDS, ref, True, sentence)
+                    explicit_targets.add(at)
+    if not is_note:
+        for m in _WITHDRAW.finditer(flat):
+            named = _by_number(m.group("what"), refs) or [
+                by_pos[n] for n in (int(x) for x in _ORD.findall(m.group("what"))) if n in by_pos
+            ]
+            for ref in named:
+                if ref.position is not None and ref.canonical_id and not _is_letter(ref):
+                    if ref.position not in explicit_targets:
+                        add(RelKind.REPEALS, ref, True, m.group(0))
+                        explicit_targets.add(ref.position)
+    if not is_note:
+        flat_ord = _norm_ordinals(flat)
+        for pattern in (_PARTIAL_MOD, _RATE_REVISION):
+            for m in pattern.finditer(flat_ord):
+                ords = (
+                    [int(m.group("o"))]
+                    if "o" in pattern.groupindex
+                    else [int(x) for x in _ORD.findall(m.group(0))]
+                )
+                if not ords and "read above" in m.group(0).lower() and len(by_pos) == 1:
+                    ords = list(by_pos)
+                for n in ords:
+                    hit = by_pos.get(n)
+                    if hit and hit.canonical_id and not _is_letter(hit):
+                        if n not in explicit_targets:
+                            add(RelKind.AMENDS, hit, True, m.group(0))
+                            explicit_targets.add(n)
     changes_by_title = doc_type in (DocType.AMENDMENT, DocType.GAZETTE) or bool(
         subject and _CHANGE_SUBJECT.search(subject)
     )
@@ -742,19 +862,27 @@ def _relations(
         for sentence in _sentences_with(body, _CHANGE_VERB.pattern):
             if not (changes_by_title or _OWN_CHANGE.search(sentence)):
                 continue
+            if _DA_REVISION.search(sentence) or _PARTIAL_MOD.search(sentence):
+                # read precisely above (_RATE_REVISION, _PARTIAL_MOD): only the order whose rate
+                # was "sanctioned in" is changed; other orders the sentence names are conditions
+                continue
             if doc_type is DocType.GAZETTE and not _CHANGE_SUBJECT.search(text[:2500]):
                 continue
             own = _OWN_CHANGE.search(sentence)
             # "hereby make the following amendments to the … Rules issued in G.O.Ms.No.20, as
             # amended in G.O.Ms.No.130 …": the order changed is the first one named after the phrase
-            named = _by_number(sentence[own.end() :], refs)[:1] if own else []
+            named = _changed_by(sentence[own.end() :], refs) if own else []
             targets = (named or _by_number(sentence, refs)) + [
                 by_pos[n]
                 for n in (int(x) for x in _ORD.findall(sentence))
                 if n in by_pos and by_pos[n].canonical_id
             ]
             for ref in targets:
-                if ref.position is not None and ref.position not in explicit_targets:
+                if (
+                    ref.position is not None
+                    and ref.position not in explicit_targets
+                    and not _is_letter(ref)
+                ):
                     add(RelKind.AMENDS, ref, True, sentence)
                     explicit_targets.add(ref.position)
         orders = [r for r in refs if r.position is not None and r.canonical_id]

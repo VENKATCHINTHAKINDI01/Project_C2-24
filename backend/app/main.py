@@ -12,11 +12,11 @@ import functools
 import logging
 import threading
 import time
-from collections.abc import AsyncIterator, Awaitable, Callable
-from typing import Any
+from collections.abc import AsyncIterator, Callable
+from typing import Any, cast
 
 import yaml
-from fastapi import FastAPI, Request, Response
+from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
 from app.agents.llm import llm_from_settings
@@ -24,16 +24,25 @@ from app.agents.routes import build_assist_router
 from app.agents.runtime import AssistRuntime
 from app.audit.log import AuditLog
 from app.audit.pg_log import PostgresAuditLog
-from app.auth.messages import NEUTRAL_FAILURE
+from app.auth.identity import IapIdentity, SandboxIdentity
+from app.auth.rate_limit import RateLimiter
 from app.cache.redis_cache import RedisAnswerCache, redis_client
+from app.cache.semantic import SemanticIndex
 from app.config import (
+    Environment,
     Settings,
     get_settings,
     load_classification,
     load_hierarchy,
     load_runtime_config,
 )
-from app.connectors.eoffice import ConnectorError, EOfficeConnector
+from app.connectors.eoffice import (
+    UNAVAILABLE,
+    ConnectorError,
+    ConnectorUnavailableError,
+    EOfficeConnector,
+    GuardedConnector,
+)
 from app.hitl.feedback import (
     ActionLog,
     BigQueryActionLog,
@@ -41,12 +50,15 @@ from app.hitl.feedback import (
     action_from_outcome,
 )
 from app.hitl.pg_queue import PostgresConfirmedText, PostgresReviewQueue
+from app.http_guard import HttpGuard, ReadGate
 from app.ingestion.detect import use_saved_scans
 from app.ingestion.document_store import document_store_from_settings
 from app.ingestion.ocr import OcrEngine, RecordedOcrFiles, ocr_from_settings, version_dir
 from app.memory.pg_session import PostgresSessionMemory
 from app.memory.session import SessionMemory
+from app.noting.draft_studio import load_formats
 from app.noting.references import ReferenceConfig
+from app.noting.workspace import InMemoryWorkspaceStore, PostgresWorkspaceStore
 from app.pg import pg_from_settings
 from app.retrieval.bigquery_index import BigQueryRunner
 from app.retrieval.cloud import cloud_rungs_from_settings
@@ -56,8 +68,6 @@ from app.tracking.monitor import MonitorData, build_monitor, rows_from_bigquery
 from app.tracking.query_log import BigQueryQueryLog, InMemoryQueryLog, QueryLog
 from app.tracking.signals import Person, Refusal, build_alerts, load_signal_config
 from app.tracking.usage import Usage, summarise, summarise_bigquery
-
-SANDBOX_USER_HEADER = "X-Sandbox-User"  # simulated sign-in: sandbox only, never in production
 
 
 def _sandbox_ladder(settings: Settings) -> LadderConfig:
@@ -139,8 +149,25 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             # start-up timing the owner reads in Cloud Logging (not found on revision 00005)
             print(f"sandbox built at start in {time.monotonic() - started:.1f} s", flush=True)
         yield
+        # tracking rows still waiting (plan §14.4): one last try, then say what is lost
+        for buffer in getattr(app.state, "tracking_buffers", ()):
+            buffer.close()
 
-    app = FastAPI(title="C2-24 Institutional Memory", version="0.1.0", lifespan=lifespan)
+    local = settings.env is Environment.LOCAL  # the API's own docs only on a developer machine
+    app = FastAPI(
+        title="C2-24 Institutional Memory",
+        version="0.1.0",
+        lifespan=lifespan,
+        docs_url="/docs" if local else None,
+        redoc_url=None,
+        openapi_url="/openapi.json" if local else None,
+    )
+
+    @app.exception_handler(ConnectorUnavailableError)
+    async def _connector_down(_request: Request, _exc: ConnectorUnavailableError) -> JSONResponse:
+        # plan §14.4: the assistant says the e-Office link is unavailable; never a partial answer
+        return JSONResponse(status_code=503, content={"detail": UNAVAILABLE})
+
     pg = pg_from_settings(settings)  # None = in-memory state (sandbox default)
     audit: AuditLog = PostgresAuditLog(pg) if pg is not None else AuditLog()
     app.state.audit = audit
@@ -156,8 +183,23 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "runtime_config_version": runtime.version,
         }
 
+    @app.get("/readyz")
+    def readyz() -> JSONResponse:
+        """Readiness: 200 once the assistant can answer (its runtime is built, or there is none to
+        build); 503 while it is still building. For load balancers and start-up probes."""
+        build = getattr(app.state, "assist_runtime", None)
+        ready = build is None or build.cache_info().currsize > 0
+        return JSONResponse(
+            status_code=200 if ready else 503, content={"ready": ready, "env": settings.env.value}
+        )
+
     if not settings.sandbox_enabled:
-        return app  # assist routes need a real connector + IAP identity (later)
+        app.add_middleware(
+            HttpGuard,
+            max_body_bytes=settings.max_body_bytes,
+            upload_max_bytes=settings.upload_max_bytes,
+        )
+        return app  # assist routes need a real e-Office connector (not available yet)
 
     from app.eoffice_mock.adapter import adapter_from_seed, load_seed, merge_seeds
     from app.eoffice_mock.corpus import (
@@ -189,18 +231,38 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     holdback = (
         sandbox_cfg.get("replays", {})[settings.sandbox_replay] if settings.sandbox_replay else []
     )
-    adapter = adapter_from_seed(seed, artefacts=artefacts, holdback=holdback, arrivals=arrivals)
+    adapter = adapter_from_seed(
+        seed,
+        artefacts=artefacts,
+        holdback=holdback,
+        arrivals=arrivals,
+        approver_posts=(sandbox_cfg.get("order_approval") or {}).get("approver_posts", []),
+    )
     app.state.adapter = adapter
 
-    def identify(request: Request) -> str | None:
-        """Simulated sign-in: only sandbox profiles with a login (never a staff post)."""
-        uid = request.headers.get(SANDBOX_USER_HEADER)
-        if not uid:
-            return None
+    def known_login(uid: str) -> str | None:
+        """A sandbox profile with a login (never a staff post)."""
         try:
             return adapter.profile(uid).user_id
         except ConnectorError:
             return None
+
+    if settings.identity == "iap":
+        # MOCK directory (sandbox.yaml `directory`): verified e-mail → e-Office user. A real
+        # deployment reads the department's employee master through the connector.
+        directory = {
+            str(k).strip().lower(): str(v) for k, v in (sandbox_cfg.get("directory") or {}).items()
+        }
+        who: Callable[[Any], str | None] = IapIdentity(
+            tuple(a.strip() for a in settings.iap_audiences.split(",") if a.strip()),
+            lambda email: known_login(directory[email]) if email in directory else None,
+        )
+    else:
+        who = SandboxIdentity(known_login)
+
+    def identify(request: Request) -> str | None:
+        """ADR-0039: the sandbox sign-in, or the verified IAP assertion (C2_IDENTITY)."""
+        return who(request.headers)
 
     redis = redis_client(settings.redis_url) if settings.redis_url else None
 
@@ -254,6 +316,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         run.cloud = cloud_rungs_from_settings(settings, redis)  # None unless backend=cloud
         if redis is not None:  # Memorystore: answers shared by all instances (ADR-0035)
             run.stores.cache = RedisAnswerCache(redis, ttl_s=settings.cache_ttl_s)
+        # reworded repeats (plan §10.3; ADR-0053): the index is per instance, the answers are not
+        run.stores.reworded = SemanticIndex(enabled=runtime.cache.reworded_repeats)
         app.state.sandbox_build = {
             "built_at": dt.datetime.now(dt.UTC).isoformat(timespec="seconds"),
             "build_seconds": round(time.monotonic() - build_started, 1),
@@ -262,27 +326,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return run
 
     app.state.assist_runtime = assist_runtime
-
-    @app.exception_handler(Exception)
-    async def neutral_failure(request: Request, exc: Exception) -> Response:
-        """Any unexpected failure (a cloud store refusing, a timeout) ends the request closed with
-        one neutral message (CLAUDE.md §4.4): nothing about which store, record or rule was
-        involved reaches the officer. Only the error's type is logged, never its text, which can
-        carry query parameters."""
-        log.error("request failed closed: %s %s", request.url.path, type(exc).__name__)
-        return JSONResponse(
-            status_code=503,
-            content={"detail": NEUTRAL_FAILURE},
-            headers={"X-Mock-Sandbox": "synthetic; not NIC e-Office"},
-        )
-
-    @app.middleware("http")
-    async def banner(
-        request: Request, call_next: Callable[[Request], Awaitable[Response]]
-    ) -> Response:
-        response = await call_next(request)
-        response.headers["X-Mock-Sandbox"] = "synthetic; not NIC e-Office"  # ASCII header
-        return response
+    app.add_middleware(ReadGate, lock_of=lambda: built[0].rw if built else None)
 
     actions = action_log_from_settings(settings)
     app.state.actions = actions  # tests read the in-memory log
@@ -296,6 +340,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         )
     )
     query_log = query_log_from_settings(settings)
+    app.state.tracking_buffers = [
+        b for b in (getattr(query_log, "buffer", None), getattr(actions, "buffer", None)) if b
+    ]
     signals = load_signal_config(settings.monitoring_config_path)  # MOCK thresholds (ADR-0036)
     runner: list[Any] = []  # the BigQuery client, made on first use only
 
@@ -305,6 +352,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         emb = getattr(getattr(run, "cloud", None), "embedder", None) if run else None
         if emb is not None and hasattr(emb, "hits"):
             out["embedding_hits"], out["embedding_misses"] = emb.hits, emb.misses
+        if run is not None:  # reworded repeats (ADR-0053): this instance's counts
+            out |= run.stores.reworded.stats()
         return out
 
     def monitor(since: dt.date, viewer_rank: int) -> MonitorData:
@@ -314,7 +363,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         else:
             if not runner:
                 runner.append(
-                    BigQueryRunner(settings.gcp_project_id or "", settings.gcp_region or "")
+                    BigQueryRunner(
+                        settings.gcp_project_id or "",
+                        settings.gcp_region or "",
+                        settings.bq_timeout_s,
+                    )
                 )
             audit_ds = f"{settings.gcp_project_id}.{settings.bq_audit_dataset}"
             recs, acts, cut = rows_from_bigquery(
@@ -346,7 +399,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if isinstance(query_log, InMemoryQueryLog) and isinstance(actions, InMemoryActionLog):
             return summarise(query_log.records, actions.actions, since, start)
         if not runner:
-            runner.append(BigQueryRunner(settings.gcp_project_id or "", settings.gcp_region or ""))
+            runner.append(
+                BigQueryRunner(
+                    settings.gcp_project_id or "", settings.gcp_region or "", settings.bq_timeout_s
+                )
+            )
         audit_ds = f"{settings.gcp_project_id}.{settings.bq_audit_dataset}"
         return summarise_bigquery(
             runner[0], f"{audit_ds}.query_log", f"{audit_ds}.human_action", since, start
@@ -354,7 +411,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app.include_router(
         build_assist_router(
-            connector=adapter,
+            connector=cast(EOfficeConnector, GuardedConnector(adapter)),  # plan §14.4
             runtime=assist_runtime,
             audit=audit,
             identify=identify,
@@ -369,9 +426,18 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             log_questions=settings.query_log_text,
             monitor=monitor,
             signals=signals,
+            limiter=RateLimiter(settings.rate_model_per_minute, settings.rate_any_per_minute),
+            draft_formats=load_formats(settings.draft_formats_path),  # validated at start
+            workspaces=PostgresWorkspaceStore(pg) if pg is not None else InMemoryWorkspaceStore(),
         )
     )
     app.state.banner = BANNER
+    # outermost: body limit, request ID, no-store headers, and the neutral answer to any failure
+    app.add_middleware(
+        HttpGuard,
+        max_body_bytes=settings.max_body_bytes,
+        upload_max_bytes=settings.upload_max_bytes,
+    )
     return app
 
 

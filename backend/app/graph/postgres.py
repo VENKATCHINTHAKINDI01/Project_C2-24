@@ -26,6 +26,7 @@ from app.graph.repository import (
     GraphHit,
     GraphNode,
 )
+from app.graph.sync import SyncPlan, check, plan
 from app.pg import Pg
 
 _NODE_COLS = "canonical_id, department, section, classification, file_no, doc_id"
@@ -220,35 +221,54 @@ class PostgresGraphRepository:
     ) -> tuple[int, int]:
         """Load the build job's files (nodes.jsonl / edges.jsonl rows). A node row without its
         access tags is refused: a node must never enter the store untagged."""
-        built = []
-        for r in nodes:
-            if not (r.get("department") and r.get("classification")):
-                raise GraphError(f"node {r.get('id')!r} has no access tags")
-            built.append(
-                GraphNode(
-                    canonical_id=r["id"],
-                    tags=DocumentAccessTags(
-                        doc_id=r["id"],
-                        department=r["department"],
-                        section=r.get("section") or None,
-                        classification=r["classification"],
-                        file_no=r.get("file_no") or None,
-                    ),
+        rows = list(nodes)
+        built, links = graph_from_rows(rows, edges)
+        return self.load(built, links, {str(r["id"]): r for r in rows})
+
+    def sync_rows(
+        self,
+        nodes: Iterable[Mapping[str, Any]],
+        edges: Iterable[Mapping[str, Any]],
+        *,
+        max_delete_share: float = 0.2,
+        allow_large_delete: bool = False,
+        dry_run: bool = False,
+    ) -> SyncPlan:
+        """Make the tables equal the build (ADR-0055), in ONE transaction: links and nodes the
+        build no longer produces are deleted, the rest upserted. Guarded (app.graph.sync); a dry
+        run changes nothing. Any error rolls everything back."""
+        rows = list(nodes)
+        built, links = graph_from_rows(rows, edges)
+        props = {str(r["id"]): r for r in rows}
+        with self._pg.tx() as cur:
+            cur.execute("SELECT canonical_id FROM graph_nodes")
+            held_nodes = [r[0] for r in cur.fetchall()]
+            cur.execute("SELECT source, kind, target, confirmed FROM graph_edges")
+            held_edges = {(r[0], r[1], r[2]): bool(r[3]) for r in cur.fetchall()}
+            p = plan(held_nodes, held_edges, built, links)
+            check(p, len(built), max_delete_share=max_delete_share,
+                  allow_large_delete=allow_large_delete)  # fmt: skip
+            if dry_run:
+                return p
+            for s, k, t in sorted(p.delete_edges):
+                cur.execute(
+                    "DELETE FROM graph_edges WHERE source = %s AND kind = %s AND target = %s",
+                    (s, k, t),
                 )
-            )
-        return self.load(
-            built,
-            [
-                GraphEdge(
-                    source=e["from"],
-                    kind=EdgeKind(e["relation"]),
-                    target=e["to"],
-                    confirmed=bool(e["confirmed"]),
-                )
-                for e in edges
-            ],
-            {str(r["id"]): r for r in nodes} if isinstance(nodes, list) else None,
-        )
+            for node in built:
+                pr = props.get(node.canonical_id) or {}
+                vals = [_date(pr.get(k)) if k in _DATES else pr.get(k) for k in _PROPS]
+                tg = node.tags
+                cur.execute(
+                    _UPSERT_NODE,
+                    (node.canonical_id, tg.department, tg.section, tg.classification,
+                     tg.file_no, tg.doc_id, *vals),
+                )  # fmt: skip
+            for e in links:
+                cur.execute(_UPSERT_EDGE, (e.source, e.kind.value, e.target, e.confirmed))
+            for cid in sorted(p.delete_nodes):  # their links are gone: none of them is built
+                cur.execute("DELETE FROM graph_nodes WHERE canonical_id = %s", (cid,))
+        return p
 
     def counts(self) -> tuple[int, int]:
         with self._pg.tx() as cur:
@@ -257,3 +277,36 @@ class PostgresGraphRepository:
             )
             row = cur.fetchone()
         return int(row[0]), int(row[1])
+
+
+def graph_from_rows(
+    nodes: Iterable[Mapping[str, Any]], edges: Iterable[Mapping[str, Any]]
+) -> tuple[list[GraphNode], list[GraphEdge]]:
+    """The build job's rows as graph objects, for any store. A node without its access tags is
+    refused: a node must never enter a store untagged."""
+    built = []
+    for r in nodes:
+        if not (r.get("department") and r.get("classification")):
+            raise GraphError(f"node {r.get('id')!r} has no access tags")
+        built.append(
+            GraphNode(
+                canonical_id=r["id"],
+                tags=DocumentAccessTags(
+                    doc_id=r["id"],
+                    department=r["department"],
+                    section=r.get("section") or None,
+                    classification=r["classification"],
+                    file_no=r.get("file_no") or None,
+                ),
+            )
+        )
+    links = [
+        GraphEdge(
+            source=e["from"],
+            kind=EdgeKind(e["relation"]),
+            target=e["to"],
+            confirmed=bool(e["confirmed"]),
+        )
+        for e in edges
+    ]
+    return built, links

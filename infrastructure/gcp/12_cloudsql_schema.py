@@ -83,6 +83,8 @@ def grants(api: str, ingest: str, me: str) -> list[str]:
         ]
     # conversation memory (ADR-0029): the API adds turns and reads them; it never edits or deletes
     out += [f"GRANT SELECT, INSERT ON session_owners, session_turns TO {ident(api)}"]
+    # draft recovery (ADR-0046): the officer's own workspace, the API's alone (saved, cleared)
+    out += [f"GRANT SELECT, INSERT, UPDATE, DELETE ON draft_workspaces TO {ident(api)}"]
     # knowledge graph (ADR-0023): the ingestion job writes it, the API only reads it
     out += [
         f"GRANT SELECT, INSERT, UPDATE ON graph_nodes, graph_edges TO {ident(ingest)}",

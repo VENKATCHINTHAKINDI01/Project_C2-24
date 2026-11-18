@@ -37,14 +37,16 @@ from fastapi.testclient import TestClient  # noqa: E402
 
 from app.config import get_settings  # noqa: E402
 from app.main import create_app  # noqa: E402
+from evaluation.harness.limits import NO_RATE_LIMITS, require_measured  # noqa: E402
+from evaluation.harness.quoting_model import QuotingModel  # noqa: E402
 
 V2 = ROOT / "data" / "synthetic" / "mock_v1" / "efiles_v2"
 REPORTS = ROOT / "evaluation" / "reports"
 
 
 def sweep(
-    users: list[str], public_dir: Path
-) -> tuple[dict[str, dict[str, int]], list[dict[str, str]], int]:
+    users: list[str], public_dir: Path, answerer: str = "none"
+) -> tuple[dict[str, dict[str, int]], list[dict[str, str]], int, dict[str, int]]:
     """One process: its own sandbox app, the given officers, every file, every path."""
     seed = json.loads((V2 / "eoffice" / "seed_v2.json").read_text("utf-8"))
     with (V2 / "access_matrix.csv").open(encoding="utf-8", newline="") as fh:
@@ -58,15 +60,21 @@ def sweep(
             "sandbox_public_corpus_dir": public_dir,
             "llm_provider": "none",
             "state_store": "memory",
+            **NO_RATE_LIMITS,  # evaluation/harness/limits.py
         }
     )
     paths: dict[str, dict[str, int]] = collections.defaultdict(
         lambda: {"checks": 0, "disclosures": 0}
     )
     found: list[dict[str, str]] = []
+    statuses: list[int] = []  # a 429 / 5xx check disclosed nothing because it measured nothing
     controls = 0  # allowed files seen by number: proves the search for file numbers can fire
     t0 = time.time()
-    with TestClient(create_app(settings)) as client:
+    app = create_app(settings)
+    with TestClient(app) as client:
+        run = app.state.assist_runtime()
+        if answerer == "quote":  # answers get cached, so the cache paths are really exercised
+            run.llm = QuotingModel()
         for uid in users:
             hdr = {"X-Sandbox-User": uid}
             # what this officer must never see: file numbers and paper identifiers of denied files
@@ -76,6 +84,7 @@ def sweep(
             def record(
                 path: str, case: str, resp: Any, uid: str = uid, needles: Any = needles
             ) -> None:
+                statuses.append(resp.status_code)
                 text = resp.text
                 bad = sorted({fn for fn, needle in needles if needle in text})
                 paths[path]["checks"] += 1
@@ -88,6 +97,19 @@ def sweep(
             record("sandbox: file list", "list", client.get("/sandbox/files", headers=hdr))
             record("sandbox: receipt list", "list", client.get("/sandbox/receipts", headers=hdr))
             record("assist: notices", "notices", client.get("/assist/notices", headers=hdr))
+            # entity resolution (ADR-0058): every officer asks about every officer, by name and
+            # by officer ID; records naming them are told only within the asker's scope
+            for prof in seed["profiles"]:
+                record(
+                    "assist: ask about an officer (name)",
+                    prof["user_id"],
+                    post("/assist/ask", {"question": f"Which notes did {prof['name']} sign?"}),
+                )
+                record(
+                    "assist: ask about an officer (ID)",
+                    prof["user_id"],
+                    post("/assist/ask", {"question": f"Notes signed by {prof['user_id']}"}),
+                )
             for f in files:
                 cno, fn, subj = f["computer_no"], f["file_no"], f["subject"][:300]
                 allowed = matrix[fn][uid] == "ALLOW"
@@ -105,6 +127,36 @@ def sweep(
                 )
                 first = post("/assist/chat", {"message": subj})
                 record("assist: chat", cno, first)
+                # the same question in other words (ADR-0053): served from the cache only within
+                # this officer's scope; another officer's answer must never come back this way
+                record(
+                    "assist: chat reworded repeat",
+                    cno,
+                    post("/assist/chat", {"message": f"Please, {subj} now"}),
+                )
+                # graph reasoning (ADR-0056): an order's history and its links to other
+                # departments, told from the order and link records without the model
+                record(
+                    "assist: ask order history",
+                    cno,
+                    post("/assist/ask", {"question": f"How have the orders on {subj} changed?"}),
+                )
+                record(
+                    "assist: ask cross-department links",
+                    cno,
+                    post(
+                        "/assist/ask",
+                        {"question": f"Which other departments refer to the orders on {subj}?"},
+                    ),
+                )
+                record(
+                    "assist: ask file history",
+                    cno,
+                    post(
+                        "/assist/ask",
+                        {"question": f"How have the orders cited in File No.{fn} changed?"},
+                    ),
+                )
                 talk = first.json() if first.status_code == 200 else {}
                 record(
                     "assist: chat follow-up + draft",
@@ -147,7 +199,13 @@ def sweep(
                 flush=True,
             )
 
-    return {k: dict(v) for k, v in paths.items()}, found, controls
+    require_measured(statuses, "leakage_v2")  # in each worker, before anything is scored
+    cache = run.stores.cache.stats()
+    usage = {
+        "answer_cache_hits": int(cache.get("hits", 0)),
+        "reworded_hits": int(run.stores.reworded.hits),
+    }
+    return {k: dict(v) for k, v in paths.items()}, found, controls, usage
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -157,6 +215,13 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--jobs", type=int, default=1, help="processes (officers are split evenly)")
     ap.add_argument("--label", default="")
     ap.add_argument("--no-write", action="store_true")
+    ap.add_argument(
+        "--answerer",
+        choices=["none", "quote"],
+        default="none",
+        help="quote: a deterministic stand-in model (evaluation/harness/quoting_model.py) so "
+        "answers are cached and the cache paths, exact and reworded, are exercised (ADR-0053)",
+    )
     a = ap.parse_args(argv)
 
     seed = json.loads((V2 / "eoffice" / "seed_v2.json").read_text("utf-8"))
@@ -168,14 +233,17 @@ def main(argv: list[str] | None = None) -> int:
     jobs = max(1, min(a.jobs, len(users)))
     parts = [users[i::jobs] for i in range(jobs)]
     if jobs == 1:
-        results = [sweep(users, public_dir)]
+        results = [sweep(users, public_dir, a.answerer)]
     else:
         with concurrent.futures.ProcessPoolExecutor(jobs) as pool:
-            results = list(pool.map(sweep, parts, [public_dir] * jobs))
+            results = list(pool.map(sweep, parts, [public_dir] * jobs, [a.answerer] * jobs))
     paths: dict[str, dict[str, int]] = {}
     found: list[dict[str, str]] = []
     controls = 0
-    for ps, fs, c in results:
+    usage: dict[str, int] = {}
+    for ps, fs, c, u in results:
+        for name, hits in u.items():
+            usage[name] = usage.get(name, 0) + hits
         for k, v in ps.items():
             cur = paths.setdefault(k, {"checks": 0, "disclosures": 0})
             cur["checks"] += v["checks"]
@@ -184,6 +252,8 @@ def main(argv: list[str] | None = None) -> int:
         controls += c
     total = sum(p["disclosures"] for p in paths.values())
     summary = {
+        "answerer": a.answerer,
+        **usage,
         "officers": len(users),
         "files": len(files),
         "checks": sum(p["checks"] for p in paths.values()),
@@ -206,6 +276,8 @@ def main(argv: list[str] | None = None) -> int:
             f"- Officers: **{summary['officers']}**, files: **{summary['files']}**, checks: "
             f"**{summary['checks']}**, disclosures: **{total}** → "
             f"**{'PASS' if summary['pass'] else 'FAIL'}**",
+            f"- Answers: `{a.answerer}`; answer-cache hits {usage.get('answer_cache_hits', 0)}, "
+            f"reworded-repeat hits {usage.get('reworded_hits', 0)}",
             f"- Control: {controls} allowed files were found by number in the same responses.",
             "",
             "| Path | Checks | Disclosures |",
@@ -215,6 +287,7 @@ def main(argv: list[str] | None = None) -> int:
         (REPORTS / f"{stem}.md").write_text("\n".join(md) + "\n", "utf-8")
         print(f"report: evaluation/reports/{stem}.md")
     print(f"leakage v2: {total} disclosures / {summary['checks']} checks; controls {controls}")
+    print(f"answerer {a.answerer}; cache hits {usage}")
     for d in found[:8]:
         print("  !", d)
     return 0 if summary["pass"] else 1

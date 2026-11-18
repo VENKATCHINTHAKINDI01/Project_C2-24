@@ -1,8 +1,9 @@
 import { useState } from "react";
+import { fmtDate } from "../format";
 import type { Api } from "../api";
 import type { Handover } from "../types";
 
-const d = (iso: string | null | undefined) => (iso ? iso.slice(0, 10).split("-").reverse().join("-") : "—");
+const d = (iso: string | null | undefined) => fmtDate(iso);
 
 /** Touchpoint 19 ("Section reassignment"): a cited handover of the officer's section — files in
  *  hand, standing orders, orders no longer in force, recent decisions. Loaded on request; only

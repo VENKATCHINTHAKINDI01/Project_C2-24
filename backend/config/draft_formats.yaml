@@ -1,0 +1,185 @@
+# Draft formats for the Draft workspace (ADR-0044; plan §11.2 "Draft (DFA)", §11.5 touchpoints 6
+# and 14, §8.1 noting sections). Versioned config, not code (CLAUDE.md §11.5).
+#
+# STATUS: MOCK. Each structure below is taken from a document in the project corpus (named under
+# `basis`) and from public AP Government orders; none is an official template. [To confirm]
+# against the AP Secretariat Office Manual and the department's own practice before real use.
+#
+# kind      how the composer lays the draft out: note | go | memo | letter
+# saves_as  what "Save" creates through the e-Office connector, on the officer's click only:
+#           yellow_note (a note draft) or dfa_draft (a draft for approval). Never a Green Note,
+#           never signed, issued or dispatched by the assistant.
+# inputs    the officer's own fields this format asks for (all optional; empty → a [placeholder])
+# skeleton  what the format looks like, shown in the formats library (« » = filled in)
+version: 1
+status: mock
+
+formats:
+  - id: note_proposal
+    family: noting
+    kind: note
+    title: Note on a proposal (PUC)
+    use_when: A receipt asks for a decision. You set out the request, the facts, the rules and earlier decisions, and propose a course.
+    saves_as: yellow_note
+    basis: Plan §8.1 noting sections; the notes in the sandbox e-files (numbered paragraphs, PUC at Flag A).
+    inputs: [subject, request, facts, proposal]
+    skeleton: |
+      Subject: «file subject»
+      1. «What the PUC (Flag A) asks for.»
+      2. «Facts verified.»
+      3. «Para … of «order» provides: "…"»        ← from the orders that apply
+      4. «In File …, Note #…, it was decided: "…"»  ← earlier decisions
+      5. «Points to examine (pre-send check).»
+      6. «It is proposed that …»
+      References: «orders read»
+
+  - id: note_dfa
+    family: noting
+    kind: note
+    title: Note putting up a draft for approval
+    use_when: The proposal is approved in principle and you put up draft orders (DFA) with the file.
+    saves_as: yellow_note
+    basis: Sandbox e-file notes ("If approved, draft transfer orders are put up for approval (DFA)").
+    inputs: [subject, request, facts, proposal]
+    skeleton: |
+      Subject: «file subject»
+      1. «Background: what was approved and by whom.»
+      2. «Facts verified.»
+      3. Draft orders are put up for approval (DFA).
+      4. «Points to examine (pre-send check).»
+      5. «Submitted for approval of the draft.»
+      References: «orders read»
+
+  - id: note_reference
+    family: noting
+    kind: note
+    title: Note referring the file to another department
+    use_when: You need the advice or concurrence of another department (for example Finance) before a decision.
+    saves_as: yellow_note
+    basis: Corpus orders requiring "the prior concurrence of the Finance Department" (D07, D08).
+    inputs: [subject, request, facts, proposal]
+    skeleton: |
+      Subject: «file subject»
+      1. «Background.»
+      2. «The points on which advice or concurrence is needed.»
+      3. «Para … of «order» provides: "…"»
+      4. «The file may be referred to «department» for «advice / concurrence».»
+      References: «orders read»
+
+  - id: go_ms
+    family: outgoing
+    kind: go
+    number_label: "G.O.Ms.No."
+    title: Government Order (G.O.Ms.)
+    use_when: Orders of a lasting or policy nature, such as guidelines and rules.
+    saves_as: dfa_draft
+    basis: Corpus G.O.Ms. D03 (ABSTRACT, department, number and date, "Read the following", ORDER, signature) and public AP G.O.s.
+    inputs: [subject, facts, proposal, signatory, addressees, copy_to]
+    skeleton: |
+      GOVERNMENT OF ANDHRA PRADESH
+      ABSTRACT
+      «subject» – Orders – Issued.
+      «DEPARTMENT» DEPARTMENT
+      G.O.Ms.No.____                Dated: ____
+      Read the following:
+      1. «order», dated «dd-mm-yyyy».
+      ORDER:
+      1. In the reference 1st read above, «what it ordered».
+      2. «The facts.»
+      3. «What Government now order.»
+      (BY ORDER AND IN THE NAME OF THE GOVERNOR OF ANDHRA PRADESH)
+      «SIGNATORY»
+      To
+      «addressees»
+      Copy to:
+      «copies»
+
+  - id: go_rt
+    family: outgoing
+    kind: go
+    number_label: "G.O.Rt.No."
+    title: Government Order (G.O.Rt.)
+    use_when: Routine orders, such as continuation, sanction for a period, individual cases.
+    saves_as: dfa_draft
+    basis: Corpus G.O.Rt. D08 (same parts as a G.O.Ms.).
+    inputs: [subject, facts, proposal, signatory, addressees, copy_to]
+    skeleton: |
+      GOVERNMENT OF ANDHRA PRADESH
+      ABSTRACT
+      «subject» – Orders – Issued.
+      «DEPARTMENT» DEPARTMENT
+      G.O.Rt.No.____                Dated: ____
+      Read the following:
+      1. «order», dated «dd-mm-yyyy».
+      ORDER:
+      1. In the reference 1st read above, «what it ordered».
+      2. «What Government now order.»
+      (BY ORDER AND IN THE NAME OF THE GOVERNOR OF ANDHRA PRADESH)
+      «SIGNATORY»
+      To
+      «addressees»
+
+  - id: memo
+    family: outgoing
+    kind: memo
+    number_label: "Memo No."
+    title: Memo
+    use_when: A clarification or instruction on an existing order.
+    saves_as: dfa_draft
+    basis: Corpus Memo D05 (number and date, Sub, Ref, numbered paragraphs, signature).
+    inputs: [subject, facts, proposal, signatory, addressees]
+    skeleton: |
+      GOVERNMENT OF ANDHRA PRADESH
+      Memo No.____                  Dated: ____
+      Sub: «subject» – Reg.
+      Ref: «order», dated «dd-mm-yyyy».
+      1. In the reference cited, «what it ordered».
+      2. «The clarification or instruction.»
+      «SIGNATORY»
+      To
+      «addressees»
+
+  - id: circular_memo
+    family: outgoing
+    kind: memo
+    number_label: "Circular Memo No."
+    title: Circular Memo
+    use_when: The same instruction to all departments or offices.
+    saves_as: dfa_draft
+    basis: Corpus Circular Memo D07.
+    inputs: [subject, facts, proposal, signatory, addressees]
+    skeleton: |
+      GOVERNMENT OF ANDHRA PRADESH
+      Circular Memo No.____         Dated: ____
+      Sub: «subject» – Reg.
+      Ref: «order», dated «dd-mm-yyyy».
+      1. In the reference cited, «what it ordered».
+      2. «The instruction to all.»
+      «SIGNATORY»
+      To
+      «all departments / offices»
+
+  - id: letter
+    family: outgoing
+    kind: letter
+    number_label: "Letter No."
+    title: Letter
+    use_when: Writing to a named office or person, such as calling for information or replying to a reference.
+    saves_as: dfa_draft
+    basis: General Government letter form (From, To, Sir/Madam, Sub, Ref, closing). Not in the corpus — [To confirm].
+    inputs: [subject, facts, proposal, signatory, addressees]
+    skeleton: |
+      GOVERNMENT OF ANDHRA PRADESH
+      «DEPARTMENT» DEPARTMENT
+      Letter No.____                Dated: ____
+      From
+      «SIGNATORY»
+      To
+      «addressee»
+      Sir/Madam,
+      Sub: «subject» – Reg.
+      Ref: «order», dated «dd-mm-yyyy».
+      1. «The matter.»
+      2. «What is requested.»
+      Yours faithfully,
+      «SIGNATORY»

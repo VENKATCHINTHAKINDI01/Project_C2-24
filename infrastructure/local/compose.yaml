@@ -1,0 +1,130 @@
+# The whole C2-24 sandbox on one machine (ADR-0043): database, schema job, API and screens.
+# Synthetic data only. From the repo root:
+#
+#   docker compose -f infrastructure/local/compose.yaml up --build
+#   → open http://localhost:8080 and sign in as a mock officer
+#
+# Mirrors Cloud Run: the API is private (no host port); people reach it only through the screens
+# server, which forwards /assist/* and /sandbox/*. The schema is applied by a one-shot job, never
+# by the running API. State (review queue, audit, sessions, graph tables) lives in Postgres and
+# survives restarts; the e-Office sandbox itself is rebuilt from the synthetic seed at start.
+#
+# Optional answer cache (Redis on hold in the cloud until the organisation approves):
+#   docker compose -f infrastructure/local/compose.yaml --profile cache up --build
+#
+# Base images can come from a private mirror (networks without Docker Hub):
+#   PYTHON_IMAGE=<mirror>/python:3.13-slim NODE_IMAGE=<mirror>/node:24-slim \
+#   UV_IMAGE=<mirror>/uv:0.9 POSTGRES_IMAGE=<mirror>/postgres:16-alpine \
+#   VALKEY_IMAGE=<mirror>/valkey:8-alpine docker compose -f infrastructure/local/compose.yaml up --build
+#
+# The database password is for this local stack only (set C2_LOCAL_DB_PASSWORD to change it).
+# Never reuse it anywhere else; on GCP the API signs in to Cloud SQL with IAM, without a password.
+
+name: c2-24
+
+x-hardened: &hardened
+  read_only: true
+  tmpfs: ["/tmp"]
+  cap_drop: ["ALL"]
+  security_opt: ["no-new-privileges:true"]
+  restart: unless-stopped
+
+x-backend-build: &backend-build
+  context: ../..
+  dockerfile: backend/Dockerfile
+  args:
+    PYTHON_IMAGE: ${PYTHON_IMAGE:-python:3.13-slim}
+    UV_IMAGE: ${UV_IMAGE:-ghcr.io/astral-sh/uv:0.9}
+
+x-db-env: &db-env
+  C2_PG_DSN: host=db port=5432 dbname=c2 user=c2 password=${C2_LOCAL_DB_PASSWORD:-c2-local-only}
+
+services:
+  db:
+    image: ${POSTGRES_IMAGE:-postgres:16-alpine}
+    environment:
+      POSTGRES_USER: c2
+      POSTGRES_DB: c2
+      POSTGRES_PASSWORD: ${C2_LOCAL_DB_PASSWORD:-c2-local-only}
+    volumes: ["pgdata:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U c2 -d c2"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    restart: unless-stopped
+    # no host port: only the API and the schema job reach the database
+
+  migrate:
+    image: c2-24/backend:local
+    build: *backend-build
+    command: ["python", "-m", "app.migrate"]
+    environment:
+      <<: *db-env
+      C2_MIGRATE_WAIT_S: "60"
+    depends_on:
+      db: { condition: service_healthy }
+    read_only: true
+    tmpfs: ["/tmp"]
+    cap_drop: ["ALL"]
+    security_opt: ["no-new-privileges:true"]
+    restart: "no"
+
+  api:
+    <<: *hardened
+    image: c2-24/backend:local
+    build: *backend-build
+    environment:
+      <<: *db-env
+      C2_ENV: local
+      C2_SANDBOX: "true"
+      C2_STATE_STORE: postgres
+      C2_IDENTITY: sandbox
+      C2_REDIS_URL: ${C2_REDIS_URL:-}
+      PYTHONDONTWRITEBYTECODE: "1"
+    volumes:
+      - ../../data/synthetic:/srv/data/synthetic:ro  # synthetic corpus and seed; never in the image
+    depends_on:
+      db: { condition: service_healthy }
+      migrate: { condition: service_completed_successfully }
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(urllib.request.urlopen('http://127.0.0.1:8080/healthz', timeout=3).status != 200)"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+    # no host port: private, like c2-api on Cloud Run
+
+  web:
+    <<: *hardened
+    image: c2-24/frontend:local
+    build:
+      context: ../..
+      dockerfile: frontend/Dockerfile
+      args:
+        NODE_IMAGE: ${NODE_IMAGE:-node:24-slim}
+        PYTHON_IMAGE: ${PYTHON_IMAGE:-python:3.13-slim}
+    environment:
+      C2_API_URL: http://api:8080
+      C2_API_NO_AUTH: "1"  # inside this private network; Cloud Run uses the service's ID token
+      PYTHONDONTWRITEBYTECODE: "1"
+    ports: ["127.0.0.1:${C2_WEB_PORT:-8080}:8080"]  # this machine only
+    depends_on:
+      api: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(urllib.request.urlopen('http://127.0.0.1:8080/', timeout=3).status != 200)"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  cache:
+    profiles: ["cache"]
+    image: ${VALKEY_IMAGE:-valkey/valkey:8-alpine}
+    command: ["valkey-server", "--save", "", "--appendonly", "no", "--maxmemory", "128mb", "--maxmemory-policy", "allkeys-lru"]
+    read_only: true
+    cap_drop: ["ALL"]
+    security_opt: ["no-new-privileges:true"]
+    restart: unless-stopped
+
+volumes:
+  pgdata:

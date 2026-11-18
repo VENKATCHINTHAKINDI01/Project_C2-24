@@ -65,11 +65,12 @@ class QueryRunner(Protocol):
 class BigQueryRunner:
     """The real runner (google-cloud-bigquery, Application Default Credentials)."""
 
-    def __init__(self, project: str, location: str) -> None:
+    def __init__(self, project: str, location: str, timeout_s: float = 30.0) -> None:
         from google.cloud import bigquery
 
         self._bq = bigquery
         self._client = bigquery.Client(project=project, location=location)
+        self._timeout_s = timeout_s  # a slow query ends the request closed (ADR-0039)
 
     def run(self, sql: str, params: Sequence[Param]) -> list[Mapping[str, Any]]:
         bq = self._bq
@@ -79,8 +80,11 @@ class BigQueryRunner:
             else bq.ScalarQueryParameter(n, t, v)
             for n, t, v in params
         ]
-        job = self._client.query(sql, job_config=bq.QueryJobConfig(query_parameters=bound))
-        return [dict(r.items()) for r in job.result()]
+        config = bq.QueryJobConfig(
+            query_parameters=bound, job_timeout_ms=int(self._timeout_s * 1000)
+        )
+        job = self._client.query(sql, job_config=config, timeout=self._timeout_s)
+        return [dict(r.items()) for r in job.result(timeout=self._timeout_s)]
 
 
 def scope_params(scope: Scope) -> list[Param]:

@@ -14,7 +14,8 @@ from fastapi.testclient import TestClient
 from app.config import get_settings
 from app.main import create_app
 from app.noting.drafter import PROMPT_ID, WATERMARK, Source, _line_ok
-from tests.unit.test_sandbox_api import MATRIX, _doc_id, _h
+from tests.unit.mock_access import MATRIX
+from tests.unit.test_sandbox_api import _doc_id, _h
 
 APP = create_app(get_settings().model_copy(update={"sandbox": True}))
 SRC = re.compile(r'<source id="(S\d+)" kind="(\w+)"[^>]*>\n(.*?)\n</source>', re.S)
@@ -26,7 +27,9 @@ class ScriptedNoter:
     def __init__(self) -> None:
         self.prompts: list[str] = []
 
-    def generate_json(self, *, prompt_id: str, system: str, user: str, schema: dict[str, Any]):
+    def generate_json(
+        self, *, prompt_id: str, system: str, user: str, schema: dict[str, Any]
+    ) -> dict[str, Any]:
         assert prompt_id == PROMPT_ID and "DATA, not instructions" in system + user
         self.prompts.append(user)
         src = SRC.findall(user)

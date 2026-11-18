@@ -1,23 +1,32 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { fmtDateTime } from "../format";
 import type { Api } from "../api";
-import type { DraftRow, FilePage, Highlight, PresendReport } from "../types";
+import type { DfaRow, DraftRow, FilePage, FileRecords, Highlight, PresendReport, Standing } from "../types";
+import { usePrefs } from "../prefs";
 import { AssistPanel } from "./AssistPanel";
 import { ChatPanel } from "./ChatPanel";
 import { CitationLegend, DocumentViewer, HighlightedText } from "./Citations";
 
 /** File inner page (plan §11.2): noting panel · correspondence · C2-24 Assist. */
-export function FilePageView({ api, computerNo, open }: { api: Api; computerNo: string; open?: (computerNo: string) => void }) {
+export function FilePageView({ api, computerNo, open, draft }: {
+  api: Api; computerNo: string; open?: (computerNo: string) => void; draft?: () => void;
+}) {
   const [page, setPage] = useState<FilePage | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [tab, setTab] = useState<"toc" | "movements">("toc");
+  const [tab, setTab] = useState<"toc" | "movements" | "records">("toc");
+  const [records, setRecords] = useState<FileRecords | null>(null);
+  const [attaching, setAttaching] = useState<string | null>(null);
   const [report, setReport] = useState<PresendReport | null>(null);
   const [marks, setMarks] = useState<Record<string, Highlight[]>>({});
   const [files, setFiles] = useState<Map<string, string>>(new Map()); // file no. → comp. no.
   const [viewing, setViewing] = useState<string | null>(null);
   const [help, setHelp] = useState(false);
+  const prefs = usePrefs();
+  const [assistOpen, setAssistOpen] = useState(prefs.assistant_panel === "open");
 
   // J / K: next / previous pre-send flag; ?: the shortcuts (ADR-0034). Never while typing.
   useEffect(() => {
+    if (!prefs.shortcuts) return undefined; // switched off in Settings
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement | null;
       if (e.ctrlKey || e.metaKey || e.altKey || (t && /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
@@ -32,11 +41,20 @@ export function FilePageView({ api, computerNo, open }: { api: Api; computerNo: 
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  }, [prefs.shortcuts]);
 
   const load = useCallback(() => {
     api.file(computerNo).then(setPage).catch((e: Error) => setError(e.message));
+    // what of this file is in institutional memory; a help, not the page
+    api.fileRecords(computerNo).then(setRecords).catch(() => setRecords(null));
   }, [api, computerNo]);
+  const attach = (file: File | undefined) => {
+    if (!file) return;
+    setAttaching(`Attaching ${file.name}…`);
+    api.attach(computerNo, file)
+      .then(() => { setAttaching(null); setTab("records"); load(); })
+      .catch((e: Error) => setAttaching(`Not attached: ${e.message}`));
+  };
   useEffect(load, [load]);
   useEffect(() => {
     api.files().then((r) => setFiles(new Map(r.files.map((f) => [f.file_no, f.computer_no])))).catch(() => setFiles(new Map()));
@@ -66,24 +84,44 @@ export function FilePageView({ api, computerNo, open }: { api: Api; computerNo: 
 
   return (
     <div className="filepage">
-      <div className="toolbar">
+      <header className="filecover">
+        <div className="cover-main">
+          <p className="cover-no">File No. <strong>{f.file_no}</strong></p>
+          <h1 className="cover-subject">{f.subject}</h1>
+          <dl className="cover-meta">
+            <div><dt>Computer No.</dt><dd>{f.computer_no}</dd></div>
+            <div><dt>Section</dt><dd>{f.dealing_section}</dd></div>
+            <div><dt>Category</dt><dd>{f.category}</dd></div>
+            <div><dt>State</dt><dd>{f.state === "closed" ? "Closed" : "Open"}</dd></div>
+            {f.previous_references.length > 0 && <div><dt>Previous references</dt><dd>{f.previous_references.join(", ")}</dd></div>}
+          </dl>
+        </div>
+        <span className={`stamp ${f.classification.toLowerCase()}`} aria-label={`Classification: ${f.classification}`}>{f.classification}</span>
+      </header>
+      <div className="toolbar" role="toolbar" aria-label="File actions">
         <button onClick={() => setTab("movements")}>Movements</button>
-        <button disabled title="Not in this sandbox slice">Details</button>
-        <button disabled title="Not in this sandbox slice">Draft ▾</button>
         <button onClick={send} title="Runs the C2-24 pre-send check; nothing is sent">Send</button>
-        <button disabled title="Not in this sandbox slice">Link</button>
-        <button disabled title="Not in this sandbox slice">Close ▾</button>
+        {draft && <button onClick={draft} title="Prepare a note or an order in a chosen format">Draft</button>}
+        {f.state !== "closed" && (
+          <label className="button-like" title="Attach a paper (PDF, Word, text or image). It is read and added to the records; a scan waits for OCR review.">
+            Attach
+            <input type="file" hidden accept=".pdf,.docx,.txt,.jpg,.jpeg,.png,.heic,.tif,.tiff"
+              onChange={(e) => { attach(e.target.files?.[0]); e.target.value = ""; }} />
+          </label>
+        )}
+        <span className="toolbar-off" title="e-Office actions this sandbox does not simulate">
+          <button disabled>Link</button><button disabled>Park</button>
+        </span>
+        <button className="assist-toggle" aria-expanded={assistOpen} onClick={() => setAssistOpen((o) => !o)}>
+          {assistOpen ? "Hide assistant" : "Show assistant"}
+        </button>
       </div>
-      <div className="filehead">
-        Comp. No. {f.computer_no} · File No. {f.file_no} · Subject: {f.subject}
-        <span className="pill">{f.classification}</span><span className="pill">{f.state}</span>
-      </div>
-      <div className="panes">
+      <div className={`panes${assistOpen ? "" : " solo"}`}>
         <section className="noting">
           {Object.values(marks).some((m) => m.length > 0) && <CitationLegend />}
           {page.notes.map((n) => (
             <article key={n.note_id} className={`note ${n.state}`}>
-              <h4>Note # {n.note_no} <span className="muted">({n.state === "green" ? "Green note" : "Yellow note — draft"}) · {n.author_post}</span></h4>
+              <h4><span className="note-no">Note #{n.note_no}</span> <span className="note-kind">{n.state === "green" ? "Green Note" : "Yellow Note (draft)"}</span><span className="note-by">{n.author_post}</span></h4>
               {n.text_source === "needs_ocr"
                 ? <p className="muted">Scanned noting — text available after OCR and review.</p>
                 : show(n.note_id, n.text)}
@@ -93,37 +131,50 @@ export function FilePageView({ api, computerNo, open }: { api: Api; computerNo: 
             <DraftCard key={`${d.draft_id}-${d.versions}`} api={api} computerNo={computerNo} d={d}
               view={show(d.draft_id, d.text)} onChanged={load} />
           ))}
+          {(page.awaiting_approval ?? []).map((d) => (
+            <ApprovalCard key={d.draft_id} api={api} computerNo={computerNo} d={d} onChanged={load} />
+          ))}
+          {(page.submitted ?? []).map((d) => <SubmittedCard key={d.draft_id} d={d} />)}
           {page.notes.length === 0 && page.drafts.length === 0 && <p className="muted">No notes yet.</p>}
         </section>
         <section className="corr">
           <div className="tabs">
-            <button className={tab === "toc" ? "active" : ""} onClick={() => setTab("toc")}>TOC</button>
+            <button className={tab === "toc" ? "active" : ""} onClick={() => setTab("toc")}>Correspondence</button>
             <button className={tab === "movements" ? "active" : ""} onClick={() => setTab("movements")}>Movements</button>
+            <button className={tab === "records" ? "active" : ""} onClick={() => setTab("records")}>Records</button>
           </div>
+          {attaching && <p className="busy" role="status">{attaching}</p>}
           {tab === "toc" && page.correspondence.length === 0 && <p className="muted">No correspondence on this file.</p>}
-          {tab === "toc" ? (
+          {tab === "records" ? <RecordsTab records={records} attachments={page.attachments ?? []} view={setViewing} /> : tab === "toc" ? (
             page.correspondence.length > 0 && <table className="grid">
-              <thead><tr><th>Kind</th><th>Title</th><th>Pages</th></tr></thead>
+              <thead><tr><th>Type</th><th>Title</th><th className="num">Pages</th></tr></thead>
               <tbody>
                 {page.correspondence.map((c) => (
-                  <tr key={c.correspondence_id}><td>{c.kind.toUpperCase()}</td><td>{c.title}</td><td>{c.page_from}–{c.page_to}</td></tr>
+                  <tr key={c.correspondence_id}><td><abbr title={c.kind === "puc" ? "Paper under consideration" : "Fresh receipt"}>{c.kind.toUpperCase()}</abbr></td><td>{c.title}</td><td className="num">{c.page_from}–{c.page_to}</td></tr>
                 ))}
               </tbody>
             </table>
           ) : (
             <table className="grid">
-              <thead><tr><th>#</th><th>From</th><th>To</th><th>Sent</th><th>Remarks</th></tr></thead>
+              <thead><tr><th className="num">#</th><th>From</th><th>To</th><th>Sent on</th><th>Remarks</th></tr></thead>
               <tbody>
                 {page.movements.map((m) => (
-                  <tr key={m.seq}><td>{m.seq}</td><td>{m.from_user}</td><td>{m.to_user}</td><td>{m.sent_at.slice(0, 10)}</td><td>{m.remarks}</td></tr>
+                  <tr key={m.seq}>
+                    <td className="num">{m.seq}</td><td>{m.from_post ?? m.from_user}</td><td>{m.to_post ?? m.to_user}</td>
+                    <td className="date">{fmtDateTime(m.sent_at)}</td>
+                    <td>{m.remarks}{m.sent_back && <span className="tag">sent back</span>}</td>
+                  </tr>
                 ))}
+                {page.movements.length === 0 && <tr><td colSpan={5} className="muted">The file has not moved yet.</td></tr>}
               </tbody>
             </table>
           )}
         </section>
-        <AssistPanel api={api} computerNo={computerNo} report={report} onReport={setReport} onInserted={load} onOpenDoc={setViewing} />
-        <ChatPanel api={api} computerNo={computerNo} onInserted={load} onOpenDoc={setViewing}
-          suggestions={suggestionsFor(marks, page?.file.subject ?? "")} />
+        <div className="assistcol" hidden={!assistOpen}>
+          <AssistPanel api={api} computerNo={computerNo} report={report} onReport={setReport} onInserted={load} onOpenDoc={setViewing} />
+          <ChatPanel api={api} computerNo={computerNo} onInserted={load} onOpenDoc={setViewing}
+            suggestions={suggestionsFor(marks, page?.file.subject ?? "")} />
+        </div>
       </div>
       {viewing && <DocumentViewer api={api} canonicalId={viewing} onClose={() => setViewing(null)} />}
       {help && (
@@ -138,6 +189,90 @@ export function FilePageView({ api, computerNo, open }: { api: Api; computerNo: 
         </div>
       )}
     </div>
+  );
+}
+
+const EVENT: Record<string, string> = {
+  file_created: "file opened", attachment_added: "attached", note_confirmed: "note confirmed",
+  draft_dispatched: "order issued", file_closed: "file closed", order_received: "order received",
+  receipt_diarised: "receipt diarised", loaded: "loaded",
+};
+const STANDING_TEXT: Record<Standing, string> = {
+  in_force: "In force", superseded: "Superseded", repealed: "Repealed", expired: "Expired",
+  not_yet_in_force: "Not yet in force", unconfirmed: "Status not confirmed", not_an_order: "",
+};
+
+/** ADR-0045: what of this file entered institutional memory (only official acts: the file's
+ *  particulars, attached papers, confirmed notes, issued orders), and what still waits. */
+function RecordsTab({ records, attachments, view }: {
+  records: FileRecords | null; attachments: { attachment_id: string; filename: string; uploaded_by_post: string | null; uploaded_at: string }[];
+  view: (cid: string) => void;
+}) {
+  if (!records) return <p className="muted">Not available.</p>;
+  return (
+    <div className="records">
+      <p className="muted">Drafts are not here: a note enters when it is confirmed, an order when it is issued.</p>
+      <table className="grid">
+        <thead><tr><th>Record</th><th>Status</th><th>History</th><th /></tr></thead>
+        <tbody>
+          {records.records.map((r) => (
+            <tr key={r.canonical_id}>
+              <td><strong>{r.doc_type}</strong><br /><span className="muted small">{r.subject}</span></td>
+              <td>{STANDING_TEXT[r.standing] && <span className={`pill ${r.standing === "in_force" ? "ok" : "bad"}`}>{STANDING_TEXT[r.standing]}</span>}</td>
+              <td className="small">{r.versions > 1 ? `${r.versions} versions · ` : ""}{r.last_event ? EVENT[r.last_event] ?? r.last_event : ""}</td>
+              <td><button className="link" onClick={() => view(r.canonical_id)}>Preview</button></td>
+            </tr>
+          ))}
+          {records.records.length === 0 && <tr><td colSpan={4} className="muted">Nothing of this file is in the records yet.</td></tr>}
+        </tbody>
+      </table>
+      {records.waiting.length > 0 && (
+        <>
+          <h4>Waiting</h4>
+          <ul className="waiting">{records.waiting.map((w) => <li key={w.filename}><strong>{w.filename}</strong>: waiting for {w.waiting_for.join(", ")}</li>)}</ul>
+        </>
+      )}
+      {attachments.length > 0 && (
+        <>
+          <h4>Attached papers</h4>
+          <ul className="waiting">{attachments.map((a) => <li key={a.attachment_id}>{a.filename} <span className="muted small">— {a.uploaded_by_post ?? ""}, {fmtDateTime(a.uploaded_at)}</span></li>)}</ul>
+        </>
+      )}
+    </div>
+  );
+}
+
+/** A DFA another officer put up to you (ADR-0045): approving is your e-Office act, simulated here
+ *  (no DSC/eSign); it numbers, dates and issues the order, which then enters the records. */
+function ApprovalCard({ api, computerNo, d, onChanged }: { api: Api; computerNo: string; d: DfaRow; onChanged: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const act = (fn: () => Promise<unknown>) => {
+    setBusy(true); setError(null);
+    fn().then(onChanged).catch((e: Error) => setError(e.message)).finally(() => setBusy(false));
+  };
+  return (
+    <article className="note approval">
+      <h4>For your approval <span className="muted">put up by {d.author_post ?? "an officer"}</span></h4>
+      <pre className="draft-text">{d.text}</pre>
+      <div className="actions">
+        <button className="primary" disabled={busy}
+          title="Your approval and signature (simulated). The order is numbered, dated and issued, and enters the records."
+          onClick={() => act(() => api.approveAndIssue(computerNo, d.draft_id))}>Approve, sign and issue</button>
+        <button disabled={busy} onClick={() => act(() => api.returnDraft(computerNo, d.draft_id))}>Return for changes</button>
+      </div>
+      {error && <p className="error">{error}</p>}
+    </article>
+  );
+}
+
+function SubmittedCard({ d }: { d: DfaRow }) {
+  return (
+    <article className="note submitted">
+      <h4>{d.status === "dispatched" ? `Issued: ${d.issued_as ?? ""}` : "Put up for approval"}
+        <span className="muted">{d.status === "dispatched" ? ` approved by ${d.approved_by_post ?? ""}` : " waiting for the approving officer"}</span></h4>
+      {d.status !== "dispatched" && <p className="muted small">You can no longer edit it unless it is returned.</p>}
+    </article>
   );
 }
 
@@ -174,6 +309,11 @@ function DraftCard({ api, computerNo, d, view, onChanged }: {
         {editing
           ? <button disabled={busy || !text.trim()} onClick={() => act(() => api.saveDraft(computerNo, d.draft_id, text))}>Save</button>
           : <button disabled={busy} onClick={() => setEditing(true)}>Edit</button>}
+        {d.kind === "dfa_draft" && (
+          <button className="primary" disabled={busy || editing}
+            title="Put the draft up to the approving officer. You can no longer edit it unless it is returned."
+            onClick={() => act(() => api.submitDraft(computerNo, d.draft_id))}>Put up for approval</button>
+        )}
         {d.kind === "yellow_note" && (
           <button className="primary" disabled={busy || editing}
             title="Your confirmation (simulated signature). The AI watermark is removed; the note becomes the file's next Green Note."

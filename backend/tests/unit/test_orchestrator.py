@@ -19,8 +19,9 @@ from app.config import get_settings
 from app.main import create_app
 from app.memory.session import SessionMemory
 from app.tracking.query_log import InMemoryQueryLog, QueryRecord
+from tests.unit.mock_access import MATRIX
 from tests.unit.test_cited_answer import FakeLLM
-from tests.unit.test_sandbox_api import MATRIX, USERS, _doc_id, _h
+from tests.unit.test_sandbox_api import USERS, _doc_id, _h
 
 LOG = InMemoryQueryLog()
 APP = create_app(get_settings().model_copy(update={"sandbox": True}))
@@ -31,7 +32,9 @@ NOTE = "AP-USD01-NOTE-USD0112-19-2026"
 class AnswersOnly(FakeLLM):
     """The cited-answer fake; writes no note (the noting agent has its own tests)."""
 
-    def generate_json(self, *, prompt_id: str, system: str, user: str, schema: dict[str, Any]):
+    def generate_json(
+        self, *, prompt_id: str, system: str, user: str, schema: dict[str, Any]
+    ) -> dict[str, Any]:
         if prompt_id.startswith("noting_draft"):
             return {"sections": []}
         return super().generate_json(prompt_id=prompt_id, system=system, user=user, schema=schema)

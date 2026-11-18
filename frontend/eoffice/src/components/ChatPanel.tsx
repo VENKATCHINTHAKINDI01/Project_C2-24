@@ -1,17 +1,20 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { ApiError } from "../api";
 import type { Api } from "../api";
-import type { ChatEvent, ChatStatement, ChatTurn } from "../types";
+import type { Confidence, ChatEvent, ChatStatement, ChatTurn } from "../types";
+import { usePrefs } from "../prefs";
 import { CitePreview } from "./CitePreview";
 import { Feedback } from "./Feedback";
 
 /** "Ask C2-24" — the conversation for the open file (plan §8.1, §10.1; ADR-0029). Every statement
  * shows where it comes from; nothing here is inserted into the file except on the officer's click. */
-export function ChatPanel({ api, computerNo, onInserted, onOpenDoc, suggestions = [] }: {
+export function ChatPanel({ api, computerNo, onInserted, onOpenDoc, suggestions = [], titled = true }: {
   api: Api; computerNo?: string; onInserted?: () => void;
   onOpenDoc?: (canonicalId: string) => void;
   /** Questions this file invites (ADR-0034): one click asks them. */
   suggestions?: string[];
+  /** false inside a panel that has its own heading (Ask AI) */
+  titled?: boolean;
 }) {
   const [session, setSession] = useState<string | null>(null);
   const [turns, setTurns] = useState<{ asked: string; reply: ChatTurn }[]>([]);
@@ -25,8 +28,10 @@ export function ChatPanel({ api, computerNo, onInserted, onOpenDoc, suggestions 
   const input = useRef<HTMLInputElement | null>(null);
   const latest = turns[turns.length - 1]?.reply;
 
+  const prefs = usePrefs();
   // Ctrl/⌘+K: ask; Ctrl/⌘+Enter: insert the latest first-cut note as a Yellow Note (a draft)
   useEffect(() => {
+    if (!prefs.shortcuts) return undefined; // switched off in Settings
     const onKey = (e: KeyboardEvent) => {
       if (!(e.ctrlKey || e.metaKey)) return;
       if (e.key.toLowerCase() === "k") { e.preventDefault(); input.current?.focus(); }
@@ -49,6 +54,7 @@ export function ChatPanel({ api, computerNo, onInserted, onOpenDoc, suggestions 
     try {
       let reply: ChatTurn;
       try {
+        if (!prefs.stream_answers) throw new Error("streaming off"); // Settings: whole answer at once
         reply = await api.chatStream(asked, session, computerNo, onEvent, ctrl.signal);
       } catch (e) {
         if (ctrl.signal.aborted) throw e;
@@ -78,7 +84,7 @@ export function ChatPanel({ api, computerNo, onInserted, onOpenDoc, suggestions 
 
   return (
     <section className="chat">
-      <h3>Ask C2-24</h3>
+      {titled && <h3>Ask C2-24</h3>}
       <p className="caveat">Answers come only from records you may see, each line with its source. Drafts only.</p>
       {turns.map(({ asked, reply }, i) => (
         <ChatReply key={i} api={api} asked={asked} reply={reply} onOpenDoc={onOpenDoc}
@@ -186,6 +192,14 @@ export function ChatReply({ api, asked, reply, onOpenDoc, onInsert }: {
       ) : (
         <p className="noanswer">{reply.message ?? "No sufficiently supported answer was found in the authorised records."}</p>
       )}
+      {reply.statements.length === 0 && reply.documents.length > 0 && (
+        // no answer written (no model, or nothing supported): the records found, to open and read
+        <ul className="found-docs" aria-label="Records found">
+          {reply.documents.map((d) => (
+            <li key={d}>{onOpenDoc ? <button className="link" onClick={() => onOpenDoc(d)}>{d}</button> : d}</li>
+          ))}
+        </ul>
+      )}
       {reply.review_needed.length > 0 && (
         <div className="review">
           <h4>Review needed</h4>
@@ -227,6 +241,22 @@ function CopyRef({ s }: { s: ChatStatement }) {
   );
 }
 
+const BAND: Record<Confidence["band"], string> = {
+  high: "High confidence", medium: "Medium confidence", low: "Low confidence: check before relying on it",
+};
+
+/** How far this statement can be relied on (ADR-0054): the band, and on opening, the reasons —
+ *  facts the system holds, weakest first. Never the model's own opinion of itself. */
+function ConfidenceNote({ c }: { c: Confidence }) {
+  const why = [...c.factors].sort((a, b) => a.value - b.value);
+  return (
+    <details className={`conf conf-${c.band}`}>
+      <summary>{BAND[c.band]}</summary>
+      <ul>{why.map((f) => <li key={f.name}>{f.reason}</li>)}</ul>
+    </details>
+  );
+}
+
 function StatementLine({ s, api, onOpenDoc, feedback, typing = false }: {
   s: ChatStatement; api?: Api; onOpenDoc?: (cid: string) => void; feedback?: ReactNode; typing?: boolean;
 }) {
@@ -235,7 +265,10 @@ function StatementLine({ s, api, onOpenDoc, feedback, typing = false }: {
       {typing ? <Typed text={s.text} on /> : s.text}
       {s.quote && <q className="quote">{s.quote}</q>}
       <span className="sources">
-        {s.source === "order records" ? "From the order records: " : "Source: "}
+        {s.source === "order records" ? "From the order records: "
+          : s.source === "file records" ? "Counted from the file records you may see: "
+          : s.source === "link records" ? "From the links between records: "
+          : s.source === "entity records" ? "From the records that name them: " : "Source: "}
         {s.citations.map((c, i) => (
           <CitePreview key={i} api={api} c={c} quote={s.quote}>
             <button className="cite" onClick={() => onOpenDoc?.(c.canonical_id)}>
@@ -244,6 +277,7 @@ function StatementLine({ s, api, onOpenDoc, feedback, typing = false }: {
           </CitePreview>
         ))}
       </span>
+      {!typing && s.confidence && <ConfidenceNote c={s.confidence} />}
       {!typing && <CopyRef s={s} />}
       {feedback}
     </li>

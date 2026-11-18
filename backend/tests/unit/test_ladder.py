@@ -190,3 +190,17 @@ def test_l3_needs_seeds_and_direction_matters() -> None:
         )
     )
     assert {DOC[c] for c in down.graph_hits} == {"D03", "D04"}
+
+
+def test_telugu_words_are_search_terms() -> None:
+    """Golden Q19 (ADR-0050): a Telugu question produced no terms at all, so it never reached
+    a Telugu record. Telugu words are whole terms (vowel signs kept); English is unchanged."""
+    from app.conflict.judgment import _terms as passage_terms
+    from app.retrieval.ladder import _terms
+
+    q = "అత్యవసర పనులకు కమిషనర్ ఇవ్వగల పరిపాలనా అనుమతి పరిమితి ఎంత? G.O.Ms.No.27"
+    got = _terms(q)
+    assert {"అత్యవసర", "పనులకు", "కమిషనర్", "పరిపాలనా", "అనుమతి"} <= set(got)
+    assert {"ms", "no.27"} <= set(got)
+    assert _terms("Transfer of the Senior Assistant") == ["transfer", "senior", "assistant"]
+    assert "అత్యవసర పనులకు" in passage_terms(q)

@@ -12,4 +12,5 @@ retrieval:
 
 cache:
   answer_ttl_seconds: null          # Layer 2 authorised answers, "short TTL" (plan §10.2) — set in P3
-  artifact_ttl_seconds: null        # Layer 1 user-agnostic artifacts — set in P3
+  artifact_ttl_seconds: null
+  reworded_repeats: true            # plan §10.3 semantic cache: same scope + anchors + content words (ADR-0053)        # Layer 1 user-agnostic artifacts — set in P3

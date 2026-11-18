@@ -20,6 +20,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict
 
+from app.cache.semantic import form, stem, topic_words
 from app.hitl.feedback import Action, HumanAction, TargetKind
 from app.tracking.query_log import QueryRecord
 from app.tracking.signals import AlertsView
@@ -49,6 +50,27 @@ class ActivityRow(BaseModel):
     flags: tuple[str, ...] = ()  # unusual-activity signal codes (ADR-0036)
 
 
+class Breakdown(BaseModel):
+    """Questions by one dimension (plan §10.4 views: department / section, role, intent)."""
+
+    model_config = ConfigDict(frozen=True)
+    name: str
+    questions: int
+    answered: int
+    no_answer: int
+    reasked: int
+    avg_ms: int
+
+
+class Topic(BaseModel):
+    """A subject word and how many questions used it — from questions this viewer may read only."""
+
+    model_config = ConfigDict(frozen=True)
+    word: str
+    questions: int
+    no_answer: int
+
+
 class FrequentQuestion(BaseModel):
     model_config = ConfigDict(frozen=True)
 
@@ -59,6 +81,10 @@ class FrequentQuestion(BaseModel):
     answered_rate: float
     avg_ms: int
     last_asked: dt.datetime
+    # FAQ analytics (ADR-0059): asks in other words grouped as one question (ADR-0053's test)
+    variants: int = 1  # distinct wordings in the group
+    reasked: int = 0  # asks the same officer repeated after an answer (the "reask" flag)
+    intent: str | None = None
 
 
 class OfficerActivity(BaseModel):
@@ -101,6 +127,12 @@ class MonitorData(BaseModel):
     cache: dict[str, Any]
     truncated: bool  # the window held more records than the pad reads
     alerts: AlertsView | None = None  # unusual activity (ADR-0036)
+    # FAQ analytics (plan §10.4; ADR-0059)
+    by_department: tuple[Breakdown, ...] = ()
+    by_role: tuple[Breakdown, ...] = ()
+    by_intent: tuple[Breakdown, ...] = ()
+    topics: tuple[Topic, ...] = ()
+    reasked: int = 0  # questions re-asked by the same officer (a sign the answer did not help)
 
 
 def _visible(r: QueryRecord, viewer_rank: int) -> tuple[str | None, bool]:
@@ -111,12 +143,23 @@ def _visible(r: QueryRecord, viewer_rank: int) -> tuple[str | None, bool]:
     return None, True
 
 
+def _group_key(r: QueryRecord) -> tuple[object, ...]:
+    """One FAQ group per question, however worded: the same subject words (ADR-0053's test) about
+    the same named records with the same intent. Without the words, the exact question."""
+    if r.question:
+        words = form(r.question)
+        if words:
+            return ("form", tuple(sorted(words)) if isinstance(words, frozenset) else words,
+                    tuple(sorted(r.entities)), r.intent)  # fmt: skip
+    return ("hash", r.query_hash)
+
+
 def _grouped(
     rows: Sequence[QueryRecord], viewer_rank: int, top: int
 ) -> tuple[FrequentQuestion, ...]:
-    by_q: dict[str, list[QueryRecord]] = defaultdict(list)
+    by_q: dict[tuple[object, ...], list[QueryRecord]] = defaultdict(list)
     for r in rows:
-        by_q[r.query_hash].append(r)
+        by_q[_group_key(r)].append(r)
     out = []
     for rs in by_q.values():
         # the words of the most recent ask this viewer may read (any one of them is the question)
@@ -137,10 +180,61 @@ def _grouped(
                 answered_rate=round(sum(r.answer_status == "answered" for r in rs) / len(rs), 3),
                 avg_ms=int(statistics.fmean(r.latency_ms for r in rs)),
                 last_asked=max(r.ts for r in rs),
+                variants=len({r.query_hash for r in rs}),
+                reasked=sum("reask" in r.flags for r in rs),
+                intent=Counter(r.intent for r in rs).most_common(1)[0][0],
             )
         )
     out.sort(key=lambda f: (-f.times, -f.officers, f.last_asked), reverse=False)
     return tuple(out[:top])
+
+
+def _breakdown(rows: Sequence[QueryRecord], key: Any) -> tuple[Breakdown, ...]:
+    groups: dict[str, list[QueryRecord]] = defaultdict(list)
+    for r in rows:
+        groups[key(r) or "—"].append(r)
+    return tuple(
+        sorted(
+            (
+                Breakdown(
+                    name=name,
+                    questions=len(rs),
+                    answered=sum(r.answer_status == "answered" for r in rs),
+                    no_answer=sum(r.answer_status == "no_answer" for r in rs),
+                    reasked=sum("reask" in r.flags for r in rs),
+                    avg_ms=int(statistics.fmean(r.latency_ms for r in rs)),
+                )
+                for name, rs in groups.items()
+            ),
+            key=lambda b: (-b.questions, b.name),
+        )
+    )
+
+
+def _topics(rows: Sequence[QueryRecord], viewer_rank: int, top: int = 15) -> tuple[Topic, ...]:
+    """Subject words of the questions this viewer may READ only: a withheld question's words are
+    never counted, so the topic list cannot hint at what a higher-cleared officer asked."""
+    asked: Counter[str] = Counter()
+    gaps: Counter[str] = Counter()
+    written: dict[str, Counter[str]] = defaultdict(Counter)  # "transfer" / "transfers" → one
+    for r in rows:
+        q, _ = _visible(r, viewer_rank)
+        if not q:
+            continue
+        for w in topic_words(q):
+            written[stem(w)][w] += 1
+        for k in {stem(w) for w in topic_words(q)}:
+            asked[k] += 1
+            gaps[k] += r.answer_status == "no_answer"
+    return tuple(
+        Topic(
+            word=min(written[k].items(), key=lambda x: (-x[1], len(x[0]), x[0]))[0],
+            questions=n,
+            no_answer=gaps[k],
+        )
+        for k, n in sorted(asked.items(), key=lambda x: (-x[1], x[0]))[:top]
+        if n > 1
+    )
 
 
 def build_monitor(
@@ -230,6 +324,13 @@ def build_monitor(
         cache=dict(cache or {}),
         truncated=truncated,
         alerts=alerts,
+        by_department=_breakdown(
+            rows, lambda r: f"{r.department} · {r.section}" if r.section else r.department
+        ),
+        by_role=_breakdown(rows, lambda r: r.role),
+        by_intent=_breakdown(rows, lambda r: r.intent),
+        topics=_topics(rows, viewer_rank),
+        reasked=sum("reask" in r.flags for r in rows),
     )
 
 

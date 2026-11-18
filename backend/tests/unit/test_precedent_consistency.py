@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import datetime as dt
 
-from app.conflict.deterministic import ConflictType
+from app.conflict.deterministic import ConflictFlag, ConflictType
 from app.precedent.consistency import Disposal, EarlierNote, disposal_of, precedent_flags
 
 SUBJECT = "School Education – Guidelines for conducting AP-TET – Reg."
@@ -22,10 +22,10 @@ def earlier(text: str, **kw: object) -> EarlierNote:
         "date": dt.date(2017, 12, 21),
         "text": text,
     }
-    return EarlierNote(**{**base, **kw})  # type: ignore[arg-type]
+    return EarlierNote(**{**base, **kw})
 
 
-def flags(text: str, notes: list[EarlierNote]) -> list[object]:
+def flags(text: str, notes: list[EarlierNote]) -> list[ConflictFlag]:
     return precedent_flags(
         file_no="ESE01-EXAM0EXM/25/2018-EXAMS",
         subject=SUBJECT,
@@ -48,9 +48,9 @@ def test_disposal_is_read_from_the_last_proposal_only() -> None:
 
 def test_opposite_disposal_on_the_same_matter_is_an_uncertain_type_d() -> None:
     (f,) = flags(REFUSE, [earlier(ALLOW)])
-    assert (f.type, f.cited, f.certain) == (ConflictType.D, "ESE01-EXAM0EXM/22/2017-EXAMS", False)  # type: ignore[attr-defined]
-    assert f.evidence_ids == ("AP-ESE01-NOTE-22-2017",)  # type: ignore[attr-defined]
-    assert "Review recommended" in f.explanation and "proposed to allow" in f.explanation  # type: ignore[attr-defined]
+    assert (f.type, f.cited, f.certain) == (ConflictType.D, "ESE01-EXAM0EXM/22/2017-EXAMS", False)
+    assert f.evidence_ids == ("AP-ESE01-NOTE-22-2017",)
+    assert "Review recommended" in f.explanation and "proposed to allow" in f.explanation
 
 
 def test_no_flag_when_consistent_referred_to_later_or_another_matter() -> None:
@@ -77,7 +77,7 @@ def test_the_earlier_practice_is_what_most_earlier_files_did() -> None:
     assert flags(ALLOW, [usual, stray]) == []
     more = earlier(ALLOW, file_no="ESE01-EXAM0EXM/23/2017-EXAMS", doc_id="N23")
     (f,) = flags(REFUSE, [usual, more, stray])  # against 2 of 3
-    assert "2 of 3 earlier files" in f.explanation and set(f.evidence_ids) == {  # type: ignore[attr-defined]
+    assert "2 of 3 earlier files" in f.explanation and set(f.evidence_ids) == {
         "AP-ESE01-NOTE-22-2017",
         "N23",
     }

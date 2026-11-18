@@ -20,13 +20,27 @@ from app.retrieval.scoped import ScopedRetriever
 @dataclass(frozen=True)
 class CloudRungs:
     index: ScopedRetriever  # L0 / L1 (BigQuery)
-    graph: GraphReader  # L3 (Cloud SQL)
+    graph: GraphReader  # L3 (Cloud SQL, or Spanner Graph with C2_GRAPH_BACKEND=spanner)
     l2: HybridRetriever | None  # BigQuery passages; None when no embedding model is set
     l2_min_score: float | None  # None = uncalibrated (never ends the ladder alone)
     pg: Pg | None = None
     passages: BigQueryPassageText | None = None  # order text for evidence (cloud-only orders)
     sources: CloudSourceFiles | None = None  # the files of cloud-only orders (mounted corpus)
     embedder: Any = None  # the question embedder (cached in Redis when configured)
+
+
+def _graph(settings: Settings, pg: Pg) -> GraphReader:
+    """L3 store (ADR-0048). Spanner Graph when chosen; Cloud SQL otherwise (the default)."""
+    if settings.graph_backend == "spanner":
+        from app.graph.spanner import CloudSpannerPort, SpannerGraphRepository
+
+        assert settings.gcp_project_id and settings.spanner_instance  # noqa: S101 — Settings
+        return SpannerGraphRepository(
+            CloudSpannerPort(
+                settings.gcp_project_id, settings.spanner_instance, settings.spanner_database
+            )
+        )
+    return PostgresGraphRepository(pg)
 
 
 def cloud_rungs_from_settings(settings: Settings, redis: Any = None) -> CloudRungs | None:
@@ -37,7 +51,7 @@ def cloud_rungs_from_settings(settings: Settings, redis: Any = None) -> CloudRun
     assert project and region  # noqa: S101 — enforced by Settings
     pg = pg_from_settings(settings.model_copy(update={"state_store": "postgres"}))
     assert pg is not None  # noqa: S101 — postgres was just selected
-    runner = BigQueryRunner(project, region)
+    runner = BigQueryRunner(project, region, settings.bq_timeout_s)
     l2: BigQueryHybridRetriever | None = None
     embedder: Any = None
     if settings.embedding_model:
@@ -49,7 +63,7 @@ def cloud_rungs_from_settings(settings: Settings, redis: Any = None) -> CloudRun
         l2 = BigQueryHybridRetriever(runner, f"{project}.{settings.bq_dataset}.passages", embedder)
     return CloudRungs(
         index=BigQueryScopedIndex(runner, f"{project}.{settings.bq_dataset}.documents"),
-        graph=PostgresGraphRepository(pg),
+        graph=_graph(settings, pg),
         l2=l2,
         l2_min_score=settings.l2_cloud_min_score,
         pg=pg,

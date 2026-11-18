@@ -1,7 +1,9 @@
 // Shapes returned by the sandbox and assist API (backend/app/eoffice_mock/routes.py,
 // backend/app/agents/routes.py). SYNTHETIC sandbox data only.
 
-export interface Profile { user_id: string; name: string; post: string }
+export interface Profile {
+  user_id: string; name: string; post: string; department?: string; section?: string | null; clearance?: string;
+}
 
 export interface Me extends Profile {
   banner: string; department: string; section: string | null; clearance: string;
@@ -11,6 +13,9 @@ export interface Me extends Profile {
 export interface FileRow {
   computer_no: string; file_no: string; subject: string; department: string;
   dealing_section: string; category: string; classification: string; state: string;
+  // e-Office folders (Inbox / Created / Closed) — present in the file listing
+  with_me?: boolean; created_by_me?: boolean; holder_post?: string | null; sent_by_post?: string | null;
+  received_on?: string | null; due_on?: string | null; priority?: string; created_on?: string | null;
 }
 
 export interface Note {
@@ -42,13 +47,35 @@ export interface Correspondence {
 
 export interface Movement {
   seq: number; from_user: string; to_user: string; sent_at: string; remarks: string;
-  priority: string; sent_back: boolean;
+  priority: string; sent_back: boolean; from_post?: string | null; to_post?: string | null; due_on?: string | null;
 }
 
 export interface FilePage {
   banner: string;
   file: FileRow & { previous_references: string[]; later_references: string[]; linked_files: string[] };
   notes: Note[]; drafts: DraftRow[]; correspondence: Correspondence[]; movements: Movement[];
+  submitted?: DfaRow[]; awaiting_approval?: DfaRow[]; attachments?: AttachmentRow[];
+}
+
+/** A DFA on its way to issue (ADR-0045). */
+export interface DfaRow {
+  draft_id: string; kind: string; status: "submitted" | "dispatched" | string; text: string | null;
+  submitted_at: string | null; author_post: string | null; approved_by_post: string | null; issued_as: string | null;
+}
+export interface AttachmentRow { attachment_id: string; filename: string; size: number; uploaded_by_post: string | null; uploaded_at: string }
+
+/** What of a file is in institutional memory, and what is still waiting (ADR-0045). */
+export interface FileRecords {
+  request_id: string; computer_no: string; file_no: string;
+  records: { canonical_id: string; doc_type: string; subject: string; issue_date: string | null;
+    standing: Standing; use_instead: string | null; versions: number; last_event: string | null }[];
+  waiting: { filename: string; waiting_for: string[] }[];
+}
+
+/** The draft workspace the server keeps (ADR-0046): the officer's own choices and words only. */
+export interface DraftWorkspace {
+  format_id: string | null; inputs: Record<string, string>; suggest: boolean;
+  added: string[]; dropped: string[]; previous_references: string[]; prepared: boolean; text: string;
 }
 
 export interface Flag {
@@ -199,6 +226,8 @@ export interface Highlights extends AssistMeta {
 export interface DocumentInfo {
   request_id: string; canonical_id: string; doc_type: string; subject: string; issue_date: string | null;
   version: string; media_type: string; previewable: boolean; filename: string;
+  standing?: Standing; use_instead?: string | null;
+  history?: { version: string; received_at: string; event: string }[];
 }
 
 // OCR review (plan §4.2): scans waiting for a reviewer.
@@ -224,7 +253,16 @@ export interface ChatCitation {
 }
 export interface ChatStatement {
   text: string; quote: string | null; citations: ChatCitation[];
-  source: "evidence" | "order records";
+  // "file records": a count of decided files the officer may see, no model involved (ADR-0051)
+  // "link records": records of other departments linked to the order, from the graph (ADR-0056)
+  // "entity records": the records naming a person or office the question names (ADR-0058)
+  source: "evidence" | "order records" | "file records" | "link records" | "entity records";
+  // how far it can be relied on, from facts the system holds (ADR-0054); absent on older answers
+  confidence?: Confidence | null;
+}
+export interface Confidence {
+  band: "high" | "medium" | "low"; score: number;
+  factors: { name: string; value: number; reason: string }[];
 }
 export interface NoteLine { text: string; refs: string[] }
 export interface DraftNote { sections: { heading: string; lines: NoteLine[] }[]; removed: number; text: string; engine: string | null }
@@ -287,7 +325,15 @@ export interface ActivityRow {
 export interface FrequentQuestion {
   question: string | null; withheld: boolean; times: number; officers: number;
   answered_rate: number; avg_ms: number; last_asked: string;
+  /** FAQ analytics (ADR-0059): asks in other words grouped as one question */
+  variants?: number; reasked?: number; intent?: string | null;
 }
+/** Questions by one dimension: department · section, role or intent (plan §10.4; ADR-0059). */
+export interface Breakdown {
+  name: string; questions: number; answered: number; no_answer: number; reasked: number; avg_ms: number;
+}
+/** A subject word, counted only from questions this monitoring officer may read. */
+export interface Topic { word: string; questions: number; no_answer: number; }
 export interface OfficerActivity {
   user_id: string; role: string; department: string; questions: number; answered: number;
   no_answer: number; avg_ms: number; thumbs_up: number; thumbs_down: number; last_seen: string;
@@ -301,6 +347,8 @@ export interface MonitorData {
   gaps: FrequentQuestion[]; slowest: ActivityRow[]; feedback: FeedbackRow[];
   cache: Record<string, string | number | boolean | null>; truncated: boolean;
   alerts?: AlertsView | null;
+  by_department?: Breakdown[]; by_role?: Breakdown[]; by_intent?: Breakdown[];
+  topics?: Topic[]; reasked?: number;
 }
 
 /** Unusual-activity alerts (ADR-0036). Codes only; words gated by clearance as on the pad. */
@@ -373,3 +421,64 @@ export interface ClosingRemarks extends AssistMeta {
   computer_no: string; file_no: string; text: string | null; cited: string[]; blockers: string[]; can_close: boolean;
 }
 
+
+/** The officer's own display and assistant settings (ADR-0041). Never access. */
+export interface Preferences {
+  theme: "light" | "dark" | "system";
+  text_size: "normal" | "large" | "larger";
+  density: "comfortable" | "compact";
+  contrast: "standard" | "high";
+  reduce_motion: boolean;
+  date_style: "dd-mm-yyyy" | "dd Mon yyyy";
+  note_font: "serif" | "sans";
+  landing: "inbox" | "receipts" | "search" | "monitor";
+  due_soon_days: number;
+  assistant_panel: "open" | "collapsed";
+  stream_answers: boolean;
+  shortcuts: boolean;
+  show_notices: boolean;
+}
+
+export const DEFAULT_PREFERENCES: Preferences = {
+  theme: "light", text_size: "normal", density: "comfortable", contrast: "standard", reduce_motion: false,
+  date_style: "dd-mm-yyyy", note_font: "serif", landing: "inbox", due_soon_days: 3,
+  assistant_panel: "open", stream_answers: true, shortcuts: true, show_notices: true,
+};
+
+/* ---- Draft workspace (ADR-0044) ---- */
+export type InputName = "subject" | "request" | "facts" | "proposal" | "signatory" | "addressees" | "copy_to";
+export interface DraftFormat {
+  id: string; family: "noting" | "outgoing"; kind: "note" | "go" | "memo" | "letter";
+  title: string; use_when: string; saves_as: "yellow_note" | "dfa_draft"; basis: string;
+  inputs: InputName[]; skeleton: string; number_label: string | null;
+}
+export interface DraftFormats { version: number; status: "mock" | "confirmed"; formats: DraftFormat[] }
+export type DraftInputs = Partial<Record<InputName, string>>;
+export interface DraftPart { key: string; text: string; origin: "officer" | "record" | "check" | "fixed" | "blank"; refs: string[] }
+export interface DraftReadItem {
+  canonical_id: string; label: string; doc_type: string; subject: string; issue_date: string | null;
+  in_place_of: string[]; cited_in_note: boolean; status_confirmed: boolean;
+}
+export interface DraftRelation { kind: string; direction: "out" | "in"; other: string; other_subject: string; other_label: string }
+export type Standing = "in_force" | "superseded" | "repealed" | "expired" | "not_yet_in_force" | "unconfirmed" | "not_an_order";
+export interface CloseMatch {
+  canonical_id: string; label: string; doc_type: string; subject: string; issue_date: string | null;
+  file_no: string | null; found_by: string; standing: Standing; use_instead: string | null;
+  relations: DraftRelation[]; in_read_list: boolean; flagged: string[];
+}
+export interface DraftFlag { type: string; cited: string; evidence_ids: string[]; explanation: string; certain: boolean; review_state: string }
+export interface PreparedDraft {
+  request_id: string; computer_no: string | null; format: DraftFormat;
+  draft: { format_id: string; saves_as: "yellow_note" | "dfa_draft"; parts: DraftPart[]; text: string; citations: string[]; placeholders: number };
+  read_list: DraftReadItem[]; left_out: { cited: string; reason: string }[];
+  checks: { outcome: string; flags: DraftFlag[]; status_unconfirmed: string[]; awaiting_review: string[]; fact_gaps: string[]; authority_message: string | null };
+  /** unavailable: rungs whose store failed this time (plan §14.4), e.g. ["L3"] */
+  matches: { ladder: string; documents: CloseMatch[]; unavailable?: string[] };
+  suggested: null | {
+    lines: { text: string; refs: string[]; heading: string | null }[];
+    removed: number; engine: string | null; fallback: boolean; reason: string | null;
+  };
+  calibrated: boolean; mock_rules: boolean;
+  /** a new matter only: earlier files on the subject the officer can open (Previous References) */
+  related_files?: { file_no: string; computer_no: string }[];
+}

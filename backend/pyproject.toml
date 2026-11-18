@@ -71,3 +71,8 @@ python_version = "3.11"
 strict = true
 plugins = ["pydantic.mypy"]
 files = ["app", "tests", "../evaluation"]
+
+[[tool.mypy.overrides]]
+# RAGAS runs in its own throwaway environment (evaluation/ragas_score.py, ADR-0050), never here
+module = ["ragas", "ragas.*"]
+ignore_missing_imports = true

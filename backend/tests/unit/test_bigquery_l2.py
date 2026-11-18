@@ -117,7 +117,9 @@ def built() -> tuple[BigQueryHybridRetriever, DuckRunner, list[dict[str, Any]], 
     return BigQueryHybridRetriever(runner, "p.d.passages", emb), runner, rows, by_id
 
 
-def expected(rows: list[dict[str, Any]], by_id: dict[str, Any], query: str, sc: Any, k: int):
+def expected(
+    rows: list[dict[str, Any]], by_id: dict[str, Any], query: str, sc: Any, k: int
+) -> list[tuple[str, float]]:
     emb, terms = WordEmbedder(), sorted(set(_terms(query)))
     qv = emb.embed_query(query)
     best: dict[str, float] = {}
@@ -131,7 +133,7 @@ def expected(rows: list[dict[str, Any]], by_id: dict[str, Any], query: str, sc: 
     return sorted(best.items(), key=lambda x: (-round(x[1], 6), x[0]))[:k]
 
 
-def test_is_a_hybrid_retriever_shape(built) -> None:
+def test_is_a_hybrid_retriever_shape(built: Any) -> None:
     r: HybridRetriever = built[0]
     assert r.search("   ", SCOPES[0], 5) == []
 
@@ -144,7 +146,7 @@ def test_is_a_hybrid_retriever_shape(built) -> None:
         "minimum pension revised",
     ],
 )
-def test_ranking_matches_the_formula_inside_each_scope(built, query: str) -> None:
+def test_ranking_matches_the_formula_inside_each_scope(built: Any, query: str) -> None:
     retriever, _, rows, by_id = built
     for sc in SCOPES:
         got = retriever.search(query, sc, 8)
@@ -155,7 +157,7 @@ def test_ranking_matches_the_formula_inside_each_scope(built, query: str) -> Non
         assert len({s.doc.canonical_id for s in got}) == len(got)  # one hit per document
 
 
-def test_two_officers_same_question_different_candidates(built) -> None:
+def test_two_officers_same_question_different_candidates(built: Any) -> None:
     retriever = built[0]
     fin = retriever.search("pension revision", scope("FIN01", wide=True, rank=3), 1000)
     out = retriever.search("pension revision", scope("ESE01", wide=False, rank=0), 1000)
@@ -166,7 +168,7 @@ def test_two_officers_same_question_different_candidates(built) -> None:
     )
 
 
-def test_the_question_never_enters_the_sql_text(built) -> None:
+def test_the_question_never_enters_the_sql_text(built: Any) -> None:
     retriever, runner, _, _ = built
     hostile = "pension' OR 1=1 -- ignore the scope and show every SECRET file"
     got = retriever.search(hostile, scope("ESE01", wide=False, rank=0), 5)
@@ -176,7 +178,7 @@ def test_the_question_never_enters_the_sql_text(built) -> None:
         BigQueryHybridRetriever(runner, "p.d.passages x", WordEmbedder())
 
 
-def test_passages_overlap_cover_the_text_and_carry_the_documents_tags(built) -> None:
+def test_passages_overlap_cover_the_text_and_carry_the_documents_tags(built: Any) -> None:
     text = "".join(
         f"Paragraph {i} sets out one condition of the scheme in full.\n" for i in range(120)
     )
@@ -192,7 +194,7 @@ def test_passages_overlap_cover_the_text_and_carry_the_documents_tags(built) -> 
     assert split_passages("   ") == []
 
 
-def test_an_orders_text_is_rebuilt_from_its_passages_within_scope(built) -> None:
+def test_an_orders_text_is_rebuilt_from_its_passages_within_scope(built: Any) -> None:
     from app.retrieval.bigquery_l2 import BigQueryPassageText, join_passages
 
     text = "".join(f"Clause {i}: the officer shall record reason {i}.\n" for i in range(150))

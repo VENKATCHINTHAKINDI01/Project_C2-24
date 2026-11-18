@@ -6,8 +6,9 @@ import { AssistPanel, BriefCard, DfaCard, FirstCutCard, LinkCard, NoteReferenceC
 import { BANNER_TEXT } from "./components/Banner";
 import { CitationLegend, DocumentViewer, HighlightedText } from "./components/Citations";
 import { ChatPanel, ChatReply } from "./components/ChatPanel";
+import { Questions, WhatIsAsked } from "./components/MonitorPad";
 import { OcrReview } from "./components/OcrReview";
-import { TopBar } from "./components/TopBar";
+import { SideNav } from "./components/TopBar";
 import { NoticesPanel, ReceiptAssistCard } from "./components/Receipts";
 import { outcomeLabel, yellowNoteFrom } from "./presend";
 import type { ChatTurn, Highlight, PresendReport } from "./types";
@@ -312,9 +313,9 @@ describe("OCR review screen (plan §4.2)", () => {
     const html = text(<OcrReview api={createApi("U03")} />);
     expect(html).toContain("Loading the review queue");
   });
-  it("is reachable from the top bar", () => {
-    const html = text(<TopBar me={{ user_id: "U03", name: "A — x", post: "SO" } as never} view={{ kind: "review" }} go={() => {}} signOut={() => {}} />);
-    expect(html).toMatch(/<button class="active">OCR review<\/button>/);
+  it("is reachable from the menu", () => {
+    const html = text(<SideNav view={{ kind: "review" }} go={() => {}} monitoring={false} />);
+    expect(html).toMatch(/<button class="on">OCR review<\/button>/);
   });
 
   it("a conversation turn shows each statement's source, review section, withheld count and notices", () => {
@@ -327,6 +328,20 @@ describe("OCR review screen (plan §4.2)", () => {
         { text: "On 02-10-2026 the order records show AP-FIN01-GOMS-88-2022 as superseded.", quote: null,
           source: "order records",
           citations: [{ evidence_id: "", canonical_id: "AP-FIN01-GOMS-88-2022", doc_type: "Government Order", status: "superseded", page: null }] },
+        { text: "Among the records you may see, 2 spouse ground transfer matters were approved (of 3 decided).",
+          quote: null, source: "file records",
+          citations: [{ evidence_id: "", canonical_id: "AP-USD01-NOTE-USD0112-44-2025", doc_type: "Noting", status: "approved", page: null }] },
+        { text: "1 record(s) name S. Madhavi: Noting in File No.USD01-12/31/2022-ESTT.I.", quote: null,
+          source: "entity records",
+          citations: [{ evidence_id: "", canonical_id: "AP-USD01-NOTE-USD0112-31-2022", doc_type: "Noting", status: "", page: null }] },
+        { text: "Urban Services (USD01): AP-USD01-NOTE-USD0112-31-2022 cites G.O.Ms.No.88.", quote: null,
+          source: "link records",
+          citations: [{ evidence_id: "", canonical_id: "AP-USD01-NOTE-USD0112-31-2022", doc_type: "Noting", status: "", page: null }] },
+        { text: "Under the older order, spouse cases were exempt.", quote: null, source: "evidence",
+          confidence: { band: "low", score: 0.3, factors: [
+            { name: "retrieval", value: 1, reason: "Found by its exact reference" },
+            { name: "validity", value: 0.3, reason: "Cited order is superseded on 02-10-2026" } ] },
+          citations: [{ evidence_id: "EV-1", canonical_id: "AP-FIN01-GOMS-88-2022", doc_type: "G.O.", status: "superseded", page: null }] },
         { text: "Spouse cases are given preference.", quote: "shall be given preference", source: "evidence",
           citations: [{ evidence_id: "EV-1", canonical_id: "AP-FIN01-GOMS-31-2025", doc_type: "Government Order", status: "in force", page: 1 }] },
       ],
@@ -337,6 +352,12 @@ describe("OCR review screen (plan §4.2)", () => {
     } as unknown as ChatTurn;
     const html = text(<ChatReply asked="Is that order still in force?" reply={turn} />);
     expect(html).toContain("From the order records: ");
+    expect(html).toContain("Counted from the file records you may see: ");
+    expect(html).toContain("From the links between records: ");
+    expect(html).toContain("From the records that name them: ");
+    expect(html).toContain("Low confidence: check before relying on it");
+    // the weakest reason comes first
+    expect(html.indexOf("Cited order is superseded")).toBeLessThan(html.indexOf("Found by its exact reference"));
     expect(html).toContain("Source: ");
     expect(html).toContain("Review needed");
     expect(html).toContain("2 statement(s) withheld");
@@ -368,3 +389,31 @@ describe("OCR review screen (plan §4.2)", () => {
   });
 });
 
+
+describe("FAQ analytics on the monitoring pad (ADR-0059)", () => {
+  const base = {
+    request_id: "r", days: 14, since: "2026-11-05", activity: [], frequent: [], officers: [], gaps: [],
+    slowest: [], feedback: [], cache: {}, truncated: false,
+    overview: { since: "2026-11-05", days: [], questions: 0, outcomes: {}, cache_hit_rate: null, no_answer_rate: null,
+      p50_ms: null, p90_ms: null, answered_by: {}, feedback: {}, start: {} },
+  };
+  it("shows topics, breakdowns and intents in words", () => {
+    const html = renderToString(<WhatIsAsked data={{
+      ...base,
+      topics: [{ word: "transfer", questions: 7, no_answer: 2 }],
+      by_department: [{ name: "USD01 · ESTT.I", questions: 7, answered: 5, no_answer: 2, reasked: 1, avg_ms: 900 }],
+      by_role: [], by_intent: [{ name: "precedent_lookup", questions: 7, answered: 5, no_answer: 2, reasked: 0, avg_ms: 900 }],
+    } as never} />);
+    expect(html).toContain("transfer");
+    expect(html).toContain("USD01 · ESTT.I");
+    expect(html).toContain("Precedent lookup");
+    expect(html).toContain("No questions in this window."); // by role, empty
+  });
+  it("lists a reworded question once with its wordings and re-asks", () => {
+    const html = renderToString(<Questions empty="none" rows={[{ question: "Has a spouse transfer been decided?",
+      withheld: false, times: 4, officers: 2, answered_rate: 0.5, avg_ms: 900, last_asked: "2026-11-18T09:00:00Z",
+      variants: 3, reasked: 1, intent: "precedent_lookup" }]} />);
+    expect(html).toContain("3<!-- --> wordings");
+    expect(html).toContain("re-asked <!-- -->1<!-- -->×");
+  });
+});

@@ -21,7 +21,8 @@ from fastapi.testclient import TestClient
 from app.config import get_settings
 from app.connectors.eoffice import SourceArtefact
 from app.main import create_app
-from tests.unit.test_sandbox_api import MATRIX, USERS, _doc_id, _h
+from tests.unit.mock_access import MATRIX
+from tests.unit.test_sandbox_api import USERS, _doc_id, _h
 
 APP = create_app(get_settings().model_copy(update={"sandbox": True}))
 HEADER = """GOVERNMENT OF ANDHRA PRADESH
@@ -68,7 +69,9 @@ class ObedientLLM:
     def __init__(self) -> None:
         self.prompts: list[str] = []
 
-    def generate_json(self, *, prompt_id: str, system: str, user: str, schema: dict[str, Any]):
+    def generate_json(
+        self, *, prompt_id: str, system: str, user: str, schema: dict[str, Any]
+    ) -> dict[str, Any]:
         self.prompts.append(user)
         ids = re.findall(r'<evidence id="(EV-\d+)"', user)
         first = ids[0] if ids else "EV-1"
@@ -148,7 +151,9 @@ def test_an_obedient_model_cannot_act_on_a_planted_instruction(client: TestClien
         assert prompt.count("<evidence id=") == prompt.count("</evidence>")  # no fence broken
         assert "</evidence_package>" not in prompt.split("<evidence_package", 1)[1][:-30]
         secret_text = APP.state.assist_runtime().texts.get(SECRET_ID, "")[200:320]
-        assert not secret_text or secret_text not in prompt or MATRIX[(_doc_id(SECRET_ID), uid)]
+        assert (
+            not secret_text or secret_text not in prompt or MATRIX[(str(_doc_id(SECRET_ID)), uid)]
+        )
         assert 'contains-instructions-to-ai="true"' in prompt  # the model is told, too
         # 2. nothing the obedient model wrote on instruction survives the citation check
         shown = " ".join(s["text"] for s in out["statements"])

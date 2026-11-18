@@ -11,6 +11,8 @@ from __future__ import annotations
 
 import hashlib
 import re
+import threading
+from collections import OrderedDict
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
@@ -48,34 +50,46 @@ class _Entry:
 
 @dataclass
 class InMemoryAnswerCache:
-    """Reference cache; Memorystore implements the same methods later (cache only)."""
+    """Reference cache; Memorystore implements the same methods (cache only). Thread-safe and
+    bounded (ADR-0039): past `max_entries` the least recently used answer is dropped."""
 
-    _entries: dict[str, _Entry] = field(default_factory=dict)
+    _entries: OrderedDict[str, _Entry] = field(default_factory=OrderedDict)
     hits: int = 0
     misses: int = 0
+    max_entries: int = 5000
+    _lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
 
     def get(self, canonical_query: str, scope: Scope | None) -> str | None:
         if scope is None:  # unverifiable scope → bypass
             return None
-        entry = self._entries.get(answer_cache_key(canonical_query, scope))
-        if entry is None:
-            self.misses += 1
-            return None
-        self.hits += 1
-        return entry.answer
+        key = answer_cache_key(canonical_query, scope)
+        with self._lock:
+            entry = self._entries.get(key)
+            if entry is None:
+                self.misses += 1
+                return None
+            self._entries.move_to_end(key)
+            self.hits += 1
+            return entry.answer
 
     def put(
         self, canonical_query: str, scope: Scope | None, answer: str, cited_ids: frozenset[str]
     ) -> None:
         if scope is None:
             return
-        self._entries[answer_cache_key(canonical_query, scope)] = _Entry(answer, cited_ids)
+        key = answer_cache_key(canonical_query, scope)
+        with self._lock:
+            self._entries[key] = _Entry(answer, cited_ids)
+            self._entries.move_to_end(key)
+            while len(self._entries) > self.max_entries:
+                self._entries.popitem(last=False)
 
     def invalidate_documents(self, canonical_ids: frozenset[str]) -> int:
         """New/changed/reclassified documents drop every answer that cites them (plan §7.4)."""
-        stale = [k for k, e in self._entries.items() if e.cited_ids & canonical_ids]
-        for k in stale:
-            del self._entries[k]
+        with self._lock:
+            stale = [k for k, e in self._entries.items() if e.cited_ids & canonical_ids]
+            for k in stale:
+                del self._entries[k]
         return len(stale)
 
     def __len__(self) -> int:

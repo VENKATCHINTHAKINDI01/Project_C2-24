@@ -49,6 +49,9 @@ class GraphExpansion(BaseModel):
     scope_signature: str | None
     seeds: tuple[str, ...]  # authorised seeds actually used
     hits: tuple[GraphHit, ...]
+    # plan §14.4: the graph store failed — no relations were walked, so nothing here may be read
+    # as "no later order exists"; callers say "supersession status unverified"
+    unavailable: bool = False
 
 
 def expand(
@@ -74,16 +77,24 @@ def expand(
         node = graph.node(cid)
         return node is not None and check(user_id, node.tags, store, policy, classification).allowed
 
-    ok_seeds = tuple(s for s in dict.fromkeys(seeds) if allowed(s))
-    raw = graph.walk(
-        ok_seeds,
-        scope,
-        kinds=kinds,
-        direction=direction,
-        max_hops=max_hops,
-        include_unconfirmed=include_unconfirmed,
-    )
-    hits = tuple(h for h in raw if allowed(h.canonical_id) and all(allowed(p) for p in h.path))
+    if max_hops < 1:  # a caller's mistake, not an outage: raised, never reported as "unavailable"
+        raise ValueError("max_hops must be >= 1")
+    try:
+        ok_seeds = tuple(s for s in dict.fromkeys(seeds) if allowed(s))
+        raw = graph.walk(
+            ok_seeds,
+            scope,
+            kinds=kinds,
+            direction=direction,
+            max_hops=max_hops,
+            include_unconfirmed=include_unconfirmed,
+        )
+        hits = tuple(h for h in raw if allowed(h.canonical_id) and all(allowed(p) for p in h.path))
+    except ScopeError:
+        return GraphExpansion(scope_signature=None, seeds=(), hits=())  # fail closed
+    except Exception as exc:  # noqa: BLE001 — plan §14.4: no walk, said so; never a partial one
+        log.error("L3 graph store unavailable user=%s: %s", user_id, type(exc).__name__)
+        return GraphExpansion(scope_signature=scope.signature, seeds=(), hits=(), unavailable=True)
     if len(hits) != len(raw):  # scope and re-check disagree: a bug, never silently served
         log.error("L3 re-check removed %d in-scope hits user=%s", len(raw) - len(hits), user_id)
     return GraphExpansion(scope_signature=scope.signature, seeds=ok_seeds, hits=hits)

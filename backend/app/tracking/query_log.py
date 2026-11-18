@@ -16,6 +16,8 @@ from typing import Any, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.tracking.retry_buffer import RetryBuffer
+
 log = logging.getLogger(__name__)
 
 
@@ -64,11 +66,14 @@ class QueryLog(Protocol):
 class InMemoryQueryLog:
     """Reference log (sandbox default, tests)."""
 
-    def __init__(self) -> None:
+    def __init__(self, max_rows: int = 50_000) -> None:
         self.records: list[QueryRecord] = []
+        self._max = max_rows  # bounded memory (ADR-0039): the oldest rows go first
 
     def write(self, record: QueryRecord) -> None:
         self.records.append(record)
+        if len(self.records) > self._max * 1.1:
+            del self.records[: len(self.records) - self._max]
 
 
 def bq_row(r: QueryRecord) -> dict[str, Any]:
@@ -82,7 +87,7 @@ def bq_row(r: QueryRecord) -> dict[str, Any]:
 class BigQueryQueryLog:
     """Streaming insert into `<project>.<prefix>_audit.query_log` (schema:
     data/schemas/bigquery/query_log.json). Needs table write on the dataset only (no job).
-    Tracking must never break an answer: a failed insert is logged (type only) and dropped."""
+    Tracking must never break an answer: a failed insert is kept and retried (RetryBuffer)."""
 
     def __init__(self, project: str, table: str, client: Any | None = None) -> None:
         if client is None:
@@ -90,15 +95,13 @@ class BigQueryQueryLog:
 
             client = bigquery.Client(project=project)
         self._client, self._table = client, table
+        # plan §14.4: a failed insert is kept and retried with the next one (bounded)
+        self.buffer = RetryBuffer(
+            "query_log", lambda rows: self._client.insert_rows_json(self._table, rows)
+        )
 
     def write(self, record: QueryRecord) -> None:
-        try:
-            errors = self._client.insert_rows_json(self._table, [bq_row(record)])
-        except Exception as exc:  # noqa: BLE001 — tracking is best-effort, never the answer path
-            log.error("query log insert failed: %s", type(exc).__name__)
-            return
-        if errors:
-            log.error("query log insert rejected %d row(s)", len(errors))
+        self.buffer.write(bq_row(record))
 
 
 def query_log_columns() -> Sequence[str]:

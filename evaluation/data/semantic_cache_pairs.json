@@ -1,0 +1,486 @@
+{
+ "synthetic": true,
+ "note": "SYNTHETIC calibration set for the semantic cache (ADR-0053). 'same': a reworded repeat that may share an answer. 'different': same anchors (intent, orders, numbers, negation, outcome) but a different question - must never share. Evaluation only; the app never reads this file. Expanded 18 Nov 2026 with the owner's review examples and adversarial variants (word order, negation, years, numbers, officers, posts, departments, outcomes, leave types, relation direction, Telugu).",
+ "pairs": [
+  {
+   "a": "Is G.O.Ms.No.88/2022 still in force?",
+   "b": "Is GO Ms 88/2022 still in force now?",
+   "label": "same"
+  },
+  {
+   "a": "Is G.O.Ms.No.88/2022 still valid?",
+   "b": "Is G.O.Ms.No.88/2022 still valid today?",
+   "label": "same"
+  },
+  {
+   "a": "What superseded G.O.Ms.No.88 of 2022?",
+   "b": "Which order superseded G.O.Ms.No.88 of 2022?",
+   "label": "same"
+  },
+  {
+   "a": "What does para 2(v) of GO Ms 88/2022 say?",
+   "b": "What does paragraph 2(v) of GO Ms 88/2022 say?",
+   "label": "same"
+  },
+  {
+   "a": "Has a spouse-grounds transfer been decided before?",
+   "b": "Has any spouse grounds transfer been decided before?",
+   "label": "same"
+  },
+  {
+   "a": "Which orders on transfers are in force now?",
+   "b": "Which transfer orders are in force now?",
+   "label": "same"
+  },
+  {
+   "a": "What is the emergency works limit of the Commissioner?",
+   "b": "What is the Commissioner's limit for emergency works?",
+   "label": "same"
+  },
+  {
+   "a": "Summarise the vigilance matters in the Department.",
+   "b": "Please summarise the vigilance matters of the Department.",
+   "label": "same"
+  },
+  {
+   "a": "How many spouse-ground transfer requests were rejected in 2025?",
+   "b": "How many spouse ground transfer requests were rejected in 2025?",
+   "label": "same"
+  },
+  {
+   "a": "Who can sanction leave for a Senior Assistant?",
+   "b": "Who can sanction the leave of a Senior Assistant?",
+   "label": "same"
+  },
+  {
+   "a": "What are the current guidelines on general transfers?",
+   "b": "What are the current general transfer guidelines?",
+   "label": "same"
+  },
+  {
+   "a": "Which rules govern the recruitment of Junior Assistants?",
+   "b": "Which rules govern Junior Assistant recruitment?",
+   "label": "same"
+  },
+  {
+   "a": "What was decided on deputation requests?",
+   "b": "What has been decided on deputation requests?",
+   "label": "same"
+  },
+  {
+   "a": "Show me the orders on the ban on transfers.",
+   "b": "Show the orders on the transfer ban.",
+   "label": "same"
+  },
+  {
+   "a": "What is the ceiling for administrative sanction by the Chief Engineer?",
+   "b": "What is the administrative sanction ceiling of the Chief Engineer?",
+   "label": "same"
+  },
+  {
+   "a": "Was leave travel concession allowed to contract staff?",
+   "b": "Was the leave travel concession allowed to contract staff?",
+   "label": "same"
+  },
+  {
+   "a": "What does G.O.Ms.No.88/2022 say about spouses?",
+   "b": "What does G.O.Ms.No.88/2022 say about the transfer ban?",
+   "label": "different"
+  },
+  {
+   "a": "What does G.O.Ms.No.88/2022 say about spouses?",
+   "b": "What does G.O.Ms.No.88/2022 say about medical grounds?",
+   "label": "different"
+  },
+  {
+   "a": "Which orders on transfers are in force now?",
+   "b": "Which orders on promotions are in force now?",
+   "label": "different"
+  },
+  {
+   "a": "Which orders on transfers are in force now?",
+   "b": "Which orders on deputation are in force now?",
+   "label": "different"
+  },
+  {
+   "a": "What is the emergency works limit of the Commissioner?",
+   "b": "What is the emergency works limit of the Chief Engineer?",
+   "label": "different"
+  },
+  {
+   "a": "What is the emergency works limit of the Commissioner?",
+   "b": "What is the ordinary works limit of the Commissioner?",
+   "label": "different"
+  },
+  {
+   "a": "Who can sanction leave for a Senior Assistant?",
+   "b": "Who can sanction leave for a Superintendent?",
+   "label": "different"
+  },
+  {
+   "a": "Who can sanction leave for a Senior Assistant?",
+   "b": "Who can sanction tour for a Senior Assistant?",
+   "label": "different"
+  },
+  {
+   "a": "Has a spouse-grounds transfer been decided before?",
+   "b": "Has a medical-grounds transfer been decided before?",
+   "label": "different"
+  },
+  {
+   "a": "Has a spouse-grounds transfer been decided before?",
+   "b": "Has a spouse-grounds deputation been decided before?",
+   "label": "different"
+  },
+  {
+   "a": "Summarise the vigilance matters in the Department.",
+   "b": "Summarise the disciplinary matters in the Department.",
+   "label": "different"
+  },
+  {
+   "a": "Summarise the vigilance matters in the Department.",
+   "b": "Summarise the court matters in the Department.",
+   "label": "different"
+  },
+  {
+   "a": "What are the current guidelines on general transfers?",
+   "b": "What are the current guidelines on general promotions?",
+   "label": "different"
+  },
+  {
+   "a": "Which rules govern the recruitment of Junior Assistants?",
+   "b": "Which rules govern the recruitment of Typists?",
+   "label": "different"
+  },
+  {
+   "a": "Which rules govern the recruitment of Junior Assistants?",
+   "b": "Which rules govern the promotion of Junior Assistants?",
+   "label": "different"
+  },
+  {
+   "a": "What was decided on deputation requests?",
+   "b": "What was decided on study leave requests?",
+   "label": "different"
+  },
+  {
+   "a": "Show me the orders on the ban on transfers.",
+   "b": "Show me the orders on the ban on recruitment.",
+   "label": "different"
+  },
+  {
+   "a": "What is the ceiling for administrative sanction by the Chief Engineer?",
+   "b": "What is the ceiling for technical sanction by the Chief Engineer?",
+   "label": "different"
+  },
+  {
+   "a": "Was leave travel concession allowed to contract staff?",
+   "b": "Was leave travel concession allowed to retired staff?",
+   "label": "different"
+  },
+  {
+   "a": "Was leave travel concession allowed to contract staff?",
+   "b": "Was medical reimbursement allowed to contract staff?",
+   "label": "different"
+  },
+  {
+   "a": "What superseded G.O.Ms.No.88 of 2022?",
+   "b": "What amended G.O.Ms.No.88 of 2022?",
+   "label": "different"
+  },
+  {
+   "a": "Which officers handled the transfer file last year?",
+   "b": "Which officers handled the leave file last year?",
+   "label": "different"
+  },
+  {
+   "a": "What did the Secretary decide on the spouse case?",
+   "b": "What did the Secretary decide on the medical case?",
+   "label": "different"
+  },
+  {
+   "a": "Which orders apply to this file, and are they still in force?",
+   "b": "Which orders were cited in this file, and are they still in force?",
+   "label": "different"
+  },
+  {
+   "a": "Was GO 125 withdrawn?",
+   "b": "Has GO 125 been withdrawn?",
+   "label": "same"
+  },
+  {
+   "a": "Was GO 125 withdrawn?",
+   "b": "Was GO 125 superseded?",
+   "label": "different"
+  },
+  {
+   "a": "Is medical leave permitted?",
+   "b": "Is maternity leave permitted?",
+   "label": "different"
+  },
+  {
+   "a": "Was the application approved?",
+   "b": "Was the application rejected?",
+   "label": "different"
+  },
+  {
+   "a": "What was decided in 2022?",
+   "b": "What was decided in 2023?",
+   "label": "different"
+  },
+  {
+   "a": "Which orders on transfers apply to teachers?",
+   "b": "Which orders apply to teachers on transfers?",
+   "label": "same"
+  },
+  {
+   "a": "Who sanctions leave for drivers?",
+   "b": "For drivers, who sanctions leave?",
+   "label": "same"
+  },
+  {
+   "a": "What is the limit for emergency works?",
+   "b": "For emergency works, what is the limit?",
+   "label": "same"
+  },
+  {
+   "a": "Are spouse cases given preference in transfers?",
+   "b": "In transfers, are spouse cases given preference?",
+   "label": "same"
+  },
+  {
+   "a": "Is GO 88 in force?",
+   "b": "Is GO 88 not in force?",
+   "label": "different"
+  },
+  {
+   "a": "Can a Junior Assistant be transferred?",
+   "b": "Can a Junior Assistant not be transferred?",
+   "label": "different"
+  },
+  {
+   "a": "Was the request approved?",
+   "b": "Was the request never approved?",
+   "label": "different"
+  },
+  {
+   "a": "Is prior permission required?",
+   "b": "Is prior permission not required?",
+   "label": "different"
+  },
+  {
+   "a": "Can leave be granted without a medical certificate?",
+   "b": "Can leave be granted with a medical certificate?",
+   "label": "different"
+  },
+  {
+   "a": "How many transfers were approved in 2024?",
+   "b": "How many transfers were approved in 2025?",
+   "label": "different"
+  },
+  {
+   "a": "What did GO 31 of 2025 change?",
+   "b": "What did GO 31 of 2024 change?",
+   "label": "different"
+  },
+  {
+   "a": "What did GO 31 of 2025 change?",
+   "b": "What did GO 32 of 2025 change?",
+   "label": "different"
+  },
+  {
+   "a": "What is the limit of Rs.1.00 crore for?",
+   "b": "What is the limit of Rs.1.50 crore for?",
+   "label": "different"
+  },
+  {
+   "a": "Which orders were issued after 01-04-2022?",
+   "b": "Which orders were issued after 01-05-2022?",
+   "label": "different"
+  },
+  {
+   "a": "What does para 3 say?",
+   "b": "What does para 4 say?",
+   "label": "different"
+  },
+  {
+   "a": "What does para 2(v) say?",
+   "b": "What does para 2(iv) say?",
+   "label": "different"
+  },
+  {
+   "a": "What was decided in 2022?",
+   "b": "What has been decided in 2022?",
+   "label": "same"
+  },
+  {
+   "a": "How many transfers were approved in 2024?",
+   "b": "How many transfers have been approved in 2024?",
+   "label": "same"
+  },
+  {
+   "a": "Who can sanction leave for a Senior Assistant?",
+   "b": "Who can sanction leave for a Junior Assistant?",
+   "label": "different"
+  },
+  {
+   "a": "What did the Secretary decide on the transfer?",
+   "b": "What did the Joint Secretary decide on the transfer?",
+   "label": "different"
+  },
+  {
+   "a": "What did the Secretary decide on the transfer?",
+   "b": "What did the Commissioner decide on the transfer?",
+   "label": "different"
+  },
+  {
+   "a": "Which files did the Section Officer handle?",
+   "b": "Which files did the Assistant Section Officer handle?",
+   "label": "different"
+  },
+  {
+   "a": "Which files did the Section Officer handle?",
+   "b": "Which files did the Superintendent handle?",
+   "label": "different"
+  },
+  {
+   "a": "What did Sri Ramana request?",
+   "b": "What did Sri Rao request?",
+   "label": "different"
+  },
+  {
+   "a": "Which files did the Section Officer handle?",
+   "b": "Which files were handled by the Section Officer?",
+   "label": "same"
+  },
+  {
+   "a": "Which transfer orders apply in Finance?",
+   "b": "Which transfer orders apply in School Education?",
+   "label": "different"
+  },
+  {
+   "a": "Which orders apply to the Estt.I section?",
+   "b": "Which orders apply to the Estt.II section?",
+   "label": "different"
+  },
+  {
+   "a": "Which orders apply to the HR.I section?",
+   "b": "Which orders apply to the HR.III section?",
+   "label": "different"
+  },
+  {
+   "a": "Which transfer orders apply in Finance?",
+   "b": "Which orders on transfers apply in Finance?",
+   "label": "same"
+  },
+  {
+   "a": "Was the deputation approved?",
+   "b": "Was the deputation returned?",
+   "label": "different"
+  },
+  {
+   "a": "Was the deputation approved?",
+   "b": "Was the deputation pending?",
+   "label": "different"
+  },
+  {
+   "a": "Who can approve a transfer?",
+   "b": "Who can cancel a transfer?",
+   "label": "different"
+  },
+  {
+   "a": "Who can approve a transfer?",
+   "b": "Who can recommend a transfer?",
+   "label": "different"
+  },
+  {
+   "a": "Who can sanction a transfer?",
+   "b": "Who can approve a transfer?",
+   "label": "different"
+  },
+  {
+   "a": "Who can approve a transfer?",
+   "b": "Who is able to approve a transfer?",
+   "label": "different"
+  },
+  {
+   "a": "Is earned leave encashable?",
+   "b": "Is half pay leave encashable?",
+   "label": "different"
+  },
+  {
+   "a": "Is casual leave allowed on probation?",
+   "b": "Is earned leave allowed on probation?",
+   "label": "different"
+  },
+  {
+   "a": "Are medical grounds accepted for transfer?",
+   "b": "Are spouse grounds accepted for transfer?",
+   "label": "different"
+  },
+  {
+   "a": "Is house rent allowance admissible?",
+   "b": "Is dearness allowance admissible?",
+   "label": "different"
+  },
+  {
+   "a": "Is earned leave encashable?",
+   "b": "Is the earned leave encashable?",
+   "label": "same"
+  },
+  {
+   "a": "Are medical grounds accepted for transfer?",
+   "b": "Are medical grounds accepted for transfers?",
+   "label": "same"
+  },
+  {
+   "a": "Which order replaced GO 88?",
+   "b": "Which order did GO 88 replace?",
+   "label": "different"
+  },
+  {
+   "a": "Which order amended GO 88?",
+   "b": "Which order superseded GO 88?",
+   "label": "different"
+  },
+  {
+   "a": "Which order clarified GO 88?",
+   "b": "Which order amended GO 88?",
+   "label": "different"
+  },
+  {
+   "a": "Which orders apply to my section?",
+   "b": "Which orders apply to all sections?",
+   "label": "different"
+  },
+  {
+   "a": "Which files are pending with me?",
+   "b": "Which files are pending with my section?",
+   "label": "different"
+  },
+  {
+   "a": "Which files did I close?",
+   "b": "Which files did I open?",
+   "label": "different"
+  },
+  {
+   "a": "Which files did I close this month?",
+   "b": "Which files did I close last month?",
+   "label": "different"
+  },
+  {
+   "a": "Which files are pending with me?",
+   "b": "Which files are pending with me now?",
+   "label": "same"
+  },
+  {
+   "a": "అత్యవసర పనులకు పరిమితి ఎంత?",
+   "b": "సాధారణ పనులకు పరిమితి ఎంత?",
+   "label": "different"
+  },
+  {
+   "a": "అత్యవసర పనులకు పరిమితి ఎంత?",
+   "b": "అత్యవసర పనులకు పరిమితి ఎంత ?",
+   "label": "same"
+  }
+ ]
+}

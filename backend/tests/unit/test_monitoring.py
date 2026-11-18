@@ -31,7 +31,9 @@ def _h(uid: str) -> dict[str, str]:
     return {"X-Sandbox-User": uid}
 
 
-def _rec(qid: str, user: str, q: str, rank: int, status: str = "answered", ms: int = 900):
+def _rec(
+    qid: str, user: str, q: str, rank: int, status: str = "answered", ms: int = 900
+) -> QueryRecord:
     return QueryRecord(
         query_id=qid,
         ts=dt.datetime(2026, 11, 15, 9, int(qid[1:]) % 60, tzinfo=dt.UTC),

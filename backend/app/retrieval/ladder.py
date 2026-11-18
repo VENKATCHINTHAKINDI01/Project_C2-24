@@ -57,7 +57,10 @@ class HybridRetriever(Protocol):
         ...
 
 
-_WORD = re.compile(r"[a-z0-9]+(?:\.[0-9]+)?")
+# Latin words and numbers, and Telugu words (plan §4.1 Telugu/English): a Telugu question must
+# reach Telugu records (golden Q19, ADR-0050). Telugu vowel signs are in the block, so a word stays
+# whole; no stemming ("పనులకు" and "పనులు" are different terms)
+_WORD = re.compile(r"[a-z0-9]+(?:\.[0-9]+)?|[\u0c00-\u0c7f]+")
 _STOP = frozenset(
     "a an and are as at be by for from has have in is it of on or the to was were with what who "
     "which been any this that".split()
@@ -144,6 +147,9 @@ class LadderResult(_Frozen):
     answered_by: LadderRung | None
     graph_hits: tuple[str, ...] = ()
     trace: tuple[RungTrace, ...]
+    # rungs whose store failed this time (plan §14.4): L2 → the other rungs still answer;
+    # L3 → no relations were walked, so supersession found by the walk is unverified
+    unavailable: tuple[LadderRung, ...] = ()
 
 
 def run_ladder(
@@ -224,9 +230,20 @@ def run_ladder(
         note = "no structured slots" if answered is None else f"skipped: answered at {answered}"
         trace.append(RungTrace(rung=LadderRung.L1, fired=False, note=note))
 
+    down: list[LadderRung] = []
+
     # L2 · hybrid search (reference: keyword)
+    scored: list[ScoredDocument] | None = None
     if answered is None and req.text_query:
-        scored = l2.search(req.text_query, scope, cfg.l2_top_k)
+        try:
+            scored = l2.search(req.text_query, scope, cfg.l2_top_k)
+        except Exception as exc:  # noqa: BLE001 — plan §14.4: L0/L1/L3 still answer
+            log.error("L2 unavailable user=%s: %s", req.user_id, type(exc).__name__)
+            down.append(LadderRung.L2)
+            trace.append(
+                RungTrace(rung=LadderRung.L2, fired=False, note="unavailable: search store failed")
+            )
+    if scored is not None:
         ok = [
             s
             for s in scored
@@ -248,30 +265,48 @@ def run_ladder(
             )
         )
         answered = LadderRung.L2 if strong else None
-    else:
+    elif LadderRung.L2 not in down:
         note = "no text query" if answered is None else f"skipped: answered at {answered}"
         trace.append(RungTrace(rung=LadderRung.L2, fired=False, note=note))
 
     # L3 · graph expansion — always last, only when relations are needed
     graph_ids: tuple[str, ...] = ()
     if req.relations and found:
-        exp = expand(
-            req.user_id,
-            list(found),
-            graph=graph,
-            kinds=req.relations,
-            direction=req.direction,
-            max_hops=cfg.l3_max_hops,
-            store=store,
-            policy=policy,
-            classification=classification,
-        )
-        graph_ids = tuple(h.canonical_id for h in exp.hits)
-        trace.append(
-            RungTrace(rung=LadderRung.L3, fired=True, hits=graph_ids, note="graph expansion")
-        )
-        if answered is None and graph_ids:
-            answered = LadderRung.L3
+        try:
+            exp = expand(
+                req.user_id,
+                list(found),
+                graph=graph,
+                kinds=req.relations,
+                direction=req.direction,
+                max_hops=cfg.l3_max_hops,
+                store=store,
+                policy=policy,
+                classification=classification,
+            )
+        except Exception as exc:  # noqa: BLE001 — plan §14.4: answer, supersession unverified
+            # nothing from the walk is used: the records already found were checked rung by rung
+            log.error("L3 unavailable user=%s: %s", req.user_id, type(exc).__name__)
+            down.append(LadderRung.L3)
+            trace.append(
+                RungTrace(rung=LadderRung.L3, fired=False, note="unavailable: graph store failed")
+            )
+        else:
+            if exp.unavailable:
+                down.append(LadderRung.L3)
+            graph_ids = tuple(h.canonical_id for h in exp.hits)
+            trace.append(
+                RungTrace(
+                    rung=LadderRung.L3,
+                    fired=not exp.unavailable,
+                    hits=graph_ids,
+                    note="unavailable: graph store failed"
+                    if exp.unavailable
+                    else "graph expansion",
+                )
+            )
+            if answered is None and graph_ids:
+                answered = LadderRung.L3
     else:
         trace.append(
             RungTrace(
@@ -287,6 +322,7 @@ def run_ladder(
         answered_by=answered,
         graph_hits=graph_ids,
         trace=tuple(trace),
+        unavailable=tuple(down),
     )
 
 

@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import hashlib
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -17,7 +18,9 @@ PDF = b"%PDF-1.7\n% a public order\n"
 SHA = hashlib.sha256(PDF).hexdigest()
 
 
-def _node(cid: str, dept: str, path: str | None, sha: str | None, cls: str = "UNCLASSIFIED"):
+def _node(
+    cid: str, dept: str, path: str | None, sha: str | None, cls: str = "UNCLASSIFIED"
+) -> dict[str, Any]:
     return {
         "id": cid,
         "department": dept,

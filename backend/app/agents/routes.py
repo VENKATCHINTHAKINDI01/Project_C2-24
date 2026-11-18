@@ -25,7 +25,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from app.agents.answer import AskStatus, ask
 from app.agents.brief import approval_brief
-from app.agents.dfa import draft_for_approval
+from app.agents.dfa import draft_for_approval, governing_orders
 from app.agents.first_cut import first_cut_note
 from app.agents.intents import IntentSlots
 from app.agents.local_reference import local_reference
@@ -40,6 +40,7 @@ from app.agents.tools import (
     call_tool,
     check_document_status,
     visible_document,
+    visible_facts,
 )
 from app.audit.log import AuditLog
 from app.auth.messages import (
@@ -51,9 +52,11 @@ from app.auth.messages import (
     NOT_IN_COLLECTION,
     RECEIPT_NOT_AVAILABLE,
     REVIEW_ITEM_NOT_AVAILABLE,
+    TOO_MANY,
 )
 from app.auth.models import DocumentAccessTags
 from app.auth.policy import ScopeError, check, scope_for
+from app.auth.rate_limit import RateLimiter
 from app.auth.store import AuthzStore
 from app.conflict.deterministic import ConflictFlag
 from app.conflict.facts import extract_proposal_facts
@@ -79,17 +82,38 @@ from app.hitl.feedback import (
 )
 from app.hitl.queue import ReviewItem, ReviewKind
 from app.identifiers.canonical import InvalidCanonicalIdError, lookup_keys
-from app.identifiers.display import reference_text
+from app.identifiers.display import department_names, reference_text
 from app.ingestion.diarise import prefill
 from app.ingestion.document_store import PREVIEWABLE, extension, media_type
-from app.ingestion.metadata import DocumentMetadata, extract_metadata
-from app.ingestion.pipeline import ConfirmError, review_text
+from app.ingestion.metadata import (
+    DocType,
+    DocumentMetadata,
+    cited_references,
+    extract_metadata,
+)
+from app.ingestion.pipeline import ConfirmError, IngestStatus, review_text
 from app.memory.session import SessionError, SessionMemory
 from app.noting.chain import FileSoFar, file_so_far
 from app.noting.closing import closing_remarks
+from app.noting.draft_studio import (
+    DraftInputs,
+    FormatCatalogue,
+    close_matches,
+    compose,
+    merge_read,
+    read_items_for,
+    standing_of,
+    suggest_wording,
+)
 from app.noting.drafter import DraftNote, draft_note
 from app.noting.movements import MovementSummary, movement_summary
 from app.noting.references import suggest_references
+from app.noting.workspace import (
+    NEW_MATTER,
+    InMemoryWorkspaceStore,
+    Workspace,
+    WorkspaceStore,
+)
 from app.precedent.consistency import EarlierNote, precedent_flags
 from app.precedent.handover import SectionFile, build_handover
 from app.precedent.links import suggest_links
@@ -111,6 +135,16 @@ NO_MATCH = (
 NOT_CONFIGURED = "The assistant is not configured yet."
 DOC_NOT_AVAILABLE = DOCUMENT_NOT_AVAILABLE
 CANONICAL_ID = r"^[A-Za-z0-9][A-Za-z0-9.\-]{2,119}$"
+# Why a paper of a file is not yet in institutional memory (ADR-0045), in the officer's words
+WAITING_FOR = {
+    ReviewKind.LOW_CONFIDENCE_EXTRACTION: "OCR review",
+    ReviewKind.UNSUPPORTED_FILE: "a readable copy (this format cannot be read)",
+    ReviewKind.UNRESOLVED_REFERENCE: "its number to be confirmed",
+    ReviewKind.ID_COLLISION: "its number to be confirmed",
+    ReviewKind.DATE_MISMATCH: "its date to be confirmed",
+    ReviewKind.CLASSIFICATION_MISMATCH: "a check of its classification marking",
+    ReviewKind.DEPARTMENT_MISMATCH: "a check of its department",
+}
 
 
 class _In(BaseModel):
@@ -224,6 +258,34 @@ class OcrReviewIn(_In):
     corrected_text: str | None = Field(default=None, max_length=200_000)
 
 
+_REF_ID = r"^[A-Za-z0-9#._()-]{3,120}$"
+_OWN_NUMBER = re.compile(r"^((?:Circular )?Memo No\.\s*\S+)\s+Dated:", re.M)
+
+
+class WorkspaceTargetIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    computer_no: str | None = Field(default=None, pattern=r"^[A-Za-z0-9._-]{1,64}$")
+
+
+class WorkspaceIn(WorkspaceTargetIn):
+    workspace: Workspace
+
+
+class DraftPrepareIn(_In):
+    # None: a NEW matter — no file yet; "Create the file and save" opens one (touchpoint 5)
+    computer_no: str | None = Field(default=None, pattern=r"^\d{4,12}$")
+    format_id: str = Field(pattern=r"^[a-z][a-z0-9_]{1,40}$")
+    inputs: DraftInputs = DraftInputs()
+    add_references: tuple[Annotated[str, Field(pattern=_REF_ID)], ...] = Field(
+        default=(), max_length=20
+    )
+    drop_references: tuple[Annotated[str, Field(pattern=_REF_ID)], ...] = Field(
+        default=(), max_length=40
+    )
+    suggest: bool = False  # ask the model for wording (Gemini, behind the circuit breaker)
+
+
 class DraftIn(_In):
     computer_no: str = Field(pattern=r"^\d{4,12}$")
     kind: DraftKind
@@ -304,14 +366,20 @@ def build_assist_router(
     log_questions: bool = False,
     monitor: Callable[[dt.date, int], MonitorData] | None = None,
     signals: SignalConfig | None = None,
+    limiter: RateLimiter | None = None,
+    draft_formats: FormatCatalogue | None = None,
+    workspaces: WorkspaceStore | None = None,
 ) -> APIRouter:
     r = APIRouter(prefix="/assist", tags=["assist"])
+    saved_drafts: WorkspaceStore = (
+        workspaces if workspaces is not None else InMemoryWorkspaceStore()
+    )
     sessions: Memory = memory if memory is not None else SessionMemory()
     tracked: QueryLog = query_log if query_log is not None else InMemoryQueryLog()
     feedback_log: ActionLog = actions if actions is not None else InMemoryActionLog()
 
     def officer(request: Request) -> Officer:
-        rid = uuid.uuid4().hex[:16]
+        rid = getattr(request.state, "request_id", None) or uuid.uuid4().hex[:16]
         user_id = identify(request)
         try:
             if not user_id:
@@ -323,6 +391,14 @@ def build_assist_router(
         return Officer(ctx, rid)
 
     def rt(o: Officer, action: str) -> AssistRuntime:
+        wait = limiter.check(o.ctx.user_id, action) if limiter is not None else None
+        if wait is not None:
+            audit.record(o.request_id, o.ctx.user_id, action, "rate_limited")
+            raise HTTPException(
+                status_code=429,
+                detail=TOO_MANY,
+                headers={"Retry-After": str(int(wait + 0.999))},
+            )
         got = runtime()
         if got is None:
             audit.record(o.request_id, o.ctx.user_id, action, "error", detail="not configured")
@@ -425,6 +501,7 @@ def build_assist_router(
             emit=emit,
             log_question=log_questions,
             signals=signals,
+            reworded=run.stores.reworded,
         )
         final = run_turn(svc, session_id=sid, message=body.message, request_id=o.request_id)
         audit.record(  # IDs and outcome only: never the message or the answer text
@@ -627,13 +704,19 @@ def build_assist_router(
         return check_d
 
     def run_presend(
-        o: Officer, run: AssistRuntime, store: AuthzStore, note_id: str, text: str, earlier: str
+        o: Officer,
+        run: AssistRuntime,
+        store: AuthzStore,
+        note_id: str,
+        text: str,
+        earlier: str,
+        meta: DocumentMetadata | None = None,
     ) -> PreSendReport:
         tags_of = {c: t for c in run.stores.graph.node_ids() if (t := run.tags(c))}
         return presend_check(
             note_id,
             text,
-            extract_metadata(text, run.departments),
+            meta or extract_metadata(text, run.departments),
             user_id=o.ctx.user_id,
             instruments=run.stores.instruments,
             relations=list(run.stores.relations),
@@ -1570,16 +1653,99 @@ def build_assist_router(
             "ok",
             ids=(doc.canonical_id, stored.version),
         )
+        ctx = run.tool_context(o.ctx.user_id, run.store_for(o.ctx))
+        standing, use_instead = standing_of(
+            ctx, doc.canonical_id, doc.doc_type, *visible_facts(ctx, {doc.canonical_id})
+        )
         return {
             "request_id": o.request_id,
             "canonical_id": doc.canonical_id,
             "doc_type": doc.doc_type,
             "subject": doc.subject,
             "issue_date": doc.issue_date.isoformat() if doc.issue_date else None,
+            # ADR-0045: where the record stands today and how it came to be (versions kept)
+            "standing": standing,
+            "use_instead": use_instead,
+            "history": history_of(run, doc.canonical_id),
             "version": stored.version,
             "media_type": stored.media_type,
             "previewable": stored.previewable,
             "filename": f"{doc.canonical_id}{extension(stored.media_type)}",
+        }
+
+    def history_of(run: AssistRuntime, cid: str) -> list[dict[str, Any]]:
+        """The record's versions as they entered institutional memory, oldest first (no text)."""
+        return [
+            {
+                "version": v.version.split(":")[1],
+                "received_at": v.received_at.isoformat(),
+                "event": v.event,
+            }
+            for v in run.stores.history.get(cid, [])
+        ]
+
+    @r.get("/files/{computer_no}/records")
+    def file_records(computer_no: str, o: Annotated[Officer, Depends(officer)]) -> dict[str, Any]:
+        """ADR-0045 — what of this file is in institutional memory (each record re-checked, with
+        its standing and versions), and its papers still waiting: OCR review, or a reference that
+        could not be resolved. Drafts are never here: they enter only when confirmed or issued."""
+        action = "assist.file.records"
+        run = rt(o, action)
+        fctx = open_file(o, run, computer_no, action)
+        store = run.store_for(o.ctx)
+        ctx = run.tool_context(o.ctx.user_id, store)
+        records: list[dict[str, Any]] = []
+        for cid in dict.fromkeys(c for c, _ in run.stores.files.get(fctx.file_no, [])):
+            doc = visible_document(ctx, cid)
+            if doc is None:
+                continue  # re-check: a paper of this file the officer may not see is not named
+            standing, use_instead = standing_of(ctx, cid, doc.doc_type, *visible_facts(ctx, {cid}))
+            hist = history_of(run, cid)
+            records.append(
+                {
+                    "canonical_id": cid,
+                    "doc_type": doc.doc_type,
+                    "subject": doc.subject,
+                    "issue_date": doc.issue_date.isoformat() if doc.issue_date else None,
+                    "standing": standing,
+                    "use_instead": use_instead,
+                    "versions": len(hist),
+                    "last_event": hist[-1]["event"] if hist else None,
+                }
+            )
+        waiting: list[dict[str, Any]] = []
+        for (uri, _), res in run.stores.results.items():
+            art = run.artefacts.get(uri)
+            if res.status is not IngestStatus.HELD or art is None or art[0].file_no != fctx.file_no:
+                continue
+            if any(w["source"] == uri for w in waiting):
+                continue
+            later = [r for (u, _), r in run.stores.results.items() if u == uri]
+            if later and later[-1].status is IngestStatus.INDEXED:
+                continue  # reviewed and indexed since
+            waiting.append(
+                {
+                    "source": uri,
+                    "filename": art[0].filename,
+                    "waiting_for": sorted(
+                        {WAITING_FOR.get(i.kind, "review") for i in res.review_items}
+                    )
+                    or ["review"],
+                }
+            )
+        audit.record(
+            o.request_id,
+            o.ctx.user_id,
+            action,
+            "ok",
+            ids=(computer_no, *(x["canonical_id"] for x in records)),
+        )
+        return {
+            "request_id": o.request_id,
+            "computer_no": computer_no,
+            "file_no": fctx.file_no,
+            "records": records,
+            "waiting": [{k: v for k, v in w.items() if k != "source"} for w in waiting],
         }
 
     @r.get("/documents/{canonical_id}/context")
@@ -2057,6 +2223,265 @@ def build_assist_router(
         )
         return {"request_id": o.request_id, "recorded": True}
 
+    @r.get("/draft/formats")
+    def draft_format_list(o: Annotated[Officer, Depends(officer)]) -> dict[str, Any]:
+        """The draft formats (ADR-0044): mock structures from the corpus, [To confirm]."""
+        if draft_formats is None:
+            raise HTTPException(status_code=503, detail=NOT_CONFIGURED)
+        return {"request_id": o.request_id, **draft_formats.model_dump(mode="json")}
+
+    @r.post("/draft/prepare")
+    def draft_prepare(
+        body: DraftPrepareIn, o: Annotated[Officer, Depends(officer)]
+    ) -> dict[str, Any]:
+        """Prepare a draft in a chosen format from the officer's inputs and the records within
+        their scope (ADR-0044): Read the following through the supersession chain, close matches
+        by the ladder (hybrid search + graph) with their standing and relations, the pre-send
+        check on the draft itself, and — on request — checked wording from the model. A preview:
+        nothing reaches the file until the officer clicks Save."""
+        action = "assist.draft.prepare"
+        fmt = draft_formats.get(body.format_id) if draft_formats is not None else None
+        if fmt is None:
+            raise HTTPException(status_code=404, detail=NOT_AVAILABLE)
+        run = rt(o, action)
+        inputs = body.inputs
+        new_matter = body.computer_no is None
+        if new_matter and len(inputs.subject.strip()) < 10:
+            raise HTTPException(
+                status_code=422,
+                detail="Give the subject of the new matter (at least 10 characters).",
+            )
+        fctx = None if new_matter else open_file(o, run, body.computer_no or "", action)
+        store = run.store_for(o.ctx)
+        ctx = run.tool_context(o.ctx.user_id, store)
+        if fctx is not None and not inputs.subject.strip():
+            inputs = inputs.model_copy(update={"subject": fctx.subject})
+        file_no = fctx.file_no if fctx is not None else ""
+        if fctx is not None:
+            note_id, text, earlier = latest_note(o, run, fctx, store)
+        else:
+            note_id, text, earlier = None, "", ""
+        # the officer's own words: references they typed ("G.O.Ms.No.88 …") and the action they
+        # propose are read by the same reader as a note, so a new matter has orders too
+        own_text = "\n".join(
+            x for x in (inputs.subject, inputs.request, inputs.facts, inputs.proposal) if x.strip()
+        )
+        own_meta = DocumentMetadata(
+            doc_type=DocType.NOTING_DRAFT,
+            canonical_id=None,
+            raw_reference=None,
+            instrument=None,
+            issue_date=ctx.as_of,
+            department=fctx.department if fctx is not None else o.ctx.department,
+            subject=inputs.subject.strip() or None,
+            references=cited_references(own_text, run.departments, o.ctx.department),
+        )
+        meta_ = extract_metadata(text, run.departments) if note_id else None
+        facts = (
+            extract_proposal_facts(text, meta_, run.rules, note_id) if note_id and meta_ else None
+        )
+        own_facts = extract_proposal_facts(own_text, own_meta, run.rules, "draft:new")
+        act = (facts.facts.action if facts and facts.facts else None) or (
+            own_facts.facts.action if own_facts.facts else None
+        )
+        governing, left = governing_orders(ctx, meta_, act)
+        typed, left_typed = governing_orders(ctx, own_meta, None)
+        added, left_added = read_items_for(ctx, body.add_references)
+        read_list = merge_read(governing, typed, added, drop=body.drop_references)
+        left_out = tuple({x.cited: x for x in (*left, *left_typed, *left_added)}.values())
+        points: tuple[Any, ...] = ()
+        precedents: tuple[Any, ...] = ()
+        fc = None
+        if fmt.kind == "note":
+
+            def file_of_(cid: str) -> str | None:
+                t = run.tags(cid)
+                return t.file_no if t else None
+
+            links = suggest_links(ctx, inputs.subject, file_no, file_of_)
+            fc = first_cut_note(
+                ctx=ctx,
+                file_no=file_no,
+                subject=inputs.subject,
+                draft_note=note_id,
+                meta=meta_,
+                action=act,
+                flags=(),
+                precedents=[(lk.file_no, d.canonical_id) for lk in links for d in lk.documents],
+                text_of=lambda c: run.texts.get(c, ""),
+                windows=[
+                    w
+                    for w in run.windows()
+                    if (t := run.tags(w.source.split("#", 1)[0])) is not None
+                    and check(o.ctx.user_id, t, store, run.policy, run.classification).allowed
+                ],
+            )
+            points, precedents = fc.points, fc.precedents
+        names = department_names()
+
+        def label(cid: str, when: dt.date | None) -> str:
+            """As an order cites it: a memo by the number printed on it (its own header line),
+            so the citation can be resolved back; anything else by `reference_text`."""
+            base = cid.split("#", 1)[0]
+            if when is None and (doc := visible_document(ctx, base)) is not None:
+                when = doc.issue_date
+            head = "\n".join(run.texts.get(base, "").splitlines()[:6])
+            own = _OWN_NUMBER.search(head) if visible_document(ctx, base) else None
+            if own and "#" not in cid:
+                text = reference_text(cid, when, names)
+                rest = text.split(", ", 1)[1] if ", " in text else ""
+                return f"{own.group(1)}, {rest}" if rest else own.group(1)
+            return reference_text(cid, when, names)
+
+        dept_code = fctx.department if fctx is not None else o.ctx.department
+        dept = names.get(dept_code, dept_code)
+        first = compose(
+            fmt,
+            inputs,
+            department=dept,
+            read_list=read_list,
+            points=points,
+            precedents=precedents,
+            label=label,
+        )
+        # the pre-send check on the draft itself (what the officer wrote + what it reads)
+        # read as the draft it is: its own Read list plus every order cited in its text (an
+        # unnumbered draft is not recognised as an order or a note by the document reader)
+        read_meta = extract_metadata(first.text, run.departments)
+        draft_meta = own_meta.model_copy(
+            update={
+                "references": read_meta.references
+                + cited_references(first.text, run.departments, dept_code)
+            }
+        )
+        # what the draft itself proposes is checked; quoted record parts (earlier decisions,
+        # provisions) are evidence, and an approver named in an old decision is not this proposal's
+        checked = "\n".join(p.text for p in first.parts if p.origin != "record")
+        rep = run_presend(
+            o, run, store, f"draft:{body.computer_no or 'new'}", checked, earlier, draft_meta
+        )
+        flags = tuple(rep.flags)
+        prepared = compose(
+            fmt,
+            inputs,
+            department=dept,
+            read_list=read_list,
+            points=points,
+            precedents=precedents,
+            flags=flags,
+            left_out=left_out,
+            label=label,
+        )
+
+        def file_of(cid: str) -> str | None:
+            t = run.tags(cid)
+            return t.file_no if t else None
+
+        def paper_label(cid: str) -> str:
+            """An order as it is cited; any other paper as "Noting — File …" (never a raw ID).
+            Only called for records the graph walk already re-checked for this officer."""
+            text = label(cid, None)
+            if text != cid.split("#", 1)[0]:
+                return text
+            doc = visible_document(ctx, cid)
+            where = file_of(cid)
+            kind = doc.doc_type if doc else "Paper"
+            return f"{kind} — File {where}" if where else kind
+
+        matches = close_matches(
+            ctx,
+            " ".join(x for x in (inputs.subject, inputs.proposal, inputs.facts) if x.strip()),
+            read_ids=[i.canonical_id for i in read_list],
+            flags=flags,
+            file_of=file_of,
+        )
+        # a new matter: earlier files on the same subject the officer can open, to tick as Previous
+        # References when the file is created (touchpoint 5's engine; the officer chooses)
+        related_files: list[dict[str, Any]] = []
+        if new_matter:
+            for s_ in suggest_links(ctx, inputs.subject, "", file_of, limit=8):
+                cno = connector.file_computer_no(s_.file_no, o.ctx.user_id)
+                if cno is not None:
+                    related_files.append({"file_no": s_.file_no, "computer_no": cno})
+            related_files = related_files[:5]
+        suggested: dict[str, Any] | None = None
+        if body.suggest:
+            if fmt.kind == "note" and fc is not None:
+                note = draft_note(fc.model_copy(update={"flags": flags}), inputs.subject, run.llm)
+                suggested = {
+                    "lines": [
+                        {"text": ln.text, "refs": list(ln.refs), "heading": sec.heading}
+                        for sec in note.sections
+                        for ln in sec.lines
+                    ],
+                    "removed": note.removed,
+                    "engine": note.engine,
+                    "fallback": False,
+                    "reason": note.reason,
+                }
+            else:
+                sw = suggest_wording(inputs, read_list, lambda c: run.texts.get(c, ""), run.llm)
+                suggested = {
+                    "lines": [
+                        {"text": t, "refs": list(refs), "heading": None} for t, refs in sw.lines
+                    ],
+                    "removed": sw.removed,
+                    "engine": sw.engine,
+                    "fallback": sw.fallback,
+                    "reason": sw.reason,
+                }
+        audit.record(  # IDs only: never the officer's text or the draft
+            o.request_id,
+            o.ctx.user_id,
+            action,
+            "ok",
+            ids=(
+                *([body.computer_no] if body.computer_no else []),
+                *prepared.citations,
+                *(m.canonical_id for m in matches.documents),
+            ),
+            detail=fmt.id,
+        )
+        return {
+            "request_id": o.request_id,
+            "computer_no": body.computer_no,
+            "format": fmt.model_dump(mode="json"),
+            "draft": prepared.model_dump(mode="json"),
+            "read_list": [
+                {**i.model_dump(mode="json"), "label": label(i.canonical_id, i.issue_date)}
+                for i in read_list
+            ],
+            "left_out": [x.model_dump(mode="json") for x in left_out],
+            "checks": {
+                **{k: v for k, v in _report(rep).items() if k != "note_id"},
+                # a draft has no note number or date yet by design: not a gap in it
+                "fact_gaps": [g for g in rep.fact_gaps if g != "note identity/date/department"],
+            },
+            "matches": {
+                "ladder": matches.ladder,
+                # plan §14.4: a store that failed is said (L3: relations not checked)
+                "unavailable": list(matches.unavailable),
+                "documents": [
+                    {
+                        **m.model_dump(mode="json"),
+                        "relations": [
+                            {**x.model_dump(mode="json"), "other_label": paper_label(x.other)}
+                            for x in m.relations
+                        ],
+                        "label": label(m.canonical_id, m.issue_date)
+                        if m.standing != "not_an_order"
+                        else f"{m.doc_type} — File {m.file_no}"
+                        if m.file_no
+                        else m.doc_type,
+                    }
+                    for m in matches.documents
+                ],
+            },
+            "suggested": suggested,
+            "related_files": related_files,
+            **meta(run),
+        }
+
     @r.post("/draft")
     def draft(body: DraftIn, o: Annotated[Officer, Depends(officer)]) -> dict[str, Any]:
         """Insert as Yellow Note / Create DFA draft / Suggest reference — a DRAFT, on click."""
@@ -2084,7 +2509,55 @@ def build_assist_router(
             ids=(body.computer_no, receipt.draft_id, body.request_id),
             detail=body.kind.value,
         )
+        saved_drafts.discard(o.ctx.user_id, body.computer_no)  # it is on the file now (ADR-0046)
         return {"request_id": o.request_id, **receipt.model_dump(mode="json")}
+
+    # ---- draft recovery (ADR-0046): the workspace, kept by the server as the officer works ----
+
+    def workspace_target(o: Officer, computer_no: str | None, action: str) -> str:
+        """A file's workspace only while the officer can still open the file (same 404 as every
+        file route); "new" for a matter with no file yet."""
+        run = rt(o, action)  # the per-officer limit applies to every save
+        if computer_no is None:
+            return NEW_MATTER
+        open_file(o, run, computer_no, action)
+        return computer_no
+
+    @r.get("/draft/workspace")
+    def get_workspace(
+        o: Annotated[Officer, Depends(officer)],
+        computer_no: Annotated[str | None, Query(pattern=r"^[A-Za-z0-9._-]{1,64}$")] = None,
+    ) -> dict[str, Any]:
+        """Where the officer left this draft, if anywhere (re-checked access; their own only)."""
+        action = "assist.draft.workspace.restore"
+        target = workspace_target(o, computer_no, action)
+        saved = saved_drafts.get(o.ctx.user_id, target)
+        if saved is not None:
+            audit.record(o.request_id, o.ctx.user_id, action, "ok", ids=(target,))
+        return {
+            "request_id": o.request_id,
+            "workspace": saved.workspace.model_dump(mode="json") if saved else None,
+            "saved_at": saved.saved_at.isoformat() if saved else None,
+        }
+
+    @r.post("/draft/workspace")
+    def put_workspace(body: WorkspaceIn, o: Annotated[Officer, Depends(officer)]) -> dict[str, Any]:
+        """Autosave (a moment after each change). Not audited per save: it is the officer's own
+        scratch, like typing; restoring and discarding are audited."""
+        target = workspace_target(o, body.computer_no, "assist.draft.workspace.save")
+        saved = saved_drafts.put(o.ctx.user_id, target, body.workspace, dt.datetime.now(dt.UTC))
+        return {"request_id": o.request_id, "saved_at": saved.saved_at.isoformat()}
+
+    @r.post("/draft/workspace/discard")
+    def discard_workspace(
+        body: WorkspaceTargetIn, o: Annotated[Officer, Depends(officer)]
+    ) -> dict[str, Any]:
+        """Start over: the saved workspace is removed (the officer's click)."""
+        action = "assist.draft.workspace.discard"
+        target = workspace_target(o, body.computer_no, action)
+        gone = saved_drafts.discard(o.ctx.user_id, target)
+        audit.record(o.request_id, o.ctx.user_id, action, "ok" if gone else "none", ids=(target,))
+        return {"request_id": o.request_id, "discarded": gone}
 
     return r
 

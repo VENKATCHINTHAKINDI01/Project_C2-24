@@ -32,6 +32,7 @@ from fastapi.testclient import TestClient  # noqa: E402
 from app.config import get_settings  # noqa: E402
 from app.identifiers.canonical import InvalidCanonicalIdError, lookup_keys  # noqa: E402
 from app.main import create_app  # noqa: E402
+from evaluation.harness.limits import NO_RATE_LIMITS, require_measured  # noqa: E402
 from tests.unit.mock_access import MATRIX  # noqa: E402
 
 CORPUS = ROOT / "data" / "synthetic" / "mock_v1"
@@ -44,7 +45,11 @@ def main() -> int:
     ap.add_argument("--label", default="")
     a = ap.parse_args()
     settings = get_settings().model_copy(
-        update={"sandbox": True, "llm_provider": "vertex" if a.live else "recorded"}
+        update={
+            "sandbox": True,
+            "llm_provider": "vertex" if a.live else "recorded",
+            **NO_RATE_LIMITS,  # evaluation/harness/limits.py
+        }
     )
     scen = json.loads((CORPUS / "ground_truth" / "touchpoint_scenarios.json").read_text("utf-8"))
     cases = list(
@@ -64,11 +69,13 @@ def main() -> int:
             return None
 
     rows, md = [], []
+    statuses: list[int] = []
     with TestClient(create_app(settings)) as client:
         for user, cno in cases:
             r = client.post(
                 "/assist/first-cut", json={"computer_no": cno}, headers={"X-Sandbox-User": user}
             )
+            statuses.append(r.status_code)
             body = r.json() if r.status_code == 200 else {}
             note = body.get("note") or {}
             text = body.get("note_text", f"http {r.status_code}")
@@ -87,6 +94,7 @@ def main() -> int:
                 }
             )
             md += [f"## {cno} as {user}", "", "```", text, "```", ""]
+    require_measured(statuses, "noting_live")
     summary = {
         "files": len(rows),
         "mode": "live" if a.live else "saved answers only",

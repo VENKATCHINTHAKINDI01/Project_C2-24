@@ -14,7 +14,8 @@ from fastapi.testclient import TestClient
 from app.agents.llm import stream_json
 from app.agents.streaming import StatementStream
 from tests.unit.test_cited_answer import EV
-from tests.unit.test_orchestrator import APP, _h
+from tests.unit.test_orchestrator import APP
+from tests.unit.test_sandbox_api import _h
 
 INVENTED = "the Government hereby sanction forty days of leave"
 
@@ -38,7 +39,9 @@ class StreamingFake:
             ]
         }
 
-    def generate_json(self, *, prompt_id: str, system: str, user: str, schema: dict[str, Any]):
+    def generate_json(
+        self, *, prompt_id: str, system: str, user: str, schema: dict[str, Any]
+    ) -> dict[str, Any]:
         if prompt_id.startswith("noting_draft"):
             return {"sections": []}
         return self._answer(user)

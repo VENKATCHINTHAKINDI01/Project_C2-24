@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import datetime as dt
 import itertools
+import threading
 from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -57,11 +58,22 @@ class ReviewQueue:
     def __init__(self) -> None:
         self._items: dict[str, ReviewItem] = {}
         self._seq = itertools.count(1)
+        self._lock = threading.RLock()  # submits and decisions race with listings (ADR-0039)
+
+    def _all(self) -> list[ReviewItem]:
+        with self._lock:
+            return list(self._items.values())
 
     def submit(
         self, kind: ReviewKind, subject: str, version: str, reason: str, at: dt.datetime
     ) -> ReviewItem:
         """Idempotent per (kind, subject, version): re-ingesting the same file adds no duplicate."""
+        with self._lock:
+            return self._submit(kind, subject, version, reason, at)
+
+    def _submit(
+        self, kind: ReviewKind, subject: str, version: str, reason: str, at: dt.datetime
+    ) -> ReviewItem:
         for item in self._items.values():
             if (item.kind, item.subject, item.version) == (kind, subject, version):
                 return item
@@ -77,6 +89,12 @@ class ReviewQueue:
         return item
 
     def decide(
+        self, item_id: str, *, reviewer: str, confirm: bool, reason: str, at: dt.datetime
+    ) -> ReviewItem:
+        with self._lock:
+            return self._decide(item_id, reviewer=reviewer, confirm=confirm, reason=reason, at=at)
+
+    def _decide(
         self, item_id: str, *, reviewer: str, confirm: bool, reason: str, at: dt.datetime
     ) -> ReviewItem:
         item = self._items.get(item_id)
@@ -100,7 +118,7 @@ class ReviewQueue:
     def pending(self, kind: ReviewKind | None = None) -> tuple[ReviewItem, ...]:
         return tuple(
             i
-            for i in self._items.values()
+            for i in self._all()
             if i.state is ReviewState.PENDING and (kind is None or i.kind is kind)
         )
 
@@ -108,8 +126,8 @@ class ReviewQueue:
         """True while any item for this record version is pending or was rejected."""
         return any(
             i.subject == subject and i.version == version and i.state is not ReviewState.CONFIRMED
-            for i in self._items.values()
+            for i in self._all()
         )
 
     def history(self) -> tuple[ReviewItem, ...]:
-        return tuple(self._items.values())
+        return tuple(self._all())

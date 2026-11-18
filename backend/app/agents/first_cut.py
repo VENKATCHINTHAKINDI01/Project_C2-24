@@ -23,13 +23,20 @@ from collections.abc import Callable, Iterable
 
 from pydantic import BaseModel, ConfigDict
 
-from app.agents.dfa import SUBJECT_TERMS, LeftOut, ReadItem, governing_orders
-from app.agents.tools import ToolContext
+from app.agents.dfa import (
+    SUBJECT_TERMS,
+    LeftOut,
+    OutdatedAuthority,
+    ReadItem,
+    governing_orders,
+    outdated_authorities,
+)
+from app.agents.tools import ToolContext, visible_document
 from app.conflict.deterministic import ConflictFlag
 from app.conflict.procedural import Action
 from app.identifiers.canonical import InvalidCanonicalIdError, clause_id
 from app.ingestion.clauses import clause_text, clauses
-from app.ingestion.metadata import DocumentMetadata
+from app.ingestion.metadata import DocType, DocumentMetadata
 from app.noting.chain import parse_notes
 from app.temporal.windows import ActionWindow
 
@@ -66,6 +73,9 @@ class PrecedentDecision(_Frozen):
     decision: str  # the last paragraph of the last note, verbatim
     windows: tuple[str, ...]  # clause IDs of action windows covering `decided_on`
     in_window: bool | None  # None: no date, or no windows for this action in the officer's records
+    # orders the decision's note sheet relies on that are no longer in force on the as-of date: the
+    # decision is history, never current practice (ADR-0045)
+    outdated: tuple[OutdatedAuthority, ...] = ()
 
 
 class FirstCut(_Frozen):
@@ -163,7 +173,13 @@ def first_cut_note(
         d
         for f, cid in precedents
         if (not term or any(t in text_of(cid).lower() for t in term))  # same kind of case only
+        # a proposal put up and not yet decided (a draft note) is no decision at all
+        and (doc := visible_document(ctx, cid)) is not None
+        and doc.doc_type != DocType.NOTING_DRAFT.value
         and (d := _decision(f, cid, text_of(cid), action, wins)) is not None
+    ]
+    decisions = [
+        d.model_copy(update={"outdated": outdated_authorities(ctx, d.source)}) for d in decisions
     ]
     decisions.sort(key=lambda d: (d.decided_on or dt.date.min, d.source))
     flags = tuple(flags)
@@ -177,6 +193,16 @@ def first_cut_note(
         if p.in_window:
             return f"inside the window in {', '.join(p.windows)}"
         return "outside every relaxation window in your records"
+
+    def outdated_line(p: PrecedentDecision) -> str:
+        return "".join(
+            " Whether the orders it rested on are still in force could not be checked just now."
+            if x.status == "unverified"
+            else f" It rested on {x.order}, since {x.status}"
+            + (f" (use {x.use_instead})" if x.use_instead else "")
+            + ": history, not current practice."
+            for x in p.outdated
+        )
 
     lines = [
         "FIRST-CUT NOTE — cited points, prepared with C2-24 Assist; a draft for the officer.",
@@ -197,7 +223,7 @@ def first_cut_note(
         lines += ["", "Earlier decisions in similar cases (files you may see):"]
         lines += [
             f"- File {p.file_no}, Note #{p.note_no}, {when(p.decided_on)}: "
-            f"“{p.decision}” [{p.source}] — {window_line(p)}."
+            f"“{p.decision}” [{p.source}] — {window_line(p)}.{outdated_line(p)}"
             for p in decisions
         ]
     if flags or left_out:

@@ -81,11 +81,12 @@
     ],
     "forbidden_docs": [],
     "expected_ladder_level": "L0+L3",
-    "answer_key": "Never withdrawn, but its Rs.1.50 crore limit contradicts the higher G.O.Ms.No.27/2024 (Rs.1.00 crore) – flag hierarchy conflict.",
+    "answer_key": "Officer C may see the circular but not every record that could change its status (status-coverage rule), so its current status is not reported: the answer says the status cannot be confirmed from the records available to them and never says whether it was withdrawn or remains in force. Its content may still be answered; flag hierarchy conflict: its Rs.1.50 crore limit contradicts the higher G.O.Ms.No.27/2024 (Rs.1.00 crore). [Key revised by the owner 18 Nov 2026: access policy takes priority over the expected answer; was 'Never withdrawn, but …']",
     "expected_conflicts": [
       "G"
     ],
-    "answer_status": "answered"
+    "answer_status": "answered",
+    "status_reportable": false
   },
   {
     "id": "Q06",

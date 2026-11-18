@@ -64,7 +64,7 @@ def _words(text: str) -> set[str]:
 
 def _terms(text: str) -> set[str]:
     """Words and word pairs ("apply transfer" counts more than "transfer" alone)."""
-    ws = [w.lower() for w in re.findall(r"[A-Za-z]{3,}", text)]
+    ws = [w.lower() for w in re.findall(r"[A-Za-z]{3,}|[\u0c00-\u0c7f]{2,}", text)]  # + Telugu
     return set(ws) | {f"{x} {y}" for x, y in itertools.pairwise(ws)}
 
 

@@ -6,6 +6,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from app.graph.build import main
 
 HEAD = "GOVERNMENT OF ANDHRA PRADESH\nABSTRACT\n\nSYNTHETIC – Transfers – "
@@ -61,3 +63,31 @@ def test_orders_become_nodes_and_stated_links_become_edges(tmp_path: Path) -> No
         "Indexed (graph nodes): **2**" in report
         and "same ID as the collection metadata: **2**" in report
     )
+
+
+def test_the_job_loads_spanner_and_fails_loudly_without_its_instance(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """ADR-0048: --load-spanner writes the built graph to Spanner Graph (a stand-in port here);
+    without the instance setting the run exits non-zero and says why."""
+    import app.graph.spanner as sp
+    from app.config import get_settings
+    from tests.unit.test_graph_spanner import SqlitePort
+
+    _order(tmp_path, "AP-FIN01-GOMS-27-2021", "2021-03-09", NEW)
+    _order(tmp_path, "AP-FIN01-GOMS-11-2020", "2020-01-05", OLD)
+    port = SqlitePort()
+    monkeypatch.setattr(sp, "CloudSpannerPort", lambda project, instance, db: port)
+    monkeypatch.setenv("C2_GCP_PROJECT_ID", "test-project")
+    get_settings.cache_clear()
+    try:
+        args = ["--public-dir", str(tmp_path), "--out", str(tmp_path / "graph"), "--load-spanner"]
+        assert main(args) == 1  # no C2_SPANNER_INSTANCE: refused, reported, non-zero
+        monkeypatch.setenv("C2_SPANNER_INSTANCE", "c2-spanner")
+        get_settings.cache_clear()
+        assert main(args) == 0
+        repo = sp.SpannerGraphRepository(port)
+        assert repo.counts() == (2, 1)
+        assert [e.kind.value for e in repo.edges()] == ["SUPERSEDES"]
+    finally:
+        get_settings.cache_clear()

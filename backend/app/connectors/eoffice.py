@@ -8,8 +8,9 @@ Core modules import this file, never `app.eoffice_mock`.
 from __future__ import annotations
 
 import datetime as dt
+import logging
 from enum import StrEnum
-from typing import Protocol, runtime_checkable
+from typing import Any, Protocol, runtime_checkable
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -17,6 +18,8 @@ from app.auth.models import SearchScope
 from app.auth.store import AccessTuple, Relation
 
 __all__ = ["SearchScope"]  # re-exported: SearchScope is defined by auth
+
+log = logging.getLogger(__name__)
 
 
 class _Frozen(BaseModel):
@@ -127,6 +130,12 @@ class ReceiptContext(_Frozen):
 
 
 class EventKind(StrEnum):
+    """What happened. Only official acts bring a paper into institutional memory: a file opened
+    (its particulars), a paper attached, a note confirmed (Green Note), an order issued, a file
+    closed, an order received. A draft being saved is not an event: drafts never enter it."""
+
+    FILE_CREATED = "file_created"
+    ATTACHMENT_ADDED = "attachment_added"
     RECEIPT_DIARISED = "receipt_diarised"
     NOTE_CONFIRMED = "note_confirmed"
     DRAFT_APPROVED = "draft_approved"
@@ -194,6 +203,15 @@ class DraftOutcome(_Frozen):
     at: dt.datetime
 
 
+class Signer(_Frozen):
+    """An officer who signed (authored / forwarded) notes in a paper, as e-Office records it: the
+    officer's ID is the identity; name and post are how the paper shows them (ADR-0058)."""
+
+    officer_id: str
+    name: str
+    post: str
+
+
 class SourceArtefact(_Frozen):
     """A document the e-Office holds, with the access tags the e-Office records for it (plan §11.3
     'Events in'). Handed to the normal ingestion pipeline; the tags are source-system metadata."""
@@ -204,6 +222,9 @@ class SourceArtefact(_Frozen):
     section: str
     classification: str
     file_no: str | None = None
+    attachment: bool = False  # attached by an officer to the e-File (see SourceDocument)
+    # officers who signed notes in this paper, by e-Office officer ID (note sheets; ADR-0058)
+    signers: tuple[Signer, ...] = ()
     data: bytes = Field(repr=False)
 
 
@@ -291,3 +312,39 @@ def grants_from_context(ctx: OfficerContext) -> list[AccessTuple]:
         for f in sorted(ctx.handled_files)
     ]
     return out
+
+
+class ConnectorUnavailableError(Exception):
+    """The e-Office link itself failed (not "not found"): the assistant says it is unavailable;
+    the sandbox keeps working; nothing is written in part (plan §14.4)."""
+
+
+UNAVAILABLE = (
+    "The e-Office link is unavailable just now. The file itself is not affected; try again shortly."
+)
+
+
+class GuardedConnector:
+    """Any connector, with its failures sorted (plan §14.4): ConnectorError (not found / not
+    yours) passes through unchanged and keeps its neutral 404; anything else becomes
+    ConnectorUnavailableError (503), logged by type only. A write either completes inside the
+    connector or raises before writing: there is no partial write to undo."""
+
+    def __init__(self, inner: object) -> None:
+        self._inner = inner
+
+    def __getattr__(self, name: str) -> Any:
+        attr = getattr(self._inner, name)
+        if not callable(attr):
+            return attr
+
+        def call(*args: Any, **kwargs: Any) -> Any:
+            try:
+                return attr(*args, **kwargs)
+            except ConnectorError:
+                raise
+            except Exception as exc:
+                log.error("e-Office connector %s failed: %s", name, type(exc).__name__)
+                raise ConnectorUnavailableError(name) from exc
+
+        return call

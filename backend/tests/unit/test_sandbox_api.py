@@ -514,8 +514,17 @@ def test_tp14_dfa_preview_then_draft_only_on_click(client: TestClient) -> None:
     ).json()
     assert made["kind"] == "dfa_draft" and made["status"] == "draft"
     assert drafts() == before + 1
-    words = {w for p in APP.openapi()["paths"] for w in re.split(r"[/{}_-]+", p) if w}
-    assert not words & {"sign", "send", "dispatch", "approve", "issue"}  # no such endpoint
+    # The ASSISTANT has no such endpoint. Approving and issuing is the officer's own e-Office act,
+    # simulated only in the sandbox (like confirming a Green Note) and only on a DFA another
+    # officer put up to them (ADR-0045): never on the assistant's side.
+    paths = APP.openapi()["paths"]
+    words = {w for p in paths if p.startswith("/assist") for w in re.split(r"[/{}_-]+", p) if w}
+    assert not words & {"sign", "send", "dispatch", "approve", "approvals", "issue"}
+    officer_acts = [p for p in paths if re.search(r"approv|issue|sign|dispatch", p)]
+    assert set(officer_acts) == {
+        "/sandbox/files/{computer_no}/approvals/{draft_id}/issue",
+        "/sandbox/files/{computer_no}/approvals/{draft_id}/return",
+    }
 
 
 def test_tp06_first_cut_then_yellow_note_only_on_click(client: TestClient) -> None:

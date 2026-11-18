@@ -1,6 +1,23 @@
+# Build context allow-list for backend/Dockerfile and frontend/Dockerfile (ADR-0043).
+# Everything is excluded unless listed: never .env, data/synthetic, tests, the corpus or caches.
 *
-!backend/
+!backend/pyproject.toml
+!backend/uv.lock
+!backend/.python-version
+!backend/app/
+!backend/config/
+!backend/prompts/
 !data/ontology/
-backend/.venv
-backend/**/__pycache__
-backend/tests
+!data/schemas/postgres/
+!frontend/server/server.py
+!frontend/eoffice/package.json
+!frontend/eoffice/package-lock.json
+!frontend/eoffice/index.html
+!frontend/eoffice/tsconfig.json
+!frontend/eoffice/vite.config.ts
+!frontend/eoffice/src/
+**/__pycache__
+**/*.pyc
+**/.DS_Store
+frontend/eoffice/src/**/*.test.ts
+frontend/eoffice/src/**/*.test.tsx

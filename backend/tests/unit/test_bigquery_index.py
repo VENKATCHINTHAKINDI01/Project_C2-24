@@ -62,7 +62,9 @@ class DuckRunner:
         return [dict(zip(names, row, strict=True)) for row in cur.fetchall()]
 
 
-def scope(dept: str, *, wide: bool, rank: int, sections=(), files=()) -> Scope:
+def scope(
+    dept: str, *, wide: bool, rank: int, sections: tuple[str, ...] = (), files: tuple[str, ...] = ()
+) -> Scope:
     return Scope(
         user_id="u",
         policy_version="t",

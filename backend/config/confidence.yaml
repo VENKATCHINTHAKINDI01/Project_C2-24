@@ -1,0 +1,36 @@
+# Confidence of an answer's statements (plan §5.x "structured-output confidence scoring", Tier 2;
+# ADR-0054). Values CONFIRMED BY THE OWNER, 18 Nov 2026 — not calibrated (re-checked on each
+# evaluation run: ask_golden.py confidence_bands). Every factor is a
+# fact the system already holds; the model's own confidence is never used.
+version: "2026-11-18"
+status: owner-confirmed (uncalibrated)
+# the weakest factor sets the band (a confident sentence resting on an outdated order is Low)
+bands: {high: 0.85, medium: 0.6}
+retrieval:            # how the cited record was found (ladder rung)
+  L0: 1.0             # exact reference
+  L1: 0.95            # structured filter on its metadata
+  L2: 0.75            # search by meaning / keywords
+  L3: 0.7             # reached through the relations graph
+  records: 1.0        # stated from the order / file records, no search involved
+authority:            # the cited instrument's level (data/ontology/hierarchy.yaml, MOCK)
+  - {max_level: 4, value: 1.0}    # Constitution, Act, Rules, G.O.(Ms)
+  - {max_level: 6, value: 0.9}    # G.O.(Rt), Standing Order
+  - {max_level: 8, value: 0.75}   # Proceedings, Circular / Memo
+  - {max_level: 99, value: 0.6}   # Office Order, Decision / Noting: precedent, not authority
+support:
+  verified: 1.0       # the quoted words were found in the cited text (citation check)
+  records: 1.0        # a fact from the order / file records (temporal engine, counts)
+  ocr: 0.8            # verified, but the cited text was read by OCR
+  incomplete: 0.8     # verified, but the cited passage is incomplete
+  review: 0.4         # shown under "Review needed": not confirmed against the text
+validity:
+  in_force: 1.0
+  stated: 1.0         # not in force, and the statement says so (e.g. "… was superseded by …")
+  unknown: 0.6        # no effective date recorded
+  outdated: 0.3       # superseded / repealed / expired / not yet in force, and not said
+consistency:
+  clear: 1.0
+  later_change: 0.6   # a later order in your records amends / supersedes it, and is not cited
+graph:
+  checked: 1.0
+  unavailable: 0.6    # the relations store was unavailable: supersession not verified

@@ -30,6 +30,7 @@ from pydantic import BaseModel, ConfigDict
 
 from app.auth.models import DocumentAccessTags
 from app.cache.answers import AnswerCache, InMemoryAnswerCache
+from app.cache.semantic import SemanticIndex
 from app.config import Hierarchy
 from app.graph.repository import EdgeKind, GraphEdge, GraphNode, InMemoryGraphRepository
 from app.hitl.queue import ReviewItem, ReviewKind, ReviewQueue
@@ -71,11 +72,13 @@ _EFILE_TYPE = {
     DocType.NOTING_DRAFT: "NOTE",
     DocType.REPORT: "RPT",
     DocType.ANNEXURE: "ANX",
+    DocType.FILE_RECORD: "FILE",
 }
 _TEMPORAL = {
     RelKind.SUPERSEDES: RelationKind.SUPERSEDES,
     RelKind.AMENDS: RelationKind.AMENDS,
     RelKind.CLARIFIES: RelationKind.CLARIFIES,
+    RelKind.REPEALS: RelationKind.REPEALS,
 }
 _ORDER_DOC_TYPES = frozenset(  # instruments that can open a window for an action
     {
@@ -106,6 +109,24 @@ class SourceDocument(BaseModel):
     filename: str
     tags: DocumentAccessTags
     received_at: dt.datetime
+    # A paper the officer attached to an e-File. One without a number of its own (a letter, a
+    # statement) is filed under the e-File's number as an annexure (ANX + registry suffix); one
+    # whose own number cannot be resolved is held for review as before — never renumbered.
+    attachment: bool = False
+    event: str = "loaded"  # what brought it in: loaded / file_created / note_confirmed / issued …
+
+
+class RecordVersion(BaseModel):
+    """One version of a record as it entered institutional memory (CLAUDE.md §5.8: kept, never
+    deleted). The newest is the one indexed; status (in force / superseded) is worked out from
+    the temporal facts on the day asked, never stored here."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    version: str
+    source_uri: str
+    received_at: dt.datetime
+    event: str
 
 
 class IngestResult(BaseModel):
@@ -134,6 +155,8 @@ class IngestionStores:
     queue: ReviewQueue = field(default_factory=ReviewQueue)
     collisions: CollisionRegistry = field(default_factory=CollisionRegistry)
     cache: AnswerCache = field(default_factory=InMemoryAnswerCache)
+    # reworded repeats (plan §10.3; ADR-0053): off until the runtime config turns it on
+    reworded: SemanticIndex = field(default_factory=lambda: SemanticIndex(enabled=False))
     results: dict[tuple[str, str], IngestResult] = field(default_factory=dict)  # (uri, version)
     by_content: dict[str, IngestResult] = field(
         default_factory=dict
@@ -155,6 +178,8 @@ class IngestionStores:
     confirmed_text: MutableMapping[str, str] = field(default_factory=dict)
     # The text each indexed version was read from (native, OCR-confirmed or corrected).
     text_of: dict[str, str] = field(default_factory=dict)
+    # canonical ID → its versions, oldest first (every version that was indexed)
+    history: dict[str, list[RecordVersion]] = field(default_factory=dict)
 
 
 def _version(data: bytes) -> str:
@@ -304,6 +329,13 @@ def ingest(
             base = efile_document_id(meta.file_no, _EFILE_TYPE[meta.doc_type])
         except InvalidCanonicalIdError:
             base = None
+    own_unresolved = any(r.startswith("own reference") for r in meta.review_reasons)
+    if base is None and src.attachment and src.tags.file_no and not own_unresolved:
+        try:  # a paper filed in the e-File with no number of its own (the source says which file)
+            base = efile_document_id(src.tags.file_no, "ANX")
+            meta = meta.model_copy(update={"doc_type": DocType.ANNEXURE})
+        except InvalidCanonicalIdError:
+            base = None
     if base is None:
         reasons.append(
             q.submit(
@@ -372,6 +404,9 @@ def ingest(
     )
     stores.by_content.setdefault(version, res)
     stores.text_of[version] = text
+    stores.history.setdefault(cid, []).append(
+        RecordVersion(version=version, source_uri=src.source_uri, received_at=at, event=src.event)
+    )
     stores.awaiting.pop(src.tags.doc_id, None)
     return _record(stores, key, res)
 

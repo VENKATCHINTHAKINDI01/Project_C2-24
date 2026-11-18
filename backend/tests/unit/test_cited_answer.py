@@ -6,6 +6,7 @@ from __future__ import annotations
 import json
 import re
 from collections.abc import Iterator
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -16,7 +17,10 @@ from app.agents.llm import LLMError
 from app.citation.verifier import NO_ANSWER
 from app.config import get_settings
 from app.main import create_app
-from tests.unit.test_sandbox_api import GOLDEN, MATRIX, USERS, _doc_id, _h, _named_docs
+from tests.unit.mock_access import MATRIX
+from tests.unit.test_sandbox_api import GOLDEN, USERS, _doc_id, _h, _named_docs
+
+ROOT = Path(__file__).resolve().parents[3]
 
 APP = create_app(get_settings().model_copy(update={"sandbox": True}))
 EV = re.compile(r'<evidence id="(EV-[0-9a-f]+)" doc="([^"]+)"[^>]*>\n(.*?)\n</evidence>', re.S)
@@ -28,7 +32,8 @@ class FakeLLM:
     name = "fake"
 
     def __init__(self, mode: str = "quote") -> None:
-        self.mode, self.prompts = mode, []
+        self.mode = mode
+        self.prompts: list[str] = []
 
     def generate_json(
         self, *, prompt_id: str, system: str, user: str, schema: dict[str, Any]
@@ -213,7 +218,9 @@ def test_status_from_records_is_never_given_for_an_order_the_officer_may_not_see
 class _NamesItsOrder(FakeLLM):
     """Names the cited order by its own number and date, quoting a body line."""
 
-    def generate_json(self, *, prompt_id: str, system: str, user: str, schema: dict[str, Any]):
+    def generate_json(
+        self, *, prompt_id: str, system: str, user: str, schema: dict[str, Any]
+    ) -> dict[str, Any]:
         self.prompts.append(user)
         eid, doc, text = next((e, d, t) for e, d, t in EV.findall(user) if "GOMS-31-2025" in d)
         line = next(ln for ln in text.splitlines() if len(ln.strip()) > 30).strip()
@@ -237,3 +244,125 @@ def test_a_statement_may_name_the_cited_records_own_number_and_date(client: Test
     out = _ask(client, "U01", "What does G.O.Ms.No.31 of 2025 say?", _NamesItsOrder())
     assert [s["text"] for s in out["statements"]] == ["G.O.Ms.No.31 dated 12-05-2025 says so."]
     assert out["removed"] == 1  # another order's number is still checked against the cited text
+
+
+class _ClaimsAStatus(FakeLLM):
+    """Quotes the circular truthfully but also says whether it still holds: the status the
+    officer may not be told. Streams too, so the streamed path is held to the same rule."""
+
+    def generate_json(
+        self, *, prompt_id: str, system: str, user: str, schema: dict[str, Any]
+    ) -> dict[str, Any]:
+        self.prompts.append(user)
+        eid, _, text = next((e, d, t) for e, d, t in EV.findall(user) if "WRKS0-9-2023" in d)
+        line = next(ln for ln in text.splitlines() if len(ln.strip()) > 30).strip()
+        return {
+            "statements": [
+                {
+                    "text": "The circular has not been withdrawn and remains in force.",
+                    "evidence_ids": [eid],
+                    "quote": line,
+                },
+                {"text": "It is still valid.", "evidence_ids": [eid], "quote": line},
+                {
+                    "text": "The circular gives instructions on monsoon emergency works.",
+                    "evidence_ids": [eid],
+                    "quote": line,
+                },
+            ]
+        }
+
+    def stream_json(self, *, on_text: Any, **kw: Any) -> dict[str, Any]:
+        out = self.generate_json(**kw)
+        text = json.dumps(out)
+        for i in range(0, len(text), 9):
+            on_text(text[i : i + 9])
+        return out
+
+
+STATUS_WORDS = re.compile(r"withdrawn|in force|valid|superseded|repealed|rescinded|remains", re.I)
+
+
+def test_a_status_the_officer_may_not_be_told_is_never_told(  # noqa: C901
+) -> None:
+    """Golden questions with "status_reportable": false (Q05; key revised by the owner, ADR-0050
+    addendum 2). The officer may see the order but not everything that could change its status:
+    the answer says, in the coverage rule's neutral words, that its status can't be confirmed for
+    them; the records state no status; and a model statement that says whether it still holds
+    (withdrawn / in force / valid …) is withheld, on the full answer and while streaming. What the
+    order SAYS is still answered. An officer who may not see the order is told nothing about it.
+    Own app: the circular is a photo, confirmed here by the simulated reviewer (recorded text)."""
+    from evaluation.ask_golden import confirm_held_scans
+
+    from app.agents.tools import STATUS_UNCONFIRMED
+
+    cases = [g for g in GOLDEN if g.get("status_reportable") is False]
+    assert [g["id"] for g in cases] == ["Q05"]
+    app = create_app(get_settings().model_copy(update={"sandbox": True}))
+    seed = json.loads((ROOT / "data/synthetic/mock_v1/eoffice/seed.json").read_text("utf-8"))
+    with TestClient(app) as c:
+        confirm_held_scans(c, seed)
+
+        def ask(uid: str, question: str, llm: Any) -> dict[str, Any]:
+            app.state.assist_runtime().llm = llm
+            try:
+                r = c.post("/assist/ask", json={"question": question}, headers=_h(uid))
+            finally:
+                app.state.assist_runtime().llm = None
+            assert r.status_code == 200, r.text
+            return dict(r.json())
+
+        for g in cases:
+            for llm in (None, _ClaimsAStatus()):
+                out = ask(g["user"], g["question"], llm)
+                assert not [s for s in out["statements"] if s["source"] == "order records"]
+                hits = [n for n in out["notices"] if STATUS_UNCONFIRMED in n]
+                assert len(hits) == 1 and "9/2023" in hits[0], out["notices"]
+                shown = [s["text"] for s in (*out["statements"], *out["review_needed"])]
+                assert not [t for t in shown if STATUS_WORDS.search(t)], shown
+                assert not STATUS_WORDS.search(
+                    " ".join(out["notices"]).replace(STATUS_UNCONFIRMED, "")
+                )
+            assert out["removed"] >= 2  # the two status claims
+            assert "The circular gives instructions on monsoon emergency works." in shown
+            # streamed: the same rule before anything reaches the screen
+            app.state.assist_runtime().llm = _ClaimsAStatus()
+            try:
+                with c.stream(
+                    "POST",
+                    "/assist/chat/stream",
+                    json={"message": g["question"]},
+                    headers=_h(g["user"]),
+                ) as r:
+                    body = "".join(r.iter_text())
+            finally:
+                app.state.assist_runtime().llm = None
+            streamed = [
+                json.loads(b.split("\n", 1)[1].removeprefix("data: "))
+                for b in body.strip().split("\n\n")
+            ]
+            texts = [
+                e["statement"]["text"] for e in streamed if e["type"] in ("statement", "review")
+            ]
+            assert texts and not [t for t in texts if STATUS_WORDS.search(t)], texts
+            for uid in USERS:
+                if not MATRIX[("D13", uid)]:
+                    other = ask(uid, g["question"], _ClaimsAStatus())
+                    assert not [n for n in other["notices"] if STATUS_UNCONFIRMED in n], uid
+                    assert "9/2023" not in json.dumps(other), uid
+        covered = ask("U01", "Is G.O.Ms.No.88/2022 still in force?", None)
+        assert not [n for n in covered["notices"] if STATUS_UNCONFIRMED in n]
+        assert [s for s in covered["statements"] if s["source"] == "order records"]
+
+
+def test_the_paragraph_a_question_names_is_the_first_passage_of_the_named_order() -> None:
+    """Golden Q18 (ADR-0050 addendum 3): "para 2(v) of GO Ms 88/2022" is written in the order as
+    "2." … "(v) Spouse cases …", never as the verbatim "2(v)" a note quoting it uses; the order's
+    own paragraph must reach the model, ahead of every other window of that order."""
+    from app.agents.answer import _passages
+
+    text = (ROOT / "data/synthetic/mock_v1/ground_truth/text/D03.txt").read_text("utf-8")
+    got = _passages(text, "What does para 2(v) of GO Ms 88/2022 say?", named=True)
+    assert got and "(v) Spouse cases" in got[0]
+    plain = _passages(text, "What does GO Ms 88/2022 say about spouses?", named=True)
+    assert plain  # unchanged behaviour without a named paragraph

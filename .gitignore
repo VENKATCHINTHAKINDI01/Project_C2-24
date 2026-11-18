@@ -6,6 +6,8 @@ env/
 
 # Secrets — never commit
 .env
+.env.*
+!.env.example
 *.key
 *.pem
 credentials*.json
@@ -15,17 +17,25 @@ service-account*.json
 __pycache__/
 *.pyc
 *.pyo
+*.pyd
 *.egg-info/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
 .coverage
 htmlcov/
+*.log
 
 # Node
 node_modules/
 dist/
 build/
+coverage/
+*.tsbuildinfo
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
 
 # OS / editors
 .DS_Store
@@ -35,6 +45,8 @@ Thumbs.db
 *.swp
 *.swo
 *~
+*.bak
+*.tmp
 
 # Never commit real department data
 data/real/
@@ -51,3 +63,17 @@ _to_delete/
 
 # Antigravity / agent workspace (never commit agent scratch files)
 .gemini/
+
+# Team records stay on our machines, not in the repository (owner, 17 Nov 2026):
+# progress log, decision records, learnings, agent contract, design PDFs, run reports (the plan stays in git)
+PROGRESS.md
+CLAUDE.md
+AGENTS.md
+docs/decisions/
+docs/LEARNINGS.md
+docs/*.pdf
+docs/data_collection/
+evaluation/reports/
+
+# RAGAS judge cache (evaluation/ragas_score.py): reruns are free; never committed
+evaluation/.ragas_cache/

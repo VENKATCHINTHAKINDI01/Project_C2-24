@@ -1,8 +1,7 @@
 // Thin client for the sandbox + assist API. Sign-in is SIMULATED with a header (sandbox only,
 // ADR-0012). Errors keep the server's neutral wording; nothing is retried with less scope.
 import type {
-  Brief, ChatTurn, ClosingRemarks, Diarise, Handover, Movements, PreviousRefs, SinceDecision, DfaPreview, DocumentInfo, Highlights, OcrReviewDetail, OcrReviewItem, OcrReviewResult, ChatEvent, Digest, DraftReceipt, MonitorData, PassageContext, FeedbackIn, FilePage, FileRow, FileSoFar, FirstCut, LinkSuggestions, Me, NoteReferenceSuggestion, NoteReferences, Notices, PresendReport, Profile, ReceiptReview, ReceiptRow, ReferenceResult, SearchResult,
-} from "./types";
+  Brief, ChatTurn, DraftWorkspace, FileRecords, ClosingRemarks, Diarise, Handover, Movements, PreviousRefs, SinceDecision, DfaPreview, DocumentInfo, Highlights, OcrReviewDetail, OcrReviewItem, OcrReviewResult, ChatEvent, Digest, DraftReceipt, MonitorData, PassageContext, FeedbackIn, FilePage, FileRow, FileSoFar, FirstCut, LinkSuggestions, Me, Preferences, NoteReferenceSuggestion, NoteReferences, Notices, PresendReport, Profile, ReceiptReview, ReceiptRow, ReferenceResult, SearchResult, DraftFormats, DraftInputs, PreparedDraft } from "./types";
 
 export const SANDBOX_USER_HEADER = "X-Sandbox-User";
 
@@ -44,6 +43,8 @@ export function createApi(userId: string | null, fetchFn: Fetch = (i, init) => f
     return res.blob();
   }
   const doc = (cid: string) => `/assist/documents/${encodeURIComponent(cid)}`;
+  const approvalPath = (computerNo: string, draftId: string) =>
+    `/sandbox/files/${encodeURIComponent(computerNo)}/approvals/${encodeURIComponent(draftId)}`;
   const draftPath = (computerNo: string, draftId: string) =>
     `/sandbox/files/${encodeURIComponent(computerNo)}/drafts/${encodeURIComponent(draftId)}`;
   return {
@@ -60,6 +61,9 @@ export function createApi(userId: string | null, fetchFn: Fetch = (i, init) => f
     documentFile: (canonicalId: string, kind: "preview" | "download") => blob(`${doc(canonicalId)}/${kind}`),
     profiles: () => call<{ banner: string; profiles: Profile[] }>("/sandbox/profiles"),
     me: () => call<Me>("/sandbox/me"),
+    preferences: () => call<Preferences>("/sandbox/me/preferences"),
+    savePreferences: (p: Preferences) => call<Preferences>("/sandbox/me/preferences", p),
+    resetPreferences: () => call<Preferences>("/sandbox/me/preferences/reset", {}),
     files: () => call<{ banner: string; files: FileRow[] }>("/sandbox/files"),
     file: (computerNo: string) => call<FilePage>(`/sandbox/files/${encodeURIComponent(computerNo)}`),
     presend: (computerNo: string) => call<PresendReport>("/assist/presend", { computer_no: computerNo }),
@@ -101,6 +105,12 @@ export function createApi(userId: string | null, fetchFn: Fetch = (i, init) => f
       call<{ file: FileRow }>(`/sandbox/files/${encodeURIComponent(computerNo)}/close`, { remarks }),
     dfa: (computerNo: string) => call<DfaPreview>("/assist/dfa", { computer_no: computerNo }),
     firstCut: (computerNo: string) => call<FirstCut>("/assist/first-cut", { computer_no: computerNo }),
+    // Draft workspace (ADR-0044): formats, and a draft prepared from the officer's inputs
+    draftFormats: () => call<DraftFormats>("/assist/draft/formats"),
+    prepareDraft: (body: {
+      computer_no: string | null; format_id: string; inputs: DraftInputs;
+      add_references: string[]; drop_references: string[]; suggest: boolean;
+    }) => call<PreparedDraft>("/assist/draft/prepare", body),
     createDfa: (computerNo: string, body: string, citations: string[], requestId: string) =>
       call<DraftReceipt>("/assist/draft", {
         computer_no: computerNo, kind: "dfa_draft", body, citations, request_id: requestId,
@@ -175,6 +185,43 @@ export function createApi(userId: string | null, fetchFn: Fetch = (i, init) => f
       call<DraftReceipt>("/assist/draft", {
         computer_no: computerNo, kind: "yellow_note", body, citations, request_id: requestId,
       }),
+    // A DFA's way to issue (ADR-0045): the author puts it up; another officer approves and issues.
+    submitDraft: (computerNo: string, draftId: string) =>
+      call<{ draft_id: string; status: string }>(`${draftPath(computerNo, draftId)}/submit`, {}),
+    approveAndIssue: (computerNo: string, draftId: string) =>
+      call<{ draft_id: string; status: string; issued_as: string }>(`${approvalPath(computerNo, draftId)}/issue`, {}),
+    returnDraft: (computerNo: string, draftId: string) =>
+      call<{ draft_id: string; status: string }>(`${approvalPath(computerNo, draftId)}/return`, {}),
+    /** Attach a paper: the file itself is the body (no form encoding); the name rides in the query. */
+    attach: async (computerNo: string, file: File): Promise<{ attachment_id: string; filename: string }> => {
+      const res = await fetchFn(
+        `/sandbox/files/${encodeURIComponent(computerNo)}/attachments?name=${encodeURIComponent(file.name)}`,
+        { method: "POST", headers: { ...headersFor(userId), "Content-Type": "application/octet-stream" }, body: file },
+      );
+      if (!res.ok) {
+        let detail = res.status === 413 ? "The file is too large (10 MB at most)." : res.statusText || "Request failed";
+        try { detail = ((await res.json()) as { detail?: string }).detail ?? detail; } catch { /* keep */ }
+        throw new ApiError(res.status, detail);
+      }
+      return (await res.json()) as { attachment_id: string; filename: string };
+    },
+    fileRecords: (computerNo: string) => call<FileRecords>(`/assist/files/${encodeURIComponent(computerNo)}/records`),
+    // Draft recovery (ADR-0046): the workspace the server keeps as the officer works.
+    getWorkspace: (computerNo: string | null) =>
+      call<{ workspace: DraftWorkspace | null; saved_at: string | null }>(
+        `/assist/draft/workspace${computerNo ? `?computer_no=${encodeURIComponent(computerNo)}` : ""}`),
+    saveWorkspace: (computerNo: string | null, workspace: DraftWorkspace) =>
+      call<{ saved_at: string }>("/assist/draft/workspace", { computer_no: computerNo, workspace }),
+    /** The last save as the page goes away (tab closed, screen locked): `keepalive` lets the
+     *  request finish after the page is gone; nothing waits for the answer. */
+    saveWorkspaceOnLeave: (computerNo: string | null, workspace: DraftWorkspace) => {
+      void fetchFn("/assist/draft/workspace", {
+        method: "POST", keepalive: true, headers: headersFor(userId, true),
+        body: JSON.stringify({ computer_no: computerNo, workspace }),
+      }).catch(() => { /* the debounced save already kept all but the last moment */ });
+    },
+    discardWorkspace: (computerNo: string | null) =>
+      call<{ discarded: boolean }>("/assist/draft/workspace/discard", { computer_no: computerNo }),
   };
 }
 

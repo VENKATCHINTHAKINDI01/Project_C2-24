@@ -72,3 +72,17 @@ def test_gcp_env_requires_project_and_region(monkeypatch: pytest.MonkeyPatch) ->
     monkeypatch.delenv("C2_GCP_REGION", raising=False)
     with pytest.raises(ValidationError):
         Settings(env=Environment.GCP, _env_file=None)
+
+
+def test_the_spanner_graph_needs_its_instance_and_cloud_sql_stays_the_default() -> None:
+    """ADR-0048: Cloud SQL is the graph store unless Spanner is chosen, and choosing it without
+    an instance stops the service at start (fail closed)."""
+    import pydantic
+
+    from app.config import Settings
+
+    assert Settings().graph_backend == "postgres"
+    with pytest.raises(pydantic.ValidationError, match="C2_SPANNER_INSTANCE"):
+        Settings(graph_backend="spanner", gcp_project_id="p")
+    s = Settings(graph_backend="spanner", gcp_project_id="p", spanner_instance="c2-spanner")
+    assert (s.spanner_instance, s.spanner_database) == ("c2-spanner", "c2graph")

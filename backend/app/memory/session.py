@@ -12,6 +12,8 @@ In-memory reference store; the LangGraph Postgres checkpointer implements the sa
 from __future__ import annotations
 
 import datetime as dt
+import threading
+from collections import OrderedDict
 from collections.abc import Mapping
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -41,23 +43,31 @@ class SessionError(Exception):
 class SessionMemory:
     """Reference store keyed by (user_id, session_id)."""
 
-    def __init__(self, max_turns: int = 50) -> None:
-        self._sessions: dict[tuple[str, str], list[Turn]] = {}
+    def __init__(self, max_turns: int = 50, max_sessions: int = 10_000) -> None:
+        self._sessions: OrderedDict[tuple[str, str], list[Turn]] = OrderedDict()
         self._owner: dict[str, str] = {}
         self._max = max_turns
+        self._max_sessions = max_sessions  # bounded memory (ADR-0039): oldest session dropped
+        self._lock = threading.Lock()
 
     def append(self, user_id: str, session_id: str, turn: Turn) -> None:
-        owner = self._owner.setdefault(session_id, user_id)
-        if owner != user_id:
-            raise SessionError("session belongs to another user")
-        turns = self._sessions.setdefault((user_id, session_id), [])
-        turns.append(turn)
-        del turns[: max(0, len(turns) - self._max)]
+        with self._lock:
+            owner = self._owner.setdefault(session_id, user_id)
+            if owner != user_id:
+                raise SessionError("session belongs to another user")
+            turns = self._sessions.setdefault((user_id, session_id), [])
+            self._sessions.move_to_end((user_id, session_id))
+            turns.append(turn)
+            del turns[: max(0, len(turns) - self._max)]
+            while len(self._sessions) > self._max_sessions:
+                (_, old_sid), _ = self._sessions.popitem(last=False)
+                self._owner.pop(old_sid, None)
 
     def turns(self, user_id: str, session_id: str) -> tuple[Turn, ...]:
-        if self._owner.get(session_id, user_id) != user_id:
-            raise SessionError("session belongs to another user")
-        return tuple(self._sessions.get((user_id, session_id), ()))
+        with self._lock:
+            if self._owner.get(session_id, user_id) != user_id:
+                raise SessionError("session belongs to another user")
+            return tuple(self._sessions.get((user_id, session_id), ()))
 
     def recall(
         self,

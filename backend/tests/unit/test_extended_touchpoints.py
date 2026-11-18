@@ -65,7 +65,7 @@ def _mv(seq: int, a: str, ap: str, b: str, bp: str, day: int, hh: int, **kw: obj
         to_user=b,
         to_post=bp,
         sent_at=dt.datetime(2024, 6, day, hh, tzinfo=IST),
-        **kw,  # type: ignore[arg-type]
+        **kw,
     )
 
 

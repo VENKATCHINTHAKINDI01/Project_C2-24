@@ -8,7 +8,10 @@
 #   - raw bucket mounted READ-ONLY; files go to gs://<project>-<prefix>-artifacts/graph/
 #   - no Document AI and no Gemini calls: scans replay the readings already in public-go/ocr_recorded/
 #   - LOAD=0 builds the files only
-#   - safe to run again: rows are upserted, files overwritten.  LIMIT=50 for a short trial run.
+#   - safe to run again: the graph store is made equal to this build (ADR-0055) — links and nodes it no
+#     longer produces are deleted, the rest upserted; a load that would delete more than 20% is refused.
+#     PLAN_ONLY=1: the job reports what its load would add / update / delete and changes nothing.
+#     LIMIT=50 for a short trial run (with PLAN_ONLY=1 only: a partial build would delete the rest).
 # Billing: one task, 2 vCPU / 8 GiB, about 15-20 minutes for 1,374 orders; nothing bills while idle.
 # With EMBEDDING_MODEL: + one embedding request per passage batch (Vertex, in region; cents for the
 # whole corpus) and longer — quota answers are waited out and retried.
@@ -20,7 +23,15 @@ ART="${PROJECT_ID}-${PREFIX}-artifacts"
 ARGS="-m,app.graph.build,--staging-dir,/mnt/raw/public-go,--out,/mnt/artifacts/graph,--pdf-scans,/mnt/artifacts/graph/pdf_scans"
 # pdf_scans/: each public order's page reads, read by c2-api at start instead of parsing the PDFs
 # LOAD=0: build the files only (use while c2-ingest lacks the Cloud SQL roles; then 16_graph_load.py)
-[[ "${LOAD:-1}" == "1" ]] && ARGS="${ARGS},--load-postgres,--load-bigquery,${PROJECT_ID}.${PREFIX}_metadata.documents"
+# GRAPH=spanner (ADR-0048): the graph goes to Spanner Graph INSTEAD of Cloud SQL — one graph store is
+# written, never two (the Cloud SQL graph tables are then a frozen fallback). Only once the API reads
+# Spanner (20_api_service.sh GRAPH=spanner, after cloud_ladder_check.py --spanner-instance passed).
+GRAPH_ARG="--load-postgres"; GRAPH_ENV=""
+if [[ "${GRAPH:-}" == "spanner" ]]; then
+  GRAPH_ARG="--load-spanner"
+  GRAPH_ENV=",C2_SPANNER_INSTANCE=${SPANNER_INSTANCE:-${PREFIX}-spanner},C2_SPANNER_DATABASE=${SPANNER_DATABASE:-${PREFIX}graph}"
+fi
+[[ "${LOAD:-1}" == "1" ]] && ARGS="${ARGS},${GRAPH_ARG},--load-bigquery,${PROJECT_ID}.${PREFIX}_metadata.documents"
 # Passages + embeddings for rung L2 (ADR-0026). EMBEDDING_MODEL must be one that answers in $REGION
 # (17_embedding_check.py); without it the passages step is left out.
 EMBED_ENV=""
@@ -33,13 +44,14 @@ else
   echo "note: EMBEDDING_MODEL not set — the passages table (rung L2) is not built in this run"
 fi
 [[ -n "${LIMIT:-}" ]] && ARGS="${ARGS},--limit,${LIMIT}"
+[[ "${PLAN_ONLY:-}" == "1" ]] && ARGS="${ARGS},--load-dry-run"
 run gcloud run jobs deploy "$JOB" --project "$PROJECT_ID" --region "$REGION" --image "$IMAGE" \
   --service-account "$(sa_email ingest)" \
   --add-volume "name=raw,type=cloud-storage,bucket=${RAW},readonly=true" \
   --add-volume-mount "volume=raw,mount-path=/mnt/raw" \
   --add-volume "name=artifacts,type=cloud-storage,bucket=${ART}" \
   --add-volume-mount "volume=artifacts,mount-path=/mnt/artifacts" \
-  --set-env-vars "C2_GCP_PROJECT_ID=${PROJECT_ID},C2_GCP_REGION=${REGION},C2_CLOUDSQL_INSTANCE=${PROJECT_ID}:${REGION}:${PREFIX}-sql,C2_CLOUDSQL_USER=${PREFIX}-ingest@${PROJECT_ID}.iam,C2_CLOUDSQL_DB=${PREFIX}${EMBED_ENV}" \
+  --set-env-vars "C2_GCP_PROJECT_ID=${PROJECT_ID},C2_GCP_REGION=${REGION},C2_CLOUDSQL_INSTANCE=${PROJECT_ID}:${REGION}:${PREFIX}-sql,C2_CLOUDSQL_USER=${PREFIX}-ingest@${PROJECT_ID}.iam,C2_CLOUDSQL_DB=${PREFIX}${EMBED_ENV}${GRAPH_ENV}" \
   --command /srv/backend/.venv/bin/python "--args=$ARGS" \
   --cpu 2 --memory 8Gi --task-timeout 7200 --max-retries 0 --tasks 1
 if [[ "${RUN:-0}" == "1" ]]; then

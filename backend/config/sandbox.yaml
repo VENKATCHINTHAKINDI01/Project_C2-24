@@ -8,6 +8,11 @@ calibrated: false
 replays:
   tp04:
     - D04_FIN01-GOMS-31-2025.pdf
+# MOCK, [To confirm] against the AP Business Rules (who approves depends on the subject): posts that
+# may approve, sign (simulated click) and issue a draft for approval put up to them. The author never
+# approves their own draft. Issued orders get SYNTHETIC numbers from 9001 (ADR-0045).
+order_approval:
+  approver_posts: ["Assistant Secretary", "Deputy Secretary", "Secretary to Government"]
 retrieval:
   l2_top_k: 10
   l2_rerank_min_score: 1.0
@@ -39,3 +44,12 @@ monitoring:
       section: null
       clearance: SECRET
       search_scopes: [individual]
+
+# MOCK directory for C2_IDENTITY=iap (ADR-0039): the e-mail IAP verified → the e-Office user it
+# signs in as. Placeholder addresses only (example.org is reserved); a real deployment reads the
+# department's employee master through the connector. Unused in the default sandbox sign-in.
+directory:
+  so.estt.one@example.org: U01
+  as.estt@example.org: U02
+  so.vigilance@example.org: U04
+  monitor@example.org: M01

@@ -51,11 +51,24 @@ class Settings(BaseSettings):
     monitoring_users: str = ""
     # what counts as unusual activity on the pad (ADR-0036): MOCK until the department decides
     monitoring_config_path: Path = REPO_ROOT / "backend" / "config" / "monitoring.yaml"
+    draft_formats_path: Path = REPO_ROOT / "backend" / "config" / "draft_formats.yaml"  # ADR-0044
     # Memorystore (Redis/Valkey) — cache only (ADR-0035). Unset: in-memory cache in this instance.
     # redis://[:password@]host:6379/0 ; the password comes from Secret Manager, never the repo.
     redis_url: str | None = None
     cache_ttl_s: int = Field(default=6 * 3600, ge=60)
     embedding_cache_ttl_s: int = Field(default=7 * 86400, ge=60)
+    # Who is calling (ADR-0039). "sandbox": the mock sign-in (X-Sandbox-User). "iap": the IAP
+    # assertion forwarded by the frontend, verified here, e-mail mapped through the directory.
+    identity: Literal["sandbox", "iap"] = "sandbox"
+    # comma-separated, e.g. /projects/<number>/locations/<region>/services/c2-frontend
+    iap_audiences: str = ""
+    # per-officer limits per minute (ADR-0039): model-backed actions / every assistant action
+    rate_model_per_minute: int = Field(default=20, ge=1)
+    rate_any_per_minute: int = Field(default=120, ge=1)
+    # largest request body accepted (bytes); an OCR correction of a long scan fits in 1 MiB
+    max_body_bytes: int = Field(default=1_048_576, ge=1024)
+    # an officer's attachment (scanned letter, PDF): the only route allowed more (ADR-0045)
+    upload_max_bytes: int = Field(default=10_485_760, ge=1024)
     sandbox_config_path: Path = REPO_ROOT / "backend" / "config" / "sandbox.yaml"
     sandbox_replay: str | None = None  # name of a replay in sandbox.yaml (e.g. "tp04")
     # OCR (plan §4.1; ADR-0017). "none": scans wait in review unread. "documentai": live calls
@@ -97,10 +110,22 @@ class Settings(BaseSettings):
     cloudsql_instance: str | None = None  # project:region:instance
     cloudsql_user: str | None = None  # IAM DB user, e.g. c2-api@<project>.iam
     cloudsql_db: str = "c2"
+    pg_pool_size: int = Field(default=4, ge=1, le=32)  # per instance; Cloud SQL caps connections
+    pg_connect_timeout_s: int = Field(default=10, ge=1)
+    pg_statement_timeout_ms: int = Field(default=10_000, ge=100)
+    # outbound call limits (ADR-0039): a stuck service ends the request closed, never hangs it
+    llm_timeout_s: float = Field(default=60.0, gt=0)
+    bq_timeout_s: float = Field(default=30.0, gt=0)
     # Where the public-order rungs are read from (ADR-0028). "memory": everything is ingested at
     # start (sandbox default). "cloud": the officer's e-Office papers stay in memory and the public
     # corpus is read from BigQuery (L0-L2, dataset `bq_dataset`) and Cloud SQL (L3).
     retrieval_backend: Literal["memory", "cloud"] = "memory"
+    # The L3 graph store for the cloud rungs (ADR-0048): "postgres" = Cloud SQL (ADR-0023, the
+    # default and the fallback); "spanner" = Spanner Graph (instance + database below), switched on
+    # after `27_spanner_graph.py check` shows both stores give the same walks.
+    graph_backend: Literal["postgres", "spanner"] = "postgres"
+    spanner_instance: str | None = None  # e.g. c2-spanner
+    spanner_database: str = "c2graph"
     # Query tracking (plan §10.4; ADR-0029): "bigquery" streams one record per question into
     # <project>.<bq_audit_dataset>.query_log (IDs and metadata only). The same switch sends the
     # officers' feedback actions to <project>.<bq_audit_dataset>.human_action (ADR-0031).
@@ -135,6 +160,20 @@ class Settings(BaseSettings):
                 "C2_RETRIEVAL_BACKEND=cloud needs C2_GCP_PROJECT_ID, C2_GCP_REGION and a Cloud SQL "
                 "connection (C2_CLOUDSQL_INSTANCE + C2_CLOUDSQL_USER, or C2_PG_DSN)"
             )
+        return self
+
+    @model_validator(mode="after")
+    def _spanner_graph_needs_its_instance(self) -> Settings:
+        if self.graph_backend == "spanner" and not (self.gcp_project_id and self.spanner_instance):
+            raise ValueError(
+                "C2_GRAPH_BACKEND=spanner needs C2_GCP_PROJECT_ID and C2_SPANNER_INSTANCE"
+            )
+        return self
+
+    @model_validator(mode="after")
+    def _identity_is_configured(self) -> Settings:
+        if self.identity == "iap" and not self.iap_audiences.strip():
+            raise ValueError("C2_IDENTITY=iap needs C2_IAP_AUDIENCES")
         return self
 
     @model_validator(mode="after")
@@ -210,6 +249,9 @@ class RetrievalConfig(_Frozen):
 
 class CacheConfig(_Frozen):
     answer_ttl_seconds: int | None = Field(default=None, ge=1)
+    # plan §10.3 (Tier 2; ADR-0053): a reworded repeat in the same scope, with the same anchors and
+    # the same content words, is served from the scoped answer cache
+    reworded_repeats: bool = False
     artifact_ttl_seconds: int | None = Field(default=None, ge=1)
 
 

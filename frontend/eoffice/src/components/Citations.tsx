@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { fmtDate } from "../format";
 import type { Api } from "../api";
 import type { DocumentInfo, Highlight, HighlightState } from "../types";
 
@@ -123,8 +124,9 @@ export function DocumentViewer({ api, canonicalId, onClose }: { api: Api; canoni
       <div className="viewer-head">
         <div>
           <strong>{info?.canonical_id ?? canonicalId}</strong>
-          {info && <span className="muted"> · {info.doc_type}{info.issue_date ? ` · ${info.issue_date}` : ""}</span>}
+          {info && <span className="muted">, {info.doc_type}{info.issue_date ? `, ${fmtDate(info.issue_date)}` : ""}</span>}
           {info && <p className="muted">{info.subject}</p>}
+          {info && <RecordStatus info={info} />}
         </div>
         <div className="actions">
           <button onClick={download} disabled={!info}>Download</button>
@@ -141,3 +143,30 @@ export function DocumentViewer({ api, canonicalId, onClose }: { api: Api; canoni
     </div>
   );
 }
+
+const STANDING_LINE: Record<string, string> = {
+  in_force: "In force", superseded: "Superseded", repealed: "Repealed", expired: "No longer in force (expired)",
+  not_yet_in_force: "Not yet in force", unconfirmed: "Status not confirmed from your records",
+};
+const ENTERED: Record<string, string> = {
+  file_created: "file opened", attachment_added: "attached", note_confirmed: "note confirmed",
+  draft_dispatched: "order issued", file_closed: "file closed", order_received: "order received",
+  receipt_diarised: "receipt diarised", loaded: "loaded",
+};
+
+/** ADR-0045: where the record stands today and how it entered the records (versions kept). */
+export function RecordStatus({ info }: { info: DocumentInfo }) {
+  const line = info.standing ? STANDING_LINE[info.standing] : undefined;
+  const history = info.history ?? [];
+  if (!line && history.length < 2) return null;
+  return (
+    <p className="record-status small">
+      {line && <strong className={info.standing === "in_force" ? "ok" : "warn"}>{line}</strong>}
+      {info.use_instead && <> — use {info.use_instead}</>}
+      {history.length > 1 && (
+        <span className="muted"> · {history.length} versions: {history.map((h) => `${ENTERED[h.event] ?? h.event} ${fmtDate(h.received_at.slice(0, 10))}`).join(", ")}</span>
+      )}
+    </p>
+  );
+}
+

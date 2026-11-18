@@ -59,20 +59,20 @@ def _embedder(models: FakeModels, pauses: list[float], retries: int = 6) -> Vert
 
 
 def test_quota_answers_are_waited_out_with_growing_pauses() -> None:
-    models, pauses = FakeModels(script=[429, 503, "ok"]), []
+    models, pauses = FakeModels(script=[429, 503, "ok"]), list[float]()
     assert len(_embedder(models, pauses).embed_documents(["a", "b"])) == 2
     assert pauses == [2.0, 4.0] and models.sizes == [2, 2, 2]
 
 
 def test_retries_end_and_the_job_fails_closed() -> None:
-    models, pauses = FakeModels(script=[429] * 10), []
+    models, pauses = FakeModels(script=[429] * 10), list[float]()
     with pytest.raises(EmbeddingError):
         _embedder(models, pauses, retries=2).embed_query("x")
     assert len(pauses) == 2
 
 
 def test_a_model_that_takes_one_text_per_call_is_found_once() -> None:
-    models, pauses = FakeModels(single_only=True), []
+    models, pauses = FakeModels(single_only=True), list[float]()
     emb = _embedder(models, pauses)
     assert len(emb.embed_documents([f"t{i}" for i in range(9)])) == 9
     assert models.sizes == [4] + [1] * 9  # one refused batch, then one text per call
@@ -105,7 +105,7 @@ class CountingEmbedder:
 
 
 def _corpus(n: int) -> tuple[list[dict[str, Any]], dict[str, str]]:
-    docs = [
+    docs: list[dict[str, Any]] = [
         {
             "canonical_id": f"AP-FIN01-GOMS-{i}-2024",
             "department": "FIN01",
