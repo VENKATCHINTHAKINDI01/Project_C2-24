@@ -12,6 +12,7 @@ file only as a Yellow Note on the officer's click, and becomes a note only when 
 from __future__ import annotations
 
 import re
+from collections.abc import Sequence
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict
@@ -19,9 +20,11 @@ from pydantic import BaseModel, ConfigDict
 from app.agents.first_cut import FirstCut
 from app.agents.llm import LLMClient, LLMError, load_prompt
 from app.citation.verifier import _norm, _tokens
+from app.noting.file_facts import FileParagraph
 from app.retrieval.evidence import addressed_to_ai
 
 PROMPT_ID = "noting_draft.v2"
+PROMPT_ID_FILE = "noting_draft.v3"  # v2 + the file's own paragraphs as sources (ADR-0060)
 SECTIONS = (
     "Background",
     "Precedent",
@@ -92,7 +95,9 @@ class DraftNote(_Frozen):
     reason: str | None = None
 
 
-def sources_of(cut: FirstCut, subject: str = "") -> list[Source]:
+def sources_of(
+    cut: FirstCut, subject: str = "", file_paras: Sequence[FileParagraph] = ()
+) -> list[Source]:
     out: list[Source] = []
 
     def add(ref: str, kind: str, text: str) -> None:
@@ -100,6 +105,8 @@ def sources_of(cut: FirstCut, subject: str = "") -> list[Source]:
 
     if subject.strip():  # what the file is about: a line restating the request cites this
         add(f"File {cut.file_no}", "subject", subject.strip())
+    for fp in file_paras:  # the request and verified facts, quoted from the file's notes
+        add(fp.ref, "file", f"Note #{fp.note_no}, para {fp.paragraph}: {fp.text}")
     for o in cut.orders:
         when = o.issue_date.strftime("%d-%m-%Y") if o.issue_date else "date not recorded"
         status = "" if o.status_confirmed else " (status not confirmed from your records)"
@@ -170,17 +177,25 @@ def _empty(reason: str, removed: int = 0, engine: str | None = None) -> DraftNot
     return DraftNote(sections=(), removed=removed, text="", engine=engine, reason=reason)
 
 
-def draft_note(cut: FirstCut, subject: str, llm: LLMClient | None) -> DraftNote:
-    """The note, or an empty one with the reason (the cited points are shown either way)."""
-    sources = sources_of(cut, subject)
+def draft_note(
+    cut: FirstCut,
+    subject: str,
+    llm: LLMClient | None,
+    file_paras: Sequence[FileParagraph] = (),
+) -> DraftNote:
+    """The note, or an empty one with the reason (the cited points are shown either way).
+    `file_paras`: the file's own request / verified-fact paragraphs (ADR-0060), sent with prompt v3;
+    without them the request is exactly the v2 one (recorded answers stay valid)."""
+    sources = sources_of(cut, subject, file_paras)
+    prompt_id = PROMPT_ID_FILE if file_paras else PROMPT_ID
     if not any(s.kind in ("provision", "precedent") for s in sources):
         return _empty("no_sources")  # nothing to write from: the model is not asked
     if llm is None:
         return _empty("engine_off")
     try:
         raw = llm.generate_json(
-            prompt_id=PROMPT_ID,
-            system=load_prompt(PROMPT_ID),
+            prompt_id=prompt_id,
+            system=load_prompt(prompt_id),
             user=_prompt(subject, sources),
             schema=SCHEMA,
         )

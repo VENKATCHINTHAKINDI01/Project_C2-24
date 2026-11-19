@@ -73,7 +73,7 @@ def test_reindexing_a_record_replaces_its_mentions() -> None:
 
 @pytest.fixture(scope="module")
 def client() -> Iterator[TestClient]:
-    from evaluation.ask_golden import confirm_held_scans  # type: ignore[import-not-found]
+    from evaluation.ask_golden import confirm_held_scans
 
     app = create_app(get_settings().model_copy(update={"sandbox": True}))
     seed = json.loads((CORPUS / "eoffice" / "seed.json").read_text("utf-8"))

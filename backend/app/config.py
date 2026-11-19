@@ -65,6 +65,9 @@ class Settings(BaseSettings):
     # per-officer limits per minute (ADR-0039): model-backed actions / every assistant action
     rate_model_per_minute: int = Field(default=20, ge=1)
     rate_any_per_minute: int = Field(default=120, ge=1)
+    # model-suggested draft wording per officer per day (ADR-0060 cost control; 0 = none). Only
+    # requests that reach a configured model count; the draft itself is always prepared.
+    draft_wording_per_day: int = Field(default=40, ge=0)
     # largest request body accepted (bytes); an OCR correction of a long scan fits in 1 MiB
     max_body_bytes: int = Field(default=1_048_576, ge=1024)
     # an officer's attachment (scanned letter, PDF): the only route allowed more (ADR-0045)
@@ -115,6 +118,7 @@ class Settings(BaseSettings):
     pg_statement_timeout_ms: int = Field(default=10_000, ge=100)
     # outbound call limits (ADR-0039): a stuck service ends the request closed, never hangs it
     llm_timeout_s: float = Field(default=60.0, gt=0)
+    llm_max_output_tokens: int = Field(default=4096, ge=256)  # caps the cost of one live call
     bq_timeout_s: float = Field(default=30.0, gt=0)
     # Where the public-order rungs are read from (ADR-0028). "memory": everything is ingested at
     # start (sandbox default). "cloud": the officer's e-Office papers stay in memory and the public

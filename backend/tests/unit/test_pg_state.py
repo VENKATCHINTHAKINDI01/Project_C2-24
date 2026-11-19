@@ -96,6 +96,7 @@ def pg() -> Iterator[Pg]:
             "0002_graph",
             "0003_sessions",
             "0004_draft_workspaces",
+            "0005_model_usage",
         ]
         apply_migrations(p, MIGRATIONS)  # idempotent
         yield p
@@ -246,6 +247,7 @@ def test_real_postgres_cuts_off_slow_statements_and_caps_connections() -> None:
     p.close()
 
 
+@needs_pg
 def test_a_draft_workspace_survives_a_restart_and_stays_its_officers(pg: Pg) -> None:
     """ADR-0046: the server keeps an officer's interrupted draft; one row per officer and target."""
     from app.noting.workspace import PostgresWorkspaceStore, Workspace

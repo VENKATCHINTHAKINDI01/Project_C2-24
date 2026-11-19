@@ -182,6 +182,15 @@ def sweep(
                     "brief",
                 ):
                     record(f"assist: {name}", cno, post(f"/assist/{name}", {"computer_no": cno}))
+                # drafting from the file (ADR-0060): file facts, carried references, related
+                # files, order history and people beside a note on this file
+                record(
+                    "assist: draft prepare (note)",
+                    cno,
+                    post(
+                        "/assist/draft/prepare", {"computer_no": cno, "format_id": "note_proposal"}
+                    ),
+                )
                 record(
                     "assist: note reference",
                     cno,

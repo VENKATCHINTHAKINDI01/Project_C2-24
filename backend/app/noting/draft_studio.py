@@ -27,6 +27,7 @@ DFA draft through the connector). C2-24 never approves, signs, numbers, issues o
 from __future__ import annotations
 
 import datetime as dt
+import re
 from collections.abc import Callable, Iterable, Sequence
 from pathlib import Path
 from typing import Any, Literal
@@ -43,6 +44,7 @@ from app.agents.tools import visible_facts as _visible_facts
 from app.conflict.deterministic import ConflictFlag
 from app.graph.repository import Direction, EdgeKind
 from app.noting.drafter import Source, _line_ok
+from app.noting.file_facts import FileFacts, FileParagraph
 from app.retrieval.evidence import addressed_to_ai
 from app.retrieval.graph_expansion import expand
 from app.temporal.engine import Status, status_as_of
@@ -153,6 +155,11 @@ def _date(d: dt.date | None) -> str:
     return d.strftime("%d-%m-%Y") if d else "date not recorded"
 
 
+def _words(text: str) -> str:
+    """A paragraph's words without its own number ("6. …" or "6) …")."""
+    return re.sub(r"^\s*\d{1,3}[.)]\s*", "", text)
+
+
 def compose(
     fmt: DraftFormat,
     inputs: DraftInputs,
@@ -164,8 +171,13 @@ def compose(
     flags: Sequence[ConflictFlag] = (),
     left_out: Sequence[LeftOut] = (),
     label: Callable[[str, dt.date | None], str],
+    file_facts: FileFacts | None = None,
 ) -> PreparedDraft:
-    """Lay the draft out in the format's parts (see module doc for whose words are whose)."""
+    """Lay the draft out in the format's parts (see module doc for whose words are whose).
+
+    `file_facts` (ADR-0060): the file's own paragraphs stating the request and what was verified —
+    quoted with their note and paragraph when the officer has not typed their own — and the last
+    paragraph number on the file, so a note continues the file's numbering."""
     parts: list[Part] = []
     body: list[Part] = []  # numbered paragraphs
 
@@ -207,8 +219,54 @@ def compose(
                 "[The file may be referred to … Department for advice / concurrence.]",
             ),
         }.get(fmt.id, ("[Background.]", "[Proposal.]"))
-        officer("request", inputs.request, gaps[0])
-        officer("facts", inputs.facts, "[Facts verified.]")
+        ff = file_facts if fmt.id == "note_proposal" else None
+
+        def from_file(key: str, value: str, paras: Sequence[FileParagraph], gap: str) -> None:
+            if _paras(value) or not paras:
+                officer(key, value, gap)  # the officer's own words always come first
+                return
+            for fp in paras:
+                para(
+                    key,
+                    f'As recorded in Note #{fp.note_no}, para {fp.paragraph}: "{_words(fp.text)}"',
+                    "record",
+                    (fp.ref,),
+                )
+
+        from_file("request", inputs.request, ff.request if ff else (), gaps[0])
+        from_file("facts", inputs.facts, ff.facts if ff else (), "[Facts verified.]")
+        # what the file could not settle is put to the officer, never stated (ADR-0060 addendum)
+        if ff is not None and not inputs.request.strip():
+            if ff.request_status == "not_found":
+                para(
+                    "confirm",
+                    "For examination: the request could not be identified from the notes on the "
+                    "file. It is to be stated from the PUC.",
+                    "check",
+                )
+            for r in ff.review if ff is not None else ():
+                if r.kind == "request":
+                    fp = r.paragraph
+                    para(
+                        "confirm",
+                        f"For examination: Note #{fp.note_no}, para {fp.paragraph} {r.reason}: "
+                        f'"{_words(fp.text)}" It is to be confirmed against the PUC before it is '
+                        "relied on.",
+                        "check",
+                        (fp.ref,),
+                    )
+        if ff is not None and not inputs.facts.strip():
+            for r in ff.review:
+                if r.kind == "fact":
+                    fp = r.paragraph
+                    para(
+                        "confirm",
+                        f"For examination: Note #{fp.note_no}, para {fp.paragraph} is "
+                        f'{r.reason}: "{_words(fp.text)}" It is to be verified before it is '
+                        "relied on.",
+                        "check",
+                        (fp.ref,),
+                    )
         if fmt.id == "note_dfa":
             para("dfa", "Draft orders are put up for approval (DFA).", "fixed")
         for p in points:
@@ -246,8 +304,29 @@ def compose(
                 "check",
                 f.evidence_ids,
             )
+        # orders the file's notes rely on, carried forward and verified (ADR-0060): replaced
+        # ones are read in their current version and said so; ones that cannot be read are named
+        for i in read_list:
+            if i.in_place_of:
+                old = "; ".join(label(c, None) for c in i.in_place_of)
+                para(
+                    "carried",
+                    f"For examination: {old}, relied on in the file, has since been replaced; "
+                    f"{label(i.canonical_id, i.issue_date)} is read in its place.",
+                    "check",
+                    (*i.in_place_of, i.canonical_id),
+                )
+        for lo in left_out:
+            para(
+                "carried",
+                f"For examination: {lo.cited}, cited in the file, is not read with this note — "
+                f"{lo.reason}. Its availability and applicability need to be verified.",
+                "check",
+            )
         officer("proposal", inputs.proposal, gaps[1])
-        for n, bp in enumerate(body, 1):
+        # the notes of a file share one run of paragraph numbers: continue after the last one
+        first = file_facts.next_paragraph if file_facts is not None else 1
+        for n, bp in enumerate(body, first):
             add(bp.key, f"{n}. {bp.text}", bp.origin, bp.refs)
         if read_list:
             add("references_head", "References:", "fixed")
@@ -332,7 +411,9 @@ def compose(
                 "letter": "[What is requested.]",
             }[fmt.kind],
         )
-        for n, bp in enumerate(body, 1):
+        # the notes of a file share one run of paragraph numbers: continue after the last one
+        first = file_facts.next_paragraph if file_facts is not None else 1
+        for n, bp in enumerate(body, first):
             add(bp.key, f"{n}. {bp.text}", bp.origin, bp.refs)
         if fmt.kind == "go":
             add("governor", GOVERNOR, "fixed")

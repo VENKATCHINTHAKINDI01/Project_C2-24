@@ -64,6 +64,7 @@ from app.retrieval.bigquery_index import BigQueryRunner
 from app.retrieval.cloud import cloud_rungs_from_settings
 from app.retrieval.graph_expansion import NotCalibratedError
 from app.retrieval.ladder import LadderConfig
+from app.tracking.model_usage import InMemoryModelUsage, ModelQuota, PostgresModelUsage
 from app.tracking.monitor import MonitorData, build_monitor, rows_from_bigquery
 from app.tracking.query_log import BigQueryQueryLog, InMemoryQueryLog, QueryLog
 from app.tracking.signals import Person, Refusal, build_alerts, load_signal_config
@@ -409,6 +410,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             runner[0], f"{audit_ds}.query_log", f"{audit_ds}.human_action", since, start
         )
 
+    # optional model calls per officer per day, and their log (ADR-0060 addendum): in Cloud SQL
+    # when state is in Postgres, so the limit holds across instances and restarts
+    model_usage = PostgresModelUsage(pg) if pg is not None else InMemoryModelUsage()
+    app.state.model_usage = model_usage
     app.include_router(
         build_assist_router(
             connector=cast(EOfficeConnector, GuardedConnector(adapter)),  # plan §14.4
@@ -427,6 +432,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             monitor=monitor,
             signals=signals,
             limiter=RateLimiter(settings.rate_model_per_minute, settings.rate_any_per_minute),
+            wording_quota=ModelQuota(model_usage, settings.draft_wording_per_day),
             draft_formats=load_formats(settings.draft_formats_path),  # validated at start
             workspaces=PostgresWorkspaceStore(pg) if pg is not None else InMemoryWorkspaceStore(),
         )

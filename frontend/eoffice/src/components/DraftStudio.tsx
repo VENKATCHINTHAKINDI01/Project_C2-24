@@ -51,7 +51,47 @@ const WHY_NO_WORDING: Record<string, string> = {
   engine_down: "The model did not answer (the main model and the fallback were both unavailable). Nothing was guessed.",
   no_sources: "Write the facts or what is proposed first: suggested wording is built only from your own inputs and the orders read.",
   all_removed: "Every suggested line failed the check against its sources and was removed.",
+  daily_limit: "You have used today's suggested-wording requests. The draft above is complete without them; wording can be suggested again tomorrow.",
+  usage_unavailable: "Suggested wording is unavailable just now (today's request count could not be checked), so the model was not asked. The draft above is complete without it.",
 };
+
+/** Beside a draft on an open file (ADR-0060): related files, how the orders read have changed,
+ * and other records naming the people in the request. All within the officer's access; shown
+ * for checking, never written into the draft. */
+export function FromTheRecords({ prep, openFile }: { prep: PreparedDraft; openFile?: (computerNo: string) => void }) {
+  const files = prep.related_files ?? [];
+  const histories = prep.context?.histories ?? [];
+  const people = prep.context?.people ?? [];
+  if (files.length === 0 && histories.length === 0 && people.length === 0) return null;
+  return (
+    <div className="from-records">
+      {files.length > 0 && <>
+        <h2>Related files</h2>
+        <ul>{files.map((f) => (
+          <li key={f.computer_no}>
+            {openFile ? <button className="link" onClick={() => openFile(f.computer_no)}>{f.file_no}</button> : f.file_no}
+          </li>
+        ))}</ul>
+      </>}
+      {histories.map((h) => (
+        <div key={h.order}>
+          <h2>How the order read has changed</h2>
+          <ul>{h.lines.map((ln) => <li key={ln.text}>{ln.text}</li>)}</ul>
+          {!h.status_reportable && <p className="muted">What is in force now is not stated: some of these orders are outside your records.</p>}
+        </div>
+      ))}
+      {people.length > 0 && <>
+        <h2>Other records naming</h2>
+        {people.map((p) => (
+          <div key={p.name}>
+            <p><strong>{p.name}</strong>{p.role ? `, ${p.role}` : ""}</p>
+            <ul>{p.records.map(([id, label]) => <li key={id}>{label}</li>)}</ul>
+          </div>
+        ))}
+      </>}
+    </div>
+  );
+}
 
 export function relationText(r: DraftRelation): string {
   const [out, inn] = REL[r.kind] ?? [r.kind, r.kind];
@@ -340,6 +380,7 @@ export function DraftStudio({ api, computerNo, initialFormat, back, onSaved, ope
                   </>}
               </div>
             )}
+            {!isNew && <FromTheRecords prep={prep} openFile={openFile} />}
             <h2>Read the following</h2>
             {prep.read_list.length === 0 && <p className="muted">No order is read yet. Add one from the close matches below.</p>}
             <ol className="readlist">
@@ -437,13 +478,15 @@ function Checks({ c }: { c: PreparedDraft["checks"] }) {
 }
 
 function Suggested({ s, onUse }: { s: NonNullable<PreparedDraft["suggested"]>; onUse: (t: string) => void }) {
-  if (s.lines.length === 0) return <p className="muted suggest-none">{WHY_NO_WORDING[s.reason ?? ""] ?? "No wording was suggested."}</p>;
+  const left = s.usage ? ` ${s.usage.used} of ${s.usage.limit} wording requests used today.` : "";
+  if (s.lines.length === 0) return <p className="muted suggest-none">{WHY_NO_WORDING[s.reason ?? ""] ?? "No wording was suggested."}{s.reason === "daily_limit" ? "" : left}</p>;
   return (
     <div className="suggested">
       <h3>Suggested wording</h3>
       <p className="muted">
         Written by {s.engine}{s.fallback ? " (the fallback model: the main model was unavailable)" : ""}; every line rests on the source shown.
         {s.removed > 0 ? ` ${s.removed} line${s.removed === 1 ? "" : "s"} failed the check and ${s.removed === 1 ? "was" : "were"} removed.` : ""}
+        {left}
       </p>
       <ol>{s.lines.map((l, n) => <li key={n}>{l.text} <span className="muted">— {l.refs.join(", ")}</span></li>)}</ol>
       <button onClick={() => onUse(s.lines.map((l) => l.text).join("\n\n"))}>Put into the draft</button>

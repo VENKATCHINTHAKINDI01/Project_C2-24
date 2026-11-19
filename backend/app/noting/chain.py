@@ -28,6 +28,11 @@ class NoteEntry(_Frozen):
     signed_at: dt.datetime | None
     source: str  # canonical ID of the note document
     by_paragraph: tuple[tuple[int, str], ...] = ()  # (number, its own words), when numbered
+    # the note's header, when it has one (e-Office layout "Sub: … / Ref: 1. … 2. … / * * *"):
+    # its subject line and the items of its reference list (the PUC is usually one of them).
+    # Reference-list items are never paragraphs of the note (ADR-0060 addendum).
+    subject_line: str | None = None
+    references: tuple[str, ...] = ()
 
 
 class FileSoFar(_Frozen):
@@ -47,6 +52,55 @@ _FURNITURE = re.compile(
 _ONE_LINE = re.compile(r"^(?P<name>.+?)\s+/\s+(?P<post>.+?)\s+/\s+\d{2}/\d{2}/\d{4}\b")
 _MARKING = re.compile(r"^\s*\[?(?:UNCLASSIFIED|RESTRICTED|CONFIDENTIAL|SECRET)\]?\s*$")
 _PARA = re.compile(r"^\s*(\d{1,3})\.\s")
+# a paragraph of the note's body: "5. …" or "5) …"
+_BODY_PARA = re.compile(r"^\s*(\d{1,3})[.)]\s")
+_SUB = re.compile(r"^\s*Sub(?:ject)?\s*[:.\-–]\s*(.*)$", re.I)
+_REF = re.compile(r"^\s*Ref(?:erence)?s?\s*[:.\-–]?\s*(.*)$", re.I)
+_SEPARATOR = re.compile(r"^\s*(?:\*\s*){3,}$|^\s*-{3,}\s*$")
+
+
+def note_structure(
+    body: list[str],
+) -> tuple[str | None, tuple[str, ...], tuple[tuple[int, str], ...]]:
+    """Split a note's lines into its header (subject line, reference list) and its numbered body
+    paragraphs. A note without a "Sub:" header is all body (the older layout: "1. …"). In a note
+    with one, the "Ref:" list is numbered "1. 2. …" too, so the body starts after the "* * *"
+    separator or at the first "N)" paragraph; a wrapped line or a sub-item "(a) …" / "a) …"
+    continues the paragraph above it."""
+    subject: str | None = None
+    refs: list[str] = []
+    paras: list[tuple[int, str]] = []
+    i = 0
+    if body and (sm := _SUB.match(body[0])):
+        subject = sm.group(1).strip()
+        i = 1
+        in_refs = False
+        while i < len(body):
+            ln = body[i]
+            if _SEPARATOR.match(ln):
+                i += 1
+                break
+            if re.match(r"^\s*\d{1,3}\)\s", ln) and (in_refs or subject):
+                break  # the body's first paragraph, with no separator before it
+            if (rm := _REF.match(ln)) and not in_refs:
+                in_refs = True
+                if rm.group(1).strip():
+                    refs.append(rm.group(1).strip())
+            elif in_refs and _PARA.match(ln):
+                refs.append(_PARA.sub("", ln, count=1).strip())
+            elif in_refs and refs:
+                refs[-1] = f"{refs[-1]} {ln.strip()}"
+            elif not in_refs:
+                subject = f"{subject} {ln.strip()}".strip()
+            i += 1
+    for ln in body[i:]:
+        if _MARKING.match(ln):
+            continue  # a page's classification marking, not the note's words
+        if pm := _BODY_PARA.match(ln):
+            paras.append((int(pm.group(1)), ln))
+        elif paras:  # a wrapped line or a sub-item continues the paragraph above it
+            paras[-1] = (paras[-1][0], f"{paras[-1][1]} {ln}")
+    return subject, tuple(refs), tuple(paras)
 
 
 def _when(date: str, time: str, ampm: str) -> dt.datetime | None:
@@ -90,15 +144,8 @@ def parse_notes(text: str, source: str) -> list[NoteEntry]:
             body += after
         else:
             body = lines
-        nums = [int(p.group(1)) for ln in body if (p := _PARA.match(ln))]
-        paras: list[tuple[int, str]] = []
-        for ln in body:
-            if _MARKING.match(ln):
-                continue  # a page's classification marking, not the note's words
-            if pm := _PARA.match(ln):
-                paras.append((int(pm.group(1)), ln))
-            elif paras:  # a wrapped line continues the paragraph above it
-                paras[-1] = (paras[-1][0], f"{paras[-1][1]} {ln}")
+        subject_line, refs, paras = note_structure(body)
+        nums = [n for n, _ in paras]
         out.append(
             NoteEntry(
                 note_no=int(m.group(1)),
@@ -108,7 +155,9 @@ def parse_notes(text: str, source: str) -> list[NoteEntry]:
                 post=post,
                 signed_at=signed_at,
                 source=source,
-                by_paragraph=tuple(paras),
+                by_paragraph=paras,
+                subject_line=subject_line,
+                references=refs,
             )
         )
     return out

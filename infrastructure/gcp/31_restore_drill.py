@@ -32,6 +32,7 @@ import datetime as dt
 import importlib.util
 import json
 import os
+import re
 import secrets
 import string
 import sys
@@ -84,6 +85,28 @@ def check_only(instance: str, project: str) -> None:
     print("✓ backups current and in Mumbai")
 
 
+def op(*args: str, project: str) -> None:
+    """A long Cloud SQL operation, started without blocking and then waited for with no time
+    limit. `gcloud sql instances clone` / `backups restore` give up waiting after a fixed time
+    while the operation goes on (19 Nov 2026 drill: a 9-minute clone outlived the wait)."""
+    name = kit.gcloud(*args, "--project", project, "--async", "--format=value(name)")
+    name = name.strip().rsplit("/", 1)[-1]
+    if not name:
+        sys.exit(f"gcloud {args[0]} {args[1]} {args[2]}: no operation name returned")
+    print(f"  waiting for operation {name} …", flush=True)
+    kit.gcloud("sql", "operations", "wait", name, "--project", project, "--timeout=unlimited")
+
+
+def settle(instance: str, project: str) -> None:
+    """Wait for every unfinished operation on `instance` (a clone or restore still running is
+    why a delete is refused)."""
+    pending = kit.gcloud("sql", "operations", "list", "--instance", instance, "--project",
+                         project, "--filter=status!=DONE", "--format=value(name)")  # fmt: skip
+    for name in pending.split():
+        print(f"  waiting for unfinished operation {name} on {instance} …", flush=True)
+        kit.gcloud("sql", "operations", "wait", name, "--project", project, "--timeout=unlimited")
+
+
 def password(instance: str, project: str) -> str:
     pw = "".join(secrets.choice(string.ascii_letters + string.digits) for _ in range(40))
     kit.gcloud(
@@ -111,6 +134,52 @@ def counts(connect: Callable[[], Any]) -> dict[str, int]:
         conn.close()
 
 
+MIGRATIONS = HERE.parents[1] / "data" / "schemas" / "postgres"
+_CREATE = re.compile(r"CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?([a-z_][a-z0-9_]*)", re.I)
+
+
+def tables_by_migration(directory: Path = MIGRATIONS) -> dict[str, set[str]]:
+    """The tables each migration creates (`0005_model_usage` → {model_usage_daily, …})."""
+    return {
+        f.stem: {m.lower() for m in _CREATE.findall(f.read_text("utf-8"))}
+        for f in sorted(directory.glob("[0-9][0-9][0-9][0-9]_*.sql"))
+    }
+
+
+def versions(connect: Callable[[], Any]) -> set[str]:
+    conn = connect()
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT version FROM schema_migrations")
+        return {str(r[0]) for r in cur.fetchall()}
+    finally:
+        conn.close()
+
+
+def backup_findings(
+    source_counts: dict[str, int],
+    source_versions: set[str],
+    restored_counts: dict[str, int],
+    restored_versions: set[str],
+    by_migration: dict[str, set[str]],
+) -> list[str]:
+    """What is wrong with a restored backup. A backup is older than the source, so a migration
+    applied since it was taken (and the tables it creates) is expected to be absent; anything
+    else missing, or a migration the source never had, is a failure."""
+    out: list[str] = []
+    unknown = restored_versions - source_versions
+    if unknown:
+        out.append(f"backup restore: migrations the source does not have: {sorted(unknown)}")
+    later = source_versions - restored_versions
+    expected_absent = set().union(*(by_migration.get(v, set()) for v in later)) if later else set()
+    for table in source_counts:
+        if table not in restored_counts and table not in expected_absent:
+            out.append(f"backup restore: table {table} missing")
+    if not restored_counts.get("graph_nodes") or not restored_counts.get("graph_edges"):
+        out.append("backup restore: graph tables empty")
+    return out
+
+
 def main() -> None:  # noqa: PLR0915 — one linear runbook, kept in one place on purpose
     cfg = kit.config()
     project, region, prefix = cfg["PROJECT_ID"], cfg["REGION"], cfg["PREFIX"]
@@ -136,6 +205,7 @@ def main() -> None:  # noqa: PLR0915 — one linear runbook, kept in one place o
     report: list[str] = [f"restore drill {stamp} — {project}:{region}:{src}"]
     failed: list[str] = []
     created = False
+    error: BaseException | None = None  # the first failure: reported before any clean-up
     try:
         pw = password(src, project)
         try:
@@ -145,6 +215,7 @@ def main() -> None:  # noqa: PLR0915 — one linear runbook, kept in one place o
                                          password=pw, db=prefix)  # fmt: skip
 
             c1 = counts(on_src)
+            v_src = versions(on_src)
             point = dt.datetime.now(dt.UTC).replace(microsecond=0)
             time.sleep(2)
             c2 = counts(on_src)
@@ -155,17 +226,19 @@ def main() -> None:  # noqa: PLR0915 — one linear runbook, kept in one place o
         t = time.time()
         print(f"+ PITR clone {src} → {drill} at {point:%Y-%m-%dT%H:%M:%SZ}")
         created = True  # from here on, a clone may exist and is cleaned up
-        kit.gcloud(
-            "sql", "instances", "clone", src, drill, "--project", project,
-            f"--point-in-time={point:%Y-%m-%dT%H:%M:%SZ}",
-        )  # fmt: skip
+        op("sql", "instances", "clone", src, drill,
+           f"--point-in-time={point:%Y-%m-%dT%H:%M:%SZ}", project=project)  # fmt: skip
         pitr_s = time.time() - t
         d = json.loads(kit.gcloud("sql", "instances", "describe", drill, "--project", project,
                                   "--format=json"))  # fmt: skip
         if d["region"] != RESIDENCY:
             failed.append(f"clone landed in {d['region']}")
-        kit.gcloud("sql", "instances", "patch", drill, "--project", project,
-                   "--no-deletion-protection", "--no-backup", "--quiet")  # fmt: skip
+        # only deletion protection is lifted, so the clean-up can delete the clone. Backups and
+        # PITR, inherited from the source, are left as they are: the clone lives under an hour,
+        # and switching them off failed twice (19 Nov 2026: the API refuses --no-backup while
+        # PITR is on; gcloud refuses --no-backup with the PITR flag in the same patch)
+        op("sql", "instances", "patch", drill, "--no-deletion-protection", "--quiet",
+           project=project)  # fmt: skip
         dpw = password(drill, project)
 
         def on_drill() -> Any:
@@ -191,39 +264,59 @@ def main() -> None:  # noqa: PLR0915 — one linear runbook, kept in one place o
                 f"+ restore backup {b['id']} ({b.get('type')}, "
                 f"{b.get('windowStartTime')}) → {drill}"
             )
-            kit.gcloud("sql", "backups", "restore", str(b["id"]), "--restore-instance", drill,
-                       "--backup-instance", src, "--project", project, "--quiet")  # fmt: skip
+            op("sql", "backups", "restore", str(b["id"]), "--restore-instance", drill,
+               "--backup-instance", src, "--quiet", project=project)  # fmt: skip
             restore_s = time.time() - t
             dpw = password(drill, project)  # the restore brought back the backup's users
             again = counts(on_drill)
-            for table in c2:
-                if table not in again:
-                    failed.append(f"backup restore: table {table} missing")
-            if again.get("schema_migrations") != c2.get("schema_migrations"):
-                failed.append("backup restore: migrations differ from the source")
-            if not again.get("graph_nodes") or not again.get("graph_edges"):
-                failed.append("backup restore: graph tables empty")
+            v_back = versions(on_drill)
+            failed += backup_findings(c2, v_src, again, v_back, tables_by_migration())
+            if v_src - v_back:
+                report.append(
+                    f"backup predates migration(s) {sorted(v_src - v_back)} (expected: applied "
+                    "after the backup was taken)"
+                )
             report.append(
                 f"backup restore ({b['id']}, {b.get('type')}, {b.get('windowStartTime')}, "
                 f"{b.get('location')}): {restore_s / 60:.1f} min; counts {again}"
             )
+    except BaseException as exc:  # noqa: BLE001 — kit.gcloud exits with SystemExit; keep it
+        error = exc
+        failed.append(f"drill stopped: {exc}")
+        print(f"✗ drill stopped: {exc}", file=sys.stderr, flush=True)  # before any clean-up
     finally:
         connector.close()
         if created and os.environ.get("KEEP_DRILL") != "1":
             assert drill.startswith(f"{prefix}-sql-drill-")  # never anything else
-            exists = kit.gcloud("sql", "instances", "list", "--project", project,
-                                f"--filter=name={drill}", "--format=value(name)")  # fmt: skip
-            if exists:
-                print(f"+ delete throwaway clone {drill}")
-                kit.gcloud("sql", "instances", "patch", drill, "--project", project,
-                           "--no-deletion-protection", "--quiet")  # fmt: skip
-                kit.gcloud("sql", "instances", "delete", drill, "--project", project, "--quiet")
-                report.append(f"clone {drill} deleted")
+            try:
+                exists = kit.gcloud("sql", "instances", "list", "--project", project,
+                                    f"--filter=name={drill}", "--format=value(name)")  # fmt: skip
+                if exists:
+                    settle(drill, project)  # a clone or restore still running cannot be deleted
+                    print(f"+ delete throwaway clone {drill}")
+                    op("sql", "instances", "patch", drill, "--no-deletion-protection", "--quiet",
+                       project=project)  # fmt: skip
+                    op("sql", "instances", "delete", drill, "--quiet", project=project)
+                    report.append(f"clone {drill} deleted")
+                # the clone inherits "keep backups after delete" from the source: none should
+                # exist (it lives under an hour, outside the backup window), but say so if any do
+                left = kit.gcloud("sql", "backups", "list", "--instance=-", "--project", project,
+                                  f"--filter=instance={drill}", "--format=value(id)")  # fmt: skip
+                if left.split():
+                    failed.append(f"backups of the deleted clone remain (billed): {left.split()}")
+            except BaseException as exc:  # noqa: BLE001
+                failed.append(f"clean-up failed: {exc}")
+                report.append(
+                    f"CLONE {drill} MAY STILL EXIST AND BILL: delete it by hand "
+                    f"(gcloud sql instances delete {drill} --project {project})"
+                )
     report.append("RESULT: " + ("PASS" if not failed else "FAIL — " + "; ".join(failed)))
     out = HERE / f"restore-drill-{stamp[:8]}.out.txt"
     out.write_text("\n".join(report) + "\n", "utf-8")
     print("\n".join(report))
     print(f"written: {out}")
+    if error is not None and not isinstance(error, (SystemExit, Exception)):
+        raise error  # KeyboardInterrupt and the like, after clean-up
     if failed:
         sys.exit(1)
 

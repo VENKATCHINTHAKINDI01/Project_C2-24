@@ -82,3 +82,82 @@ def test_the_drill_restores_the_newest_successful_backup() -> None:
     ]  # fmt: skip
     assert drill.newest_ok(rows)["id"] == 3
     assert drill.newest_ok(rows, "AUTOMATED")["id"] == 1
+
+
+# ---- long operations (19 Nov 2026 drill: the clone outlived gcloud's own wait) -----------------
+
+
+def test_a_long_operation_is_started_async_and_waited_for_without_a_limit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[tuple[str, ...]] = []
+
+    def fake(*args: str, secret: str | None = None) -> str:
+        calls.append(args)
+        return (
+            "https://sqladmin.googleapis.com/v1/projects/p/operations/op-123"
+            if "--async" in args
+            else ""
+        )
+
+    monkeypatch.setattr(drill.kit, "gcloud", fake)
+    drill.op(
+        "sql", "instances", "clone", "c2-sql", "c2-sql-drill-1", "--point-in-time=T", project="p"
+    )
+    start, wait = calls
+    assert start[:3] == ("sql", "instances", "clone") and "--async" in start
+    assert wait == ("sql", "operations", "wait", "op-123", "--project", "p", "--timeout=unlimited")
+
+
+def test_clean_up_waits_for_unfinished_operations_before_deleting(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[tuple[str, ...]] = []
+
+    def fake(*args: str, secret: str | None = None) -> str:
+        calls.append(args)
+        return "op-a op-b" if args[:3] == ("sql", "operations", "list") else ""
+
+    monkeypatch.setattr(drill.kit, "gcloud", fake)
+    drill.settle("c2-sql-drill-1", "p")
+    assert ("sql", "operations", "list") == calls[0][:3] and "--filter=status!=DONE" in calls[0]
+    assert [c[3] for c in calls[1:]] == ["op-a", "op-b"]
+    assert all("--timeout=unlimited" in c for c in calls[1:])
+
+
+def test_an_operation_without_a_name_stops_the_drill(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(drill.kit, "gcloud", lambda *a, secret=None: "")
+    with pytest.raises(SystemExit, match="no operation name"):
+        drill.op("sql", "backups", "restore", "1", project="p")
+
+
+def test_the_clone_patch_only_lifts_deletion_protection() -> None:
+    """19 Nov 2026: the API refuses --no-backup while PITR is on, and gcloud refuses --no-backup
+    with the PITR flag in one patch. The clone keeps both; only deletion protection is lifted."""
+    src = (GCP / "31_restore_drill.py").read_text("utf-8")
+    code = "\n".join(ln for ln in src.splitlines() if not ln.strip().startswith("#"))
+    assert "--no-backup" not in code and "point-in-time-recovery" not in code
+    assert code.count('"--no-deletion-protection"') == 2  # after the clone, and before the delete
+
+
+def test_a_backup_older_than_a_migration_is_not_a_failure() -> None:
+    """Last night's backup predates 0005 (applied 19 Nov morning): its two tables are absent."""
+    by = drill.tables_by_migration()
+    assert by["0005_model_usage"] == {"model_usage_daily", "model_usage_log"}
+    src = {"graph_nodes": 5, "graph_edges": 9, "model_usage_daily": 0, "model_usage_log": 0,
+           "audit_events": 3}  # fmt: skip
+    v5 = {f"000{i}_x" for i in range(1, 5)} | {"0005_model_usage"}
+    back = {"graph_nodes": 5, "graph_edges": 9, "audit_events": 2}
+    v4 = v5 - {"0005_model_usage"}
+    assert drill.backup_findings(src, v5, back, v4, by) == []
+    # the same tables missing while the backup records 0005 as applied: a real failure
+    assert drill.backup_findings(src, v5, back, v5, by) == [
+        "backup restore: table model_usage_daily missing",
+        "backup restore: table model_usage_log missing",
+    ]
+    lost = drill.backup_findings(src, v5, {"graph_nodes": 5, "graph_edges": 0}, v4, by)
+    assert "backup restore: table audit_events missing" in lost
+    assert "backup restore: graph tables empty" in lost
+    assert drill.backup_findings(src, v4, back, v5, by)[0].startswith(
+        "backup restore: migrations the source does not have"
+    )

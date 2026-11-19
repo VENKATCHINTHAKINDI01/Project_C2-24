@@ -1,7 +1,8 @@
 import { renderToString } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import type { Api } from "./api";
-import { DraftStudio, insertAfterBody, relationText } from "./components/DraftStudio";
+import { DraftStudio, FromTheRecords, insertAfterBody, relationText } from "./components/DraftStudio";
+import type { PreparedDraft } from "./types";
 import { FormatsPage } from "./components/FormatsPage";
 import { SideNav, TopBar } from "./components/TopBar";
 import { AskAi } from "./components/AskAi";
@@ -66,6 +67,21 @@ describe("draft workspace (ADR-0044)", () => {
     expect(out).toContain("2 versions");
     expect(out).toContain("order issued");
     expect(text(<RecordStatus info={{ ...base, standing: "not_an_order", history: [] }} />)).toBe("");
+  });
+  it("beside a draft on an open file: related files, order history and people, never a blank panel", () => {
+    const prep = {
+      related_files: [{ file_no: "USD01-12/31/2022-ESTT.I", computer_no: "1771342" }],
+      context: {
+        histories: [{ order: "AP-FIN01-GOMS-31-2025", lines: [{ text: "12-05-2025: G.O.Ms.No.31 superseded G.O.Ms.No.88.", refs: [] }], in_force: [], status_reportable: false }],
+        people: [{ name: "Sri Ch. Naveen Kumar", role: "Senior Assistant", officer_id: null, records: [["X", "Noting in File No.USD01-12/31/2022-ESTT.I"]] }],
+      },
+    } as unknown as PreparedDraft;
+    const html = text(<FromTheRecords prep={prep} openFile={() => undefined} />);
+    expect(html).toContain("USD01-12/31/2022-ESTT.I");
+    expect(html).toContain("G.O.Ms.No.31 superseded G.O.Ms.No.88");
+    expect(html).toContain("What is in force now is not stated");
+    expect(html).toContain("Sri Ch. Naveen Kumar");
+    expect(text(<FromTheRecords prep={{} as PreparedDraft} />)).toBe("");
   });
 });
 

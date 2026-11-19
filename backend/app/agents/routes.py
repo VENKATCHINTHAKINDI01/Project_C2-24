@@ -16,7 +16,7 @@ import queue
 import re
 import threading
 import uuid
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterator, Sequence
 from typing import Annotated, Any, Literal, NoReturn
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
@@ -25,7 +25,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from app.agents.answer import AskStatus, ask
 from app.agents.brief import approval_brief
-from app.agents.dfa import draft_for_approval, governing_orders
+from app.agents.dfa import ReadItem, draft_for_approval, governing_orders
 from app.agents.first_cut import first_cut_note
 from app.agents.intents import IntentSlots
 from app.agents.local_reference import local_reference
@@ -95,6 +95,8 @@ from app.ingestion.pipeline import ConfirmError, IngestStatus, review_text
 from app.memory.session import SessionError, SessionMemory
 from app.noting.chain import FileSoFar, file_so_far
 from app.noting.closing import closing_remarks
+from app.noting.draft_context import draft_context
+from app.noting.draft_studio import PROMPT_ID as ORDER_PROMPT
 from app.noting.draft_studio import (
     DraftInputs,
     FormatCatalogue,
@@ -105,7 +107,10 @@ from app.noting.draft_studio import (
     standing_of,
     suggest_wording,
 )
+from app.noting.drafter import PROMPT_ID as NOTE_PROMPT
+from app.noting.drafter import PROMPT_ID_FILE as NOTE_PROMPT_FILE
 from app.noting.drafter import DraftNote, draft_note
+from app.noting.file_facts import FileFacts, file_facts
 from app.noting.movements import MovementSummary, movement_summary
 from app.noting.references import suggest_references
 from app.noting.workspace import (
@@ -121,6 +126,7 @@ from app.retrieval.graph_expansion import expand
 from app.retrieval.references import LookupStatus, lookup_reference
 from app.retrieval.scoped import L1Criteria
 from app.temporal.since_decision import NewerOrder, since_decision
+from app.tracking.model_usage import ModelQuota, UsageEntry, UsageUnavailableError
 from app.tracking.monitor import MonitorData
 from app.tracking.query_log import InMemoryQueryLog, QueryLog
 from app.tracking.signals import SignalConfig
@@ -367,6 +373,7 @@ def build_assist_router(
     monitor: Callable[[dt.date, int], MonitorData] | None = None,
     signals: SignalConfig | None = None,
     limiter: RateLimiter | None = None,
+    wording_quota: ModelQuota | None = None,
     draft_formats: FormatCatalogue | None = None,
     workspaces: WorkspaceStore | None = None,
 ) -> APIRouter:
@@ -641,6 +648,21 @@ def build_assist_router(
             "clause_note": loc.note,
         }
 
+    def file_meta(run: AssistRuntime, text: str, earlier: str) -> DocumentMetadata:
+        """The latest note read as a document, with the orders cited in the file's EARLIER notes
+        carried forward too (ADR-0060): each is then resolved by `governing_orders`, followed to
+        its current version, or named as not read — never silently dropped."""
+        meta = extract_metadata(text, run.departments)
+        if not earlier.strip():
+            return meta
+        seen = {(r.canonical_id, r.raw) for r in meta.references}
+        more = [
+            r
+            for r in extract_metadata(earlier, run.departments).references
+            if (r.canonical_id, r.raw) not in seen
+        ]
+        return meta.model_copy(update={"references": (*meta.references, *more)})
+
     def latest_note(
         o: Officer, run: AssistRuntime, fctx: FileContext, store: AuthzStore
     ) -> tuple[str | None, str, str]:
@@ -773,7 +795,7 @@ def build_assist_router(
         store = run.store_for(o.ctx)
         ctx = run.tool_context(o.ctx.user_id, store)
         note_id, text, earlier = latest_note(o, run, fctx, store)
-        meta_ = extract_metadata(text, run.departments) if note_id else None
+        meta_ = file_meta(run, text, earlier) if note_id else None
         facts = (
             extract_proposal_facts(text, meta_, run.rules, note_id) if note_id and meta_ else None
         )
@@ -842,7 +864,7 @@ def build_assist_router(
         fctx = open_file(o, run, body.computer_no, "assist.dfa")
         store = run.store_for(o.ctx)
         note_id, text, earlier = latest_note(o, run, fctx, store)
-        meta_ = extract_metadata(text, run.departments) if note_id else None
+        meta_ = file_meta(run, text, earlier) if note_id else None
         facts = (
             extract_proposal_facts(text, meta_, run.rules, note_id) if note_id and meta_ else None
         )
@@ -2230,6 +2252,108 @@ def build_assist_router(
             raise HTTPException(status_code=503, detail=NOT_CONFIGURED)
         return {"request_id": o.request_id, **draft_formats.model_dump(mode="json")}
 
+    def wording(
+        o: Officer,
+        run: AssistRuntime,
+        computer_no: str | None,
+        fmt: Any,
+        fc: Any,
+        flags: Any,
+        inputs: DraftInputs,
+        ffacts: FileFacts | None,
+        read_list: Sequence[ReadItem],
+    ) -> dict[str, Any]:
+        """Suggested wording, only on the officer's request (ADR-0060). Cost control: a daily
+        number of requests per authenticated officer, counted on the server (Cloud SQL when state
+        is in Postgres) before the model is asked; past it, or if the count cannot be kept, no
+        call is made and the draft is still prepared. Every attempt is logged (IDs and counts)."""
+
+        def out(reason: str | None, **kw: Any) -> dict[str, Any]:
+            return {
+                "lines": kw.get("lines", []),
+                "removed": kw.get("removed", 0),
+                "engine": kw.get("engine"),
+                "fallback": kw.get("fallback", False),
+                "reason": reason,
+                "usage": kw.get("usage"),
+            }
+
+        def logged(res: dict[str, Any], prompt_id: str | None, used_today: int) -> dict[str, Any]:
+            if wording_quota is None:
+                return res
+            try:
+                wording_quota.log(
+                    UsageEntry(
+                        at=dt.datetime.now(dt.UTC),
+                        request_id=o.request_id,
+                        user_id=o.ctx.user_id,
+                        action=wording_quota.action,
+                        outcome=res["reason"] or "ok",
+                        engine=res["engine"],
+                        prompt_id=prompt_id if res["engine"] else None,
+                        target=computer_no or "new",
+                        kept=len(res["lines"]),
+                        removed=res["removed"],
+                        used_today=used_today,
+                    )
+                )
+            except Exception as exc:  # the call is already counted; the log row is not essential
+                log.warning("model usage log not written: %s", type(exc).__name__)
+            return res
+
+        used = 0
+        if run.llm is not None and wording_quota is not None:
+            try:
+                got = wording_quota.take(o.ctx.user_id)
+            except UsageUnavailableError:
+                return logged(out("usage_unavailable"), None, 0)
+            if got is None:
+                cap = wording_quota.per_day
+                return logged(out("daily_limit", usage={"used": cap, "limit": cap}), None, cap)
+            used = got
+        usage = (
+            {"used": used, "limit": wording_quota.per_day}
+            if wording_quota is not None and run.llm is not None
+            else None
+        )
+        if fmt.kind == "note" and fc is not None:
+            # the file's request and verified facts: only those the officer did not replace
+            # with their own words (the officer's words are not model sources). A replay-only
+            # engine keeps the recorded v2 request (ADR-0060).
+            paras = (
+                [
+                    *(ffacts.request if not inputs.request.strip() else ()),
+                    *(ffacts.facts if not inputs.facts.strip() else ()),
+                ]
+                if ffacts is not None and not getattr(run.llm, "replays_only", False)
+                else []
+            )
+            note = draft_note(
+                fc.model_copy(update={"flags": flags}), inputs.subject, run.llm, file_paras=paras
+            )
+            res = out(
+                note.reason,
+                lines=[
+                    {"text": ln.text, "refs": list(ln.refs), "heading": sec.heading}
+                    for sec in note.sections
+                    for ln in sec.lines
+                ],
+                removed=note.removed,
+                engine=note.engine,
+                usage=usage,
+            )
+            return logged(res, NOTE_PROMPT_FILE if paras else NOTE_PROMPT, used)
+        sw = suggest_wording(inputs, read_list, lambda c: run.texts.get(c, ""), run.llm)
+        res = out(
+            sw.reason,
+            lines=[{"text": t, "refs": list(refs), "heading": None} for t, refs in sw.lines],
+            removed=sw.removed,
+            engine=sw.engine,
+            fallback=sw.fallback,
+            usage=usage,
+        )
+        return logged(res, ORDER_PROMPT, used)
+
     @r.post("/draft/prepare")
     def draft_prepare(
         body: DraftPrepareIn, o: Annotated[Officer, Depends(officer)]
@@ -2276,7 +2400,7 @@ def build_assist_router(
             subject=inputs.subject.strip() or None,
             references=cited_references(own_text, run.departments, o.ctx.department),
         )
-        meta_ = extract_metadata(text, run.departments) if note_id else None
+        meta_ = file_meta(run, text, earlier) if note_id else None
         facts = (
             extract_proposal_facts(text, meta_, run.rules, note_id) if note_id and meta_ else None
         )
@@ -2335,6 +2459,13 @@ def build_assist_router(
 
         dept_code = fctx.department if fctx is not None else o.ctx.department
         dept = names.get(dept_code, dept_code)
+        # the file's own request, verified facts and paragraph numbering, from the notes this
+        # officer may read (ADR-0060)
+        ffacts = (
+            file_facts(readable_chain(o, run, fctx.file_no).notes, subject=fctx.subject)
+            if fctx
+            else None
+        )
         first = compose(
             fmt,
             inputs,
@@ -2343,6 +2474,7 @@ def build_assist_router(
             points=points,
             precedents=precedents,
             label=label,
+            file_facts=ffacts,
         )
         # the pre-send check on the draft itself (what the officer wrote + what it reads)
         # read as the draft it is: its own Read list plus every order cited in its text (an
@@ -2371,6 +2503,7 @@ def build_assist_router(
             flags=flags,
             left_out=left_out,
             label=label,
+            file_facts=ffacts,
         )
 
         def file_of(cid: str) -> str | None:
@@ -2397,39 +2530,40 @@ def build_assist_router(
         )
         # a new matter: earlier files on the same subject the officer can open, to tick as Previous
         # References when the file is created (touchpoint 5's engine; the officer chooses)
+        # earlier files on the same subject the officer can open: for a new matter, to tick as
+        # Previous References when the file is created (touchpoint 5's engine); for an open file,
+        # its own previous references first, then similar files (ADR-0060). The connector
+        # resolves each within the officer's e-Office scope; the file itself is never listed.
         related_files: list[dict[str, Any]] = []
-        if new_matter:
-            for s_ in suggest_links(ctx, inputs.subject, "", file_of, limit=8):
-                cno = connector.file_computer_no(s_.file_no, o.ctx.user_id)
-                if cno is not None:
-                    related_files.append({"file_no": s_.file_no, "computer_no": cno})
-            related_files = related_files[:5]
+        seen_files = {file_no} if file_no else set()
+        candidates = [*(fctx.previous_references if fctx is not None else ())] + [
+            s_.file_no for s_ in suggest_links(ctx, inputs.subject, file_no, file_of, limit=8)
+        ]
+        for fno in candidates:
+            if fno in seen_files:
+                continue
+            seen_files.add(fno)
+            cno = connector.file_computer_no(fno, o.ctx.user_id)
+            if cno is not None:
+                related_files.append({"file_no": fno, "computer_no": cno})
+        related_files = related_files[:5]
+        # the history of each order read and the people the matter names, within scope
+        dctx = draft_context(
+            ctx,
+            orders=[i.canonical_id for i in read_list],
+            text="\n".join(
+                [
+                    inputs.subject,
+                    inputs.request,
+                    *(fp.text for fp in (ffacts.request if ffacts else ())),
+                ]
+            ),
+            label=label,
+            file_no=file_no or None,
+        )
         suggested: dict[str, Any] | None = None
         if body.suggest:
-            if fmt.kind == "note" and fc is not None:
-                note = draft_note(fc.model_copy(update={"flags": flags}), inputs.subject, run.llm)
-                suggested = {
-                    "lines": [
-                        {"text": ln.text, "refs": list(ln.refs), "heading": sec.heading}
-                        for sec in note.sections
-                        for ln in sec.lines
-                    ],
-                    "removed": note.removed,
-                    "engine": note.engine,
-                    "fallback": False,
-                    "reason": note.reason,
-                }
-            else:
-                sw = suggest_wording(inputs, read_list, lambda c: run.texts.get(c, ""), run.llm)
-                suggested = {
-                    "lines": [
-                        {"text": t, "refs": list(refs), "heading": None} for t, refs in sw.lines
-                    ],
-                    "removed": sw.removed,
-                    "engine": sw.engine,
-                    "fallback": sw.fallback,
-                    "reason": sw.reason,
-                }
+            suggested = wording(o, run, body.computer_no, fmt, fc, flags, inputs, ffacts, read_list)
         audit.record(  # IDs only: never the officer's text or the draft
             o.request_id,
             o.ctx.user_id,
@@ -2479,6 +2613,9 @@ def build_assist_router(
             },
             "suggested": suggested,
             "related_files": related_files,
+            "context": dctx.model_dump(mode="json"),
+            # what was taken from the file's notes, why, and what is left for the officer
+            "file_facts": ffacts.model_dump(mode="json") if ffacts is not None else None,
             **meta(run),
         }
 

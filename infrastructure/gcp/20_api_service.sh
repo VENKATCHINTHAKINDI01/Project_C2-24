@@ -8,7 +8,8 @@
 #     the public orders are read from BigQuery (L0-L2) and Cloud SQL (L3): C2_RETRIEVAL_BACKEND=cloud
 #   - one instance at most: review decisions made in the sandbox live in that instance's memory
 #   - SEED=v2 (default; the 203-file set) or v1;  LLM=recorded (default; saved Gemini answers, no cost)
-#     or vertex (live Gemini, billed);  EMBEDDING_MODEL=<name> turns on the BigQuery L2 part
+#     or vertex (live Gemini, billed; LLM_TIMEOUT_S=30, LLM_MAX_OUTPUT_TOKENS=4096, WORDING_PER_DAY=40,
+#     MODEL_PER_MINUTE=20 per officer);  EMBEDDING_MODEL=<name> turns on the BigQuery L2 part
 #   - needs (project level) bigquery.jobUser + aiplatform.user on c2-api; WRITER on <prefix>_audit
 # Billing: CPU only while a request runs (instances scale to zero); first call after idle is slow.
 source "$(dirname "$0")/lib.sh"
@@ -20,6 +21,12 @@ ENV="C2_SANDBOX=true,C2_SANDBOX_SEED=${SEED:-v2},C2_SANDBOX_PUBLIC_CORPUS_DIR=/m
 ENV="${ENV},C2_RETRIEVAL_BACKEND=cloud,C2_GCP_PROJECT_ID=${PROJECT_ID},C2_GCP_REGION=${REGION}"
 ENV="${ENV},C2_CLOUDSQL_INSTANCE=${PROJECT_ID}:${REGION}:${PREFIX}-sql,C2_CLOUDSQL_USER=${PREFIX}-api@${PROJECT_ID}.iam"
 ENV="${ENV},C2_CLOUDSQL_DB=${PREFIX},C2_LLM_PROVIDER=${LLM:-recorded}"
+# live Gemini (ADR-0060): bounded per call (time, output tokens) and per officer per day for draft
+# wording; a stuck or failing model ends closed (circuit breaker), never a guessed line
+if [[ "${LLM:-recorded}" == "vertex" ]]; then
+  ENV="${ENV},C2_LLM_TIMEOUT_S=${LLM_TIMEOUT_S:-30},C2_LLM_MAX_OUTPUT_TOKENS=${LLM_MAX_OUTPUT_TOKENS:-4096}"
+  ENV="${ENV},C2_DRAFT_WORDING_PER_DAY=${WORDING_PER_DAY:-40},C2_RATE_MODEL_PER_MINUTE=${MODEL_PER_MINUTE:-20}"
+fi
 [[ -n "${EMBEDDING_MODEL:-}" ]] && ENV="${ENV},C2_EMBEDDING_MODEL=${EMBEDDING_MODEL},C2_EMBEDDING_DIMENSIONS=${EMBEDDING_DIMENSIONS:-768}"
 # only an owner-approved value (cloud_ladder_check.py proposes one); unset = cloud L2 never ends the
 # ladder on its own

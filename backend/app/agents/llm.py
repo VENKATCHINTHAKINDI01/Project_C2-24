@@ -99,11 +99,13 @@ class GeminiVertexClient:
         model: str,
         client: Any = None,
         timeout_s: float = 60.0,
+        max_output_tokens: int = 4096,
     ) -> None:
         if not (project and location and model):
             raise LLMError("Gemini needs project, location and model")
         self.project, self.location, self.model = project, location, model
         self.timeout_s = timeout_s  # a stuck call ends closed, never hangs a request (ADR-0039)
+        self.max_output_tokens = max_output_tokens  # a bound on what one call can cost (ADR-0060)
         self.name = f"{model}@{location}"
         self._client = client
 
@@ -133,6 +135,7 @@ class GeminiVertexClient:
             config = types.GenerateContentConfig(
                 system_instruction=system,
                 temperature=0.0,
+                max_output_tokens=self.max_output_tokens,
                 response_mime_type="application/json",
                 response_schema=schema,
             )
@@ -162,6 +165,7 @@ class GeminiVertexClient:
             config = types.GenerateContentConfig(
                 system_instruction=system,
                 temperature=0.0,
+                max_output_tokens=self.max_output_tokens,
                 response_mime_type="application/json",
                 response_schema=schema,
             )
@@ -366,6 +370,8 @@ class FailoverLLM:
 class RecordedLLM:
     """Replays the cache only (tests, evaluation, sandbox without GCP). Unknown → LLMError."""
 
+    replays_only = True  # a request never recorded cannot be answered (callers keep to known ones)
+
     def __init__(self, root: Path, model: str) -> None:
         self.model, self.name = model, f"{model}@recorded"
         self.directory = root / model
@@ -391,6 +397,7 @@ def llm_from_settings(settings: Settings) -> LLMClient | None:
         settings.gemini_location or settings.gcp_region or "",
         settings.gemini_model,
         timeout_s=settings.llm_timeout_s,
+        max_output_tokens=settings.llm_max_output_tokens,
     )
     primary = CachingLLM(live, settings.llm_recorded_dir)
     if settings.llm_fallback == "none":

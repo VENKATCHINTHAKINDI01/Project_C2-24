@@ -477,8 +477,17 @@ export interface PreparedDraft {
   suggested: null | {
     lines: { text: string; refs: string[]; heading: string | null }[];
     removed: number; engine: string | null; fallback: boolean; reason: string | null;
+    /** today's suggested-wording requests for this officer, counted on the server (ADR-0060) */
+    usage?: { used: number; limit: number } | null;
   };
   calibrated: boolean; mock_rules: boolean;
-  /** a new matter only: earlier files on the subject the officer can open (Previous References) */
+  /** earlier files on the subject the officer can open: Previous References for a new matter;
+   * for an open file, its own previous references first, then similar files (ADR-0060) */
   related_files?: { file_no: string; computer_no: string }[];
+  /** the history of each order read, and the people the matter names, within access (ADR-0060) */
+  context?: DraftContext;
+}
+export interface DraftContext {
+  histories: { order: string; lines: { text: string; refs: string[] }[]; in_force: string[]; status_reportable: boolean }[];
+  people: { name: string; role: string | null; officer_id: string | null; records: [string, string][] }[];
 }

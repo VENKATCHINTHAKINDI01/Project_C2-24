@@ -49,9 +49,38 @@ _GROUND = re.compile(r"\bon\s+([a-z]+(?:\s+[a-z]+)?)\s+grounds?\b", re.I)
 # ban, so a spouse paragraph that mentions the ban stays a spouse point).
 TOPICS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("Ceiling", re.compile(r"\d+\s*%")),
-    ("Competent authority", re.compile(r"\bcompetent authority\b", re.I)),
+    (
+        "Competent authority",
+        # named as such, or laid down as who orders / sanctions ("shall be ordered by the …")
+        re.compile(
+            r"\bcompetent authority\b|\bshall\s+be\s+(?:ordered|sanctioned|approved)\s+by\b"
+            r"|\bno\s+officer\s+below\s+the\s+rank\b|\bshall\s+order\b",
+            re.I,
+        ),
+    ),
 )
 BAN = ("Ban / relaxation window", re.compile(r"\bban\b|\brelax", re.I))
+# Only a paragraph that lays something down is quoted as a provision (ADR-0060): a rule, an
+# instruction, a limit, a delegation. A preamble ("Government have examined the question of …"),
+# a recital of what was read or an operative formula ("orders are issued") is not.
+_NORMATIVE = re.compile(
+    r"\b(?:shall|may|must|should|will\s+be|is\s+hereby|are\s+hereby|is\s+relaxed|are\s+relaxed"
+    r"|not\s+exceed|is\s+delegated|are\s+delegated|is\s+prohibited|is\s+permitted|preference"
+    r"|eligible|competent\s+authority\s+(?:is|shall|will|for\s+.{3,80}?\s+(?:is|shall|will)))\b",
+    re.I,
+)
+_PREAMBLE = re.compile(
+    r"\b(?:have\s+examined|has\s+examined|read\s+the\s+following|read\s+above"
+    r"|in\s+the\s+(?:G\.?O\.?|reference|circumstances)\s+(?:\d+(?:st|nd|rd|th)\s+)?read"
+    r"|after\s+careful\s+(?:examination|consideration)|the\s+following\s+orders\s+are\s+issued"
+    r"|hereby\s+issue\s+the\s+following)\b",
+    re.I,
+)
+
+
+def substantive(body: str) -> bool:
+    """A paragraph that states a rule, instruction, limit or delegation — not a preamble."""
+    return bool(_NORMATIVE.search(body)) and not _PREAMBLE.search(body)
 
 
 class _Frozen(BaseModel):
@@ -108,7 +137,7 @@ def _points(order: str, text: str, ground: str | None) -> list[CitedPoint]:
         if loc in seen or "." not in loc and any(o.startswith(f"{loc}.") for o, _ in clauses(text)):
             continue  # a paragraph with sub-clauses: quote the sub-clauses, not the heading
         body = clause_text(text, loc)
-        if body is None:
+        if body is None or not substantive(body):
             continue
         for name, pat in topics:
             if pat.search(body):

@@ -133,7 +133,7 @@ def test_graph_questions_are_recognised_by_fixed_rules(
 
 @pytest.fixture(scope="module")
 def client() -> Iterator[TestClient]:
-    from evaluation.ask_golden import confirm_held_scans  # type: ignore[import-not-found]
+    from evaluation.ask_golden import confirm_held_scans
 
     app = create_app(get_settings().model_copy(update={"sandbox": True}))
     seed = json.loads((CORPUS / "eoffice" / "seed.json").read_text("utf-8"))
@@ -275,7 +275,7 @@ def test_in_force_is_said_only_when_every_member_s_status_may_be_reported(
     not be told the status of one member of the lineage, the sentence is not given at all."""
     import app.agents.graph_facts as gf
 
-    real = gf.status_covered
+    real = gf.status_covered  # type: ignore[attr-defined]
     monkeypatch.setattr(
         gf,
         "status_covered",
@@ -378,7 +378,7 @@ def test_a_gazette_publication_is_not_another_department(
     from app.agents.graph_facts import CrossDepartment, LinkedRecord
     from app.graph.repository import EdgeKind
 
-    real = answer.cross_department_links
+    real = answer.cross_department_links  # type: ignore[attr-defined]
 
     def with_gazette(ctx: Any, seed: str) -> CrossDepartment | None:
         cd = real(ctx, seed)
