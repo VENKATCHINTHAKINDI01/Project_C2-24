@@ -19,13 +19,16 @@ from collections.abc import Iterable
 from enum import StrEnum
 from typing import Protocol
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.auth.models import AccessPolicy, Scope
 from app.auth.policy import ScopeError, check, scope_for
 from app.auth.store import AuthzStore
 from app.config import Classification, RuntimeConfig
 from app.graph.repository import Direction, EdgeKind, WalkableGraph
+from app.retrieval.confidence_policy import (
+    L2ConfidencePolicy,
+)
 from app.retrieval.graph_expansion import NotCalibratedError, expand
 from app.retrieval.scoped import IndexedDocument, L1Criteria, Rung, ScopedRetriever, retrieve
 
@@ -111,14 +114,38 @@ class LadderConfig(_Frozen):
     l2_top_k: int = Field(ge=1)
     l2_min_score: float
     l3_max_hops: int = Field(ge=1)
+    confidence_policy: L2ConfidencePolicy | None = None
+    calibrated: bool | None = None
+
+    @model_validator(mode="after")
+    def _ensure_confidence_policy(self) -> LadderConfig:
+        if self.confidence_policy is None:
+            is_cal = True if self.calibrated is not False else False
+            policy = L2ConfidencePolicy.create(
+                threshold=self.l2_min_score,
+                calibrated=is_cal,
+            )
+            object.__setattr__(self, "confidence_policy", policy)
+        return self
 
     @classmethod
     def from_runtime(cls, runtime: RuntimeConfig) -> LadderConfig:
         r = runtime.retrieval
         if r.l2_top_k is None or r.l2_rerank_min_score is None or r.l3_max_hops is None:
             raise NotCalibratedError("retrieval thresholds are not calibrated (runtime.yaml)")
+        is_cal = getattr(r, "l2_calibrated", False)
+        meta = getattr(r, "l2_calibration_metadata", None)
+        policy = L2ConfidencePolicy.create(
+            threshold=r.l2_rerank_min_score,
+            calibrated=is_cal,
+            metadata=meta,
+        )
         return cls(
-            l2_top_k=r.l2_top_k, l2_min_score=r.l2_rerank_min_score, l3_max_hops=r.l3_max_hops
+            l2_top_k=r.l2_top_k,
+            l2_min_score=r.l2_rerank_min_score,
+            l3_max_hops=r.l3_max_hops,
+            confidence_policy=policy,
+            calibrated=is_cal,
         )
 
 
@@ -139,6 +166,7 @@ class RungTrace(_Frozen):
     hits: tuple[str, ...] = ()
     exited: bool = False
     note: str = ""
+    calibration_state: str | None = None
 
 
 class LadderResult(_Frozen):
@@ -254,17 +282,19 @@ def run_ladder(
                 "L2 re-check removed %d in-scope hits user=%s", len(scored) - len(ok), req.user_id
             )
         ids = keep(s.doc for s in ok)
-        strong = any(s.score >= cfg.l2_min_score for s in ok)
+        assert cfg.confidence_policy is not None
+        eval_res = cfg.confidence_policy.evaluate([s.score for s in ok])
         trace.append(
             RungTrace(
                 rung=LadderRung.L2,
                 fired=True,
                 hits=ids,
-                exited=strong,
-                note="passes evidence threshold" if strong else "below threshold",
+                exited=eval_res.can_exit,
+                note=eval_res.note,
+                calibration_state=eval_res.state.value,
             )
         )
-        answered = LadderRung.L2 if strong else None
+        answered = LadderRung.L2 if eval_res.can_exit else None
     elif LadderRung.L2 not in down:
         note = "no text query" if answered is None else f"skipped: answered at {answered}"
         trace.append(RungTrace(rung=LadderRung.L2, fired=False, note=note))

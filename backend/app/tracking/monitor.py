@@ -334,6 +334,57 @@ def build_monitor(
     )
 
 
+class L2MonitoringMetrics(BaseModel):
+    """Operational monitoring of L2 termination rates and escalation patterns (ADR-0061)."""
+
+    model_config = ConfigDict(frozen=True)
+
+    total_queries: int
+    l2_evaluated: int
+    l2_terminated: int
+    l2_escalated_to_l3: int
+    termination_rate: float
+    uncalibrated_escalations: int
+    below_threshold_escalations: int
+
+
+def l2_monitoring_metrics(records: Iterable[QueryRecord]) -> L2MonitoringMetrics:
+    """Summarize L2 performance: early exit rate vs escalation to L3 Spanner Graph."""
+    total = 0
+    l2_eval = 0
+    l2_term = 0
+    l2_esc = 0
+    uncal = 0
+    below = 0
+
+    for r in records:
+        total += 1
+        level = r.ladder_level or ""
+        if "L2" in level:
+            l2_eval += 1
+            if level == "L2":
+                l2_term += 1
+            elif "L3" in level:
+                l2_esc += 1
+                if "uncalibrated" in " ".join(r.flags):
+                    uncal += 1
+                else:
+                    below += 1
+        elif level == "L3":
+            l2_esc += 1
+
+    rate = l2_term / l2_eval if l2_eval > 0 else 0.0
+    return L2MonitoringMetrics(
+        total_queries=total,
+        l2_evaluated=l2_eval,
+        l2_terminated=l2_term,
+        l2_escalated_to_l3=l2_esc,
+        termination_rate=round(rate, 4),
+        uncalibrated_escalations=uncal,
+        below_threshold_escalations=below,
+    )
+
+
 # BigQuery: the window's rows through fixed SQL (the only parameters are the date and a limit);
 # the same Python then builds the pad, so both sources give the same answer.
 ROW_LIMIT = 5000

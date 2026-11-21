@@ -142,6 +142,8 @@ class Settings(BaseSettings):
     # Evidence threshold for the BigQuery L2 score (0-1). None = not calibrated: its hits are
     # listed but never end the ladder at L2 by themselves (ADR-0026, ADR-0028).
     l2_cloud_min_score: float | None = Field(default=None, gt=0, le=1)
+    l2_cloud_calibrated: bool = False
+    l2_cloud_calibration_metadata: dict[str, Any] | None = None
 
     @property
     def sandbox_enabled(self) -> bool:
@@ -249,6 +251,8 @@ class RetrievalConfig(_Frozen):
     l2_top_k: int | None = Field(default=None, ge=1)
     l2_rerank_min_score: float | None = None
     l3_max_hops: int | None = Field(default=None, ge=1)
+    l2_calibrated: bool = False
+    l2_calibration_metadata: dict[str, Any] | None = None
 
 
 class CacheConfig(_Frozen):

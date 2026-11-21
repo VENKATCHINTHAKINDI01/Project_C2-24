@@ -1,0 +1,17 @@
+{
+  "optimal_threshold": 0.5,
+  "metadata": {
+    "calibrated_at": "2026-11-20T03:51:36+00:00",
+    "dataset_version": "2026-11-20-l2-val-v1",
+    "sample_size": 12,
+    "precision": 1.0,
+    "recall": 1.0,
+    "f1": 1.0,
+    "target_min_precision": 0.85,
+    "optimal_threshold": 0.5,
+    "termination_rate": 0.8333,
+    "unnecessary_escalation_rate": 0.0,
+    "false_termination_rate": 0.0
+  },
+  "state": "configured_calibrated"
+}

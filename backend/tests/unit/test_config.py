@@ -40,6 +40,14 @@ def test_runtime_thresholds_start_uncalibrated() -> None:
     assert rt.ingestion.extraction_confidence_min is None
 
 
+def test_runtime_l2_calibrated() -> None:
+    rt = load_runtime_config(REPO_ROOT / "backend" / "config" / "runtime.yaml")
+    assert rt.retrieval.l2_rerank_min_score == 0.50
+    assert rt.retrieval.l2_calibrated is True
+    assert rt.retrieval.l2_calibration_metadata is not None
+    assert rt.retrieval.l2_calibration_metadata["optimal_threshold"] == 0.50
+
+
 def test_hierarchy_rejects_gaps(tmp_path: Path) -> None:
     bad = tmp_path / "h.yaml"
     bad.write_text(

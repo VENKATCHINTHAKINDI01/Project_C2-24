@@ -1,0 +1,114 @@
+{
+  "version": "2026-11-20-l2-val-v1",
+  "description": "Representative validation dataset for L2 Hybrid Search calibration across departments (Finance, School Education, Higher Education, General Administration, Municipal Administration).",
+  "queries": [
+    {
+      "id": "VAL-01",
+      "query": "spouse grounds transfer guidelines and eligibility criteria for government employees",
+      "user_id": "U01",
+      "relevant_canonical_ids": ["AP-FIN01-GOMS-45-2023", "AP-FIN01-GOMS-31-2025"],
+      "distractor_canonical_ids": ["AP-GAD01-GOMS-12-2024", "AP-USD01-GOMS-88-2023"],
+      "expected_l2_termination": true,
+      "category": "transfers"
+    },
+    {
+      "id": "VAL-02",
+      "query": "ceiling percentage on annual general transfers in finance department",
+      "user_id": "U01",
+      "relevant_canonical_ids": ["AP-FIN01-GOMS-15-2022", "AP-FIN01-GOMS-45-2023"],
+      "distractor_canonical_ids": ["AP-SED01-GOMS-05-2021"],
+      "expected_l2_termination": true,
+      "category": "transfers"
+    },
+    {
+      "id": "VAL-03",
+      "query": "child care leave provisions for women government servants maximum duration",
+      "user_id": "U02",
+      "relevant_canonical_ids": ["AP-FIN01-GOMS-33-2022"],
+      "distractor_canonical_ids": ["AP-FIN01-GOMS-45-2023"],
+      "expected_l2_termination": true,
+      "category": "leave_rules"
+    },
+    {
+      "id": "VAL-04",
+      "query": "superannuation age revision from 60 to 62 years applicability",
+      "user_id": "U02",
+      "relevant_canonical_ids": ["AP-FIN01-GOMS-15-2022"],
+      "distractor_canonical_ids": ["AP-USD01-GOMS-88-2023"],
+      "expected_l2_termination": true,
+      "category": "service_matters"
+    },
+    {
+      "id": "VAL-05",
+      "query": "sanction of drinking water pipeline works under AMRUT scheme",
+      "user_id": "U03",
+      "relevant_canonical_ids": ["AP-USD01-GOMS-88-2023"],
+      "distractor_canonical_ids": ["AP-FIN01-GOMS-45-2023"],
+      "expected_l2_termination": true,
+      "category": "urban_development"
+    },
+    {
+      "id": "VAL-06",
+      "query": "administrative sanction monetary limit for executive engineers in municipal administration",
+      "user_id": "U03",
+      "relevant_canonical_ids": ["AP-USD01-GOMS-88-2023"],
+      "distractor_canonical_ids": ["AP-SED01-GOMS-12-2023"],
+      "expected_l2_termination": true,
+      "category": "delegation_of_powers"
+    },
+    {
+      "id": "VAL-07",
+      "query": "bilingual పాఠశాల విద్య బదిలీలు ఉపాధ్యాయుల సర్వీస్ నిబంధనలు",
+      "user_id": "U04",
+      "relevant_canonical_ids": ["AP-SED01-GOMS-12-2023"],
+      "distractor_canonical_ids": ["AP-FIN01-GOMS-45-2023"],
+      "expected_l2_termination": true,
+      "category": "school_education"
+    },
+    {
+      "id": "VAL-08",
+      "query": "Vigilance and Enforcement inquiry into civil contracts irregularities",
+      "user_id": "U06",
+      "relevant_canonical_ids": ["AP-VIG01-RPT-04-2024"],
+      "distractor_canonical_ids": ["AP-FIN01-GOMS-45-2023"],
+      "expected_l2_termination": true,
+      "category": "vigilance"
+    },
+    {
+      "id": "VAL-09",
+      "query": "grant of dearness allowance DA enhancement for pensioners",
+      "user_id": "U01",
+      "relevant_canonical_ids": ["AP-FIN01-GOMS-51-2023"],
+      "distractor_canonical_ids": ["AP-USD01-GOMS-88-2023"],
+      "expected_l2_termination": true,
+      "category": "pension"
+    },
+    {
+      "id": "VAL-10",
+      "query": "unrelated non-administrative general query about tourist places in Vizag",
+      "user_id": "U01",
+      "relevant_canonical_ids": [],
+      "distractor_canonical_ids": ["AP-FIN01-GOMS-45-2023", "AP-USD01-GOMS-88-2023"],
+      "expected_l2_termination": false,
+      "category": "distractor"
+    },
+    {
+      "id": "VAL-11",
+      "query": "vague query about general administration office timings",
+      "user_id": "U01",
+      "relevant_canonical_ids": [],
+      "distractor_canonical_ids": ["AP-FIN01-GOMS-15-2022"],
+      "expected_l2_termination": false,
+      "category": "distractor"
+    },
+    {
+      "id": "VAL-12",
+      "query": "comprehensive supersession history of all previous education department rules",
+      "user_id": "U04",
+      "relevant_canonical_ids": ["AP-SED01-GOMS-12-2023"],
+      "distractor_canonical_ids": [],
+      "expected_l2_termination": false,
+      "category": "complex_graph_escalation"
+    }
+  ]
+}

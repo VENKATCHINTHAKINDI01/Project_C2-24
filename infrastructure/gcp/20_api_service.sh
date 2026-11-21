@@ -31,6 +31,7 @@ fi
 # only an owner-approved value (cloud_ladder_check.py proposes one); unset = cloud L2 never ends the
 # ladder on its own
 [[ -n "${L2_MIN_SCORE:-}" ]] && ENV="${ENV},C2_L2_CLOUD_MIN_SCORE=${L2_MIN_SCORE}"
+[[ "${L2_CALIBRATED:-}" == "true" || "${L2_CALIBRATED:-}" == "1" ]] && ENV="${ENV},C2_L2_CLOUD_CALIBRATED=true"
 # query log + officers' feedback to <prefix>_audit (21, 22); QUERY_LOG=memory keeps them in the instance
 ENV="${ENV},C2_QUERY_LOG=${QUERY_LOG:-bigquery}"
 # start fast (ADR-0028 addendum 2): build the sandbox while the instance starts, from the page reads
