@@ -114,6 +114,8 @@ class LadderConfig(_Frozen):
     l2_top_k: int = Field(ge=1)
     l2_min_score: float
     l3_max_hops: int = Field(ge=1)
+    l3_max_nodes: int | None = Field(default=50, ge=1)
+    l3_max_edges: int | None = Field(default=100, ge=1)
     confidence_policy: L2ConfidencePolicy | None = None
     calibrated: bool | None = None
 
@@ -144,6 +146,8 @@ class LadderConfig(_Frozen):
             l2_top_k=r.l2_top_k,
             l2_min_score=r.l2_rerank_min_score,
             l3_max_hops=r.l3_max_hops,
+            l3_max_nodes=getattr(r, "l3_max_nodes", 50) or 50,
+            l3_max_edges=getattr(r, "l3_max_edges", 100) or 100,
             confidence_policy=policy,
             calibrated=is_cal,
         )
@@ -167,6 +171,8 @@ class RungTrace(_Frozen):
     exited: bool = False
     note: str = ""
     calibration_state: str | None = None
+    truncated: bool = False
+    truncation_reason: str | None = None
 
 
 class LadderResult(_Frozen):
@@ -178,6 +184,9 @@ class LadderResult(_Frozen):
     # rungs whose store failed this time (plan §14.4): L2 → the other rungs still answer;
     # L3 → no relations were walked, so supersession found by the walk is unverified
     unavailable: tuple[LadderRung, ...] = ()
+    truncated: bool = False
+    truncation_reason: str | None = None
+    disclaimer: str | None = None
 
 
 def run_ladder(
@@ -301,6 +310,7 @@ def run_ladder(
 
     # L3 · graph expansion — always last, only when relations are needed
     graph_ids: tuple[str, ...] = ()
+    l3_disclaimer: str | None = None
     if req.relations and found:
         try:
             exp = expand(
@@ -313,6 +323,8 @@ def run_ladder(
                 store=store,
                 policy=policy,
                 classification=classification,
+                max_nodes=cfg.l3_max_nodes,
+                max_edges=cfg.l3_max_edges,
             )
         except Exception as exc:  # noqa: BLE001 — plan §14.4: answer, supersession unverified
             # nothing from the walk is used: the records already found were checked rung by rung
@@ -325,14 +337,23 @@ def run_ladder(
             if exp.unavailable:
                 down.append(LadderRung.L3)
             graph_ids = tuple(h.canonical_id for h in exp.hits)
+            if exp.truncated:
+                note = f"graph expansion (truncated: {exp.truncation_reason})"
+                l3_disclaimer = (
+                    f"⚠️ Archival Traversal Limit: Graph expansion reached operational limit "
+                    f"({exp.truncation_reason}). Results show {len(graph_ids)} related records. "
+                    "Earlier or additional amendments/orders may exist in institutional archives."
+                )
+            else:
+                note = "unavailable: graph store failed" if exp.unavailable else "graph expansion"
             trace.append(
                 RungTrace(
                     rung=LadderRung.L3,
                     fired=not exp.unavailable,
                     hits=graph_ids,
-                    note="unavailable: graph store failed"
-                    if exp.unavailable
-                    else "graph expansion",
+                    note=note,
+                    truncated=exp.truncated,
+                    truncation_reason=exp.truncation_reason,
                 )
             )
             if answered is None and graph_ids:
@@ -346,6 +367,9 @@ def run_ladder(
             )
         )
 
+    is_truncated = any(t.truncated for t in trace)
+    trunc_reason = next((t.truncation_reason for t in trace if t.truncated), None)
+
     return LadderResult(
         scope_signature=scope.signature,
         documents=tuple(found.values()),
@@ -353,6 +377,9 @@ def run_ladder(
         graph_hits=graph_ids,
         trace=tuple(trace),
         unavailable=tuple(down),
+        truncated=is_truncated,
+        truncation_reason=trunc_reason,
+        disclaimer=l3_disclaimer,
     )
 
 

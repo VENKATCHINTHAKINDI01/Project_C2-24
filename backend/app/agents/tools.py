@@ -111,6 +111,9 @@ class ToolResult(_Frozen):
     status_unconfirmed: tuple[DocRef, ...] = ()  # found, but status not reportable (coverage)
     unavailable: tuple[str, ...] = ()  # rungs whose store failed this time (plan §14.4)
     message: str | None = None
+    truncated: bool = False
+    truncation_reason: str | None = None
+    disclaimer: str | None = None
 
 
 class ToolError(ValueError):
@@ -193,6 +196,9 @@ def search_authorized_documents(ctx: ToolContext, slots: IntentSlots) -> ToolRes
         documents=tuple(_ref(d) for d in res.documents),
         ladder_level=ladder_label(res),
         unavailable=tuple(r.value for r in res.unavailable),
+        truncated=res.truncated,
+        truncation_reason=res.truncation_reason,
+        disclaimer=res.disclaimer,
     )
 
 

@@ -32,6 +32,7 @@ from app.graph.repository import (
     GraphError,
     GraphHit,
     GraphNode,
+    GraphWalkResult,
 )
 from app.graph.sync import SyncPlan, check, plan
 
@@ -204,7 +205,9 @@ class SpannerGraphRepository:
         direction: Direction,
         max_hops: int,
         include_unconfirmed: bool = False,
-    ) -> list[GraphHit]:
+        max_nodes: int | None = None,
+        max_edges: int | None = None,
+    ) -> GraphWalkResult:
         """Scope-constrained breadth-first walk; same order and results as the reference.
 
         Hop by hop: the whole frontier's edges in one read, its neighbours' tags in another, then
@@ -218,6 +221,10 @@ class SpannerGraphRepository:
         seen = set(start)
         frontier: deque[tuple[str, tuple[str, ...]]] = deque((s, (s,)) for s in start)
         hits: list[GraphHit] = []
+        truncated = False
+        truncation_reason: str | None = None
+        edges_traversed = 0
+
         while frontier:
             layer = [x for x in frontier if len(x[1]) - 1 < max_hops]
             frontier = deque()
@@ -254,14 +261,32 @@ class SpannerGraphRepository:
             tags = self._nodes(n for st in per.values() for _, n in st)
             for cid, path in layer:
                 for edge, nxt in per[cid]:
+                    edges_traversed += 1
+                    if max_edges is not None and edges_traversed > max_edges:
+                        truncated = True
+                        truncation_reason = f"max_edges_exceeded ({max_edges})"
+                        break
                     if nxt in seen or nxt not in tags or not scope.admits(tags[nxt].tags):
                         continue  # never visit, return or pass through a node outside the scope
+                    if max_nodes is not None and len(hits) >= max_nodes:
+                        truncated = True
+                        truncation_reason = f"max_nodes_exceeded ({max_nodes})"
+                        break
                     seen.add(nxt)
                     hits.append(
                         GraphHit(canonical_id=nxt, hops=len(path), via=edge.kind, path=(*path, nxt))
                     )
                     frontier.append((nxt, (*path, nxt)))
-        return hits
+                if truncated:
+                    break
+            if truncated:
+                break
+        return GraphWalkResult(
+            hits,
+            truncated=truncated,
+            total_found=len(hits),
+            truncation_reason=truncation_reason,
+        )
 
     # ---- batch load (from the graph build job's files) ---------------------------------------
 

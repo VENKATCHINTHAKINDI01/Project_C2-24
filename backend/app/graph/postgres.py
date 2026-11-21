@@ -25,6 +25,7 @@ from app.graph.repository import (
     GraphError,
     GraphHit,
     GraphNode,
+    GraphWalkResult,
 )
 from app.graph.sync import SyncPlan, check, plan
 from app.pg import Pg
@@ -168,7 +169,9 @@ class PostgresGraphRepository:
         direction: Direction,
         max_hops: int,
         include_unconfirmed: bool = False,
-    ) -> list[GraphHit]:
+        max_nodes: int | None = None,
+        max_edges: int | None = None,
+    ) -> GraphWalkResult:
         """Scope-constrained breadth-first walk; same order and results as the reference."""
         if max_hops < 1:
             raise ValueError("max_hops must be >= 1")
@@ -178,6 +181,10 @@ class PostgresGraphRepository:
         seen = set(start)
         queue: deque[tuple[str, tuple[str, ...]]] = deque((s, (s,)) for s in start)
         hits: list[GraphHit] = []
+        truncated = False
+        truncation_reason: str | None = None
+        edges_traversed = 0
+
         while queue:
             cid, path = queue.popleft()
             if len(path) - 1 >= max_hops:
@@ -189,14 +196,30 @@ class PostgresGraphRepository:
             ]
             tags = self._nodes(nxt for _, nxt in steps)
             for edge, nxt in steps:
+                edges_traversed += 1
+                if max_edges is not None and edges_traversed > max_edges:
+                    truncated = True
+                    truncation_reason = f"max_edges_exceeded ({max_edges})"
+                    break
                 if nxt in seen or nxt not in tags or not scope.admits(tags[nxt].tags):
                     continue  # never visit, return or pass through a node outside the scope
+                if max_nodes is not None and len(hits) >= max_nodes:
+                    truncated = True
+                    truncation_reason = f"max_nodes_exceeded ({max_nodes})"
+                    break
                 seen.add(nxt)
                 hits.append(
                     GraphHit(canonical_id=nxt, hops=len(path), via=edge.kind, path=(*path, nxt))
                 )
                 queue.append((nxt, (*path, nxt)))
-        return hits
+            if truncated:
+                break
+        return GraphWalkResult(
+            hits,
+            truncated=truncated,
+            total_found=len(hits),
+            truncation_reason=truncation_reason,
+        )
 
     # ---- batch load (the graph build job) ---------------------------------------------------
 

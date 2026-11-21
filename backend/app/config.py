@@ -251,6 +251,8 @@ class RetrievalConfig(_Frozen):
     l2_top_k: int | None = Field(default=None, ge=1)
     l2_rerank_min_score: float | None = None
     l3_max_hops: int | None = Field(default=None, ge=1)
+    l3_max_nodes: int | None = Field(default=50, ge=1)
+    l3_max_edges: int | None = Field(default=100, ge=1)
     l2_calibrated: bool = False
     l2_calibration_metadata: dict[str, Any] | None = None
 

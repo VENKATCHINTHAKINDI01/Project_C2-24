@@ -72,13 +72,13 @@ GOLDEN = {
 RELATED = frozenset({EdgeKind.SUPERSEDES, EdgeKind.REFERENCES, EdgeKind.AMENDS, EdgeKind.CLARIFIES})
 
 
-def _run(req: LadderRequest, store=None) -> LadderResult:  # type: ignore[no-untyped-def]
+def _run(req: LadderRequest, store=None, cfg=None) -> LadderResult:  # type: ignore[no-untyped-def]
     return run_ladder(
         req,
         index=INDEX,
         l2=L2,
         graph=GRAPH,
-        cfg=CFG,
+        cfg=cfg or CFG,
         store=store or new_store(),
         policy=POLICY,
         classification=CLASSES,
@@ -204,3 +204,27 @@ def test_telugu_words_are_search_terms() -> None:
     assert {"ms", "no.27"} <= set(got)
     assert _terms("Transfer of the Senior Assistant") == ["transfer", "senior", "assistant"]
     assert "అత్యవసర పనులకు" in passage_terms(q)
+
+
+def test_ladder_truncation_reported_non_silently() -> None:
+    """LadderResult captures truncation flag and generates disclaimer when L3 limits are hit."""
+    bounded_cfg = LadderConfig(
+        l2_top_k=5,
+        l2_min_score=0.5,
+        l3_max_hops=2,
+        l3_max_nodes=1,  # limit to 1 node to force truncation on multi-edge seed D01
+        calibrated=True,
+    )
+    res = _run(
+        LadderRequest(
+            user_id="U01",
+            canonical_ids=(CID["D01"],),
+            relations=frozenset({EdgeKind.SUPERSEDES}),
+            direction=Direction.IN,
+        ),
+        cfg=bounded_cfg,
+    )
+    assert res.truncated is True
+    assert res.truncation_reason == "max_nodes_exceeded (1)"
+    assert res.disclaimer is not None
+    assert "Archival Traversal Limit" in res.disclaimer

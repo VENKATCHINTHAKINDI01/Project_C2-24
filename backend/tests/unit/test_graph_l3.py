@@ -24,10 +24,15 @@ from app.graph.repository import (
 )
 from app.retrieval.graph_expansion import (
     CITATION,
+    HIGH_LEGAL_FORCE,
     SUPERSESSION,
     NotCalibratedError,
+    ScopedChunkMatch,
     configured_max_hops,
+    consolidate_evidence,
     expand,
+    format_truncation_disclaimer,
+    select_relationships_by_intent,
 )
 from tests.unit.mock_access import CLASSES, MATRIX, POLICY, USER_IDS, doc_tags, new_store, rows
 
@@ -204,3 +209,72 @@ def test_edges_to_unknown_nodes_are_rejected() -> None:
     g = InMemoryGraphRepository()
     with pytest.raises(GraphError):
         g.upsert_edge(GraphEdge(source="X", kind=EdgeKind.CITES, target="Y"))
+
+
+def test_graph_traversal_bounded_by_max_nodes() -> None:
+    """Fault 3: operational limit on nodes prevents unbounded fan-out and reports truncation."""
+    # Seed D01 has multiple in-edges (D02, D03)
+    full = _l3("U01", ["D01"], kinds=SUPERSESSION, direction=Direction.IN, max_hops=1)
+    assert len(full.hits) == 2
+    assert not full.truncated
+    assert full.truncation_reason is None
+
+    # Bounded to 1 node:
+    bounded = _l3(
+        "U01", ["D01"], kinds=SUPERSESSION, direction=Direction.IN, max_hops=1, max_nodes=1
+    )
+    assert len(bounded.hits) == 1
+    assert bounded.truncated is True
+    assert bounded.truncation_reason == "max_nodes_exceeded (1)"
+
+
+def test_graph_traversal_bounded_by_max_edges() -> None:
+    """Fault 3: operational limit on edges traversed reports non-silent truncation."""
+    bounded = _l3(
+        "U01", ["D01"], kinds=SUPERSESSION, direction=Direction.IN, max_hops=2, max_edges=1
+    )
+    assert bounded.truncated is True
+    assert bounded.truncation_reason == "max_edges_exceeded (1)"
+
+
+def test_intent_based_relationship_selector() -> None:
+    """Step 2 of Graph-Guided Hybrid Retrieval: restricts to statutory relations."""
+    all_kinds = frozenset(EdgeKind)
+    filtered = select_relationships_by_intent(all_kinds, is_conflict_or_amendment=True)
+    assert filtered == HIGH_LEGAL_FORCE
+    assert EdgeKind.AMENDS in filtered
+    assert EdgeKind.SUPERSEDES in filtered
+    assert EdgeKind.CITES not in filtered
+    assert EdgeKind.REFERENCES not in filtered
+
+    # Informational / non-conflict retains all kinds:
+    non_conflict = select_relationships_by_intent(all_kinds, is_conflict_or_amendment=False)
+    assert non_conflict == all_kinds
+
+
+def test_evidence_consolidator_preserves_structural_force() -> None:
+    """Step 4 of Graph-Guided Hybrid Retrieval: semantic relevance never overrides hierarchy."""
+    exp = _l3("U01", ["D01"], kinds=SUPERSESSION, direction=Direction.IN, max_hops=1)
+    # Suppose hybrid search only matched D02 with high score, D03 was below semantic cutoff:
+    scoped = [ScopedChunkMatch(canonical_id=CID["D02"], score=0.89, matched_clause="Section 4.1")]
+    ev = consolidate_evidence(
+        exp.hits, scoped, truncated=exp.truncated, truncation_reason=exp.truncation_reason
+    )
+
+    # Both D02 and D03 must have structural anchors with legal_force="HIGH"
+    anchor_cids = {a.canonical_id for a in ev.anchors}
+    assert CID["D02"] in anchor_cids
+    assert CID["D03"] in anchor_cids
+    for a in ev.anchors:
+        assert a.legal_force == "HIGH"
+
+
+def test_non_silent_truncation_disclaimer() -> None:
+    """Non-silent truncation guarantee: assistant disclaimer is generated when truncated."""
+    disc = format_truncation_disclaimer(True, "max_nodes_exceeded (50)", 50)
+    assert disc is not None
+    assert "Archival Traversal Limit" in disc
+    assert "50 related records" in disc
+    assert "institutional archives" in disc
+
+    assert format_truncation_disclaimer(False, None, 10) is None

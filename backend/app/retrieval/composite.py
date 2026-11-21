@@ -14,7 +14,14 @@ from collections.abc import Iterable
 from typing import Protocol
 
 from app.auth.models import Scope
-from app.graph.repository import Direction, EdgeKind, GraphEdge, GraphHit, GraphNode
+from app.graph.repository import (
+    Direction,
+    EdgeKind,
+    GraphEdge,
+    GraphHit,
+    GraphNode,
+    GraphWalkResult,
+)
 from app.retrieval.ladder import HybridRetriever, ScoredDocument
 from app.retrieval.scoped import IndexedDocument, L1Criteria, ScopedRetriever
 
@@ -115,7 +122,9 @@ class CompositeGraph:
         direction: Direction,
         max_hops: int,
         include_unconfirmed: bool = False,
-    ) -> list[GraphHit]:
+        max_nodes: int | None = None,
+        max_edges: int | None = None,
+    ) -> GraphWalkResult:
         if max_hops < 1:
             raise ValueError("max_hops must be >= 1")
 
@@ -127,6 +136,10 @@ class CompositeGraph:
         seen = set(start)
         queue: deque[tuple[str, tuple[str, ...]]] = deque((s, (s,)) for s in start)
         hits: list[GraphHit] = []
+        truncated = False
+        truncation_reason: str | None = None
+        edges_traversed = 0
+
         while queue:
             cid, path = queue.popleft()
             if len(path) - 1 >= max_hops:
@@ -134,11 +147,27 @@ class CompositeGraph:
             for edge, nxt in self._steps(cid, direction):
                 if edge.kind not in kinds or (not edge.confirmed and not include_unconfirmed):
                     continue
+                edges_traversed += 1
+                if max_edges is not None and edges_traversed > max_edges:
+                    truncated = True
+                    truncation_reason = f"max_edges_exceeded ({max_edges})"
+                    break
                 if nxt in seen or not visible(nxt):
                     continue  # never visit, return or pass through a node outside the scope
+                if max_nodes is not None and len(hits) >= max_nodes:
+                    truncated = True
+                    truncation_reason = f"max_nodes_exceeded ({max_nodes})"
+                    break
                 seen.add(nxt)
                 hits.append(
                     GraphHit(canonical_id=nxt, hops=len(path), via=edge.kind, path=(*path, nxt))
                 )
                 queue.append((nxt, (*path, nxt)))
-        return hits
+            if truncated:
+                break
+        return GraphWalkResult(
+            hits,
+            truncated=truncated,
+            total_found=len(hits),
+            truncation_reason=truncation_reason,
+        )

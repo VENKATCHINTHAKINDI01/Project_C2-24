@@ -59,7 +59,7 @@ def test_suggest_revision_pure_function() -> None:
         current_text="Original text with Rs 1 crore",
         review_remarks="Reduce ceiling to Rs 50 lakhs",
         subject="Sanction of grant",
-        llm=fake,  # type: ignore[arg-type]
+        llm=fake,
     )
     assert fake.calls == 1
     assert res.revised_text == "Revised text with Rs 50 lakhs"
@@ -71,15 +71,15 @@ def test_suggest_revision_pure_function() -> None:
     res = suggest_revision(
         current_text="Original text",
         review_remarks="Some change",
-        llm=fail_llm,  # type: ignore[arg-type]
+        llm=fail_llm,
     )
     assert res.reason == "engine_down"
     assert res.revised_text == "Original text"
 
 
 def test_adapter_return_draft_stores_remarks_and_submit_clears() -> None:
-    with TestClient(APP) as client:
-        adapter = client.app.state.adapter
+    with TestClient(APP):
+        adapter = APP.state.adapter
         cno = "1771342"
         # Create a DFA draft through connector contract
         receipt = adapter.create_draft(
