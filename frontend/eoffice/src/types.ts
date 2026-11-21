@@ -26,7 +26,7 @@ export interface Note {
 
 export interface DraftRow {
   draft_id: string; kind: string; status: string; text: string | null; request_id: string | null;
-  versions: number;
+  versions: number; review_remarks?: string | null; returned_by_post?: string | null; returned_at?: string | null;
 }
 
 /** Feedback (plan §9.2, ADR-0031): IDs and fixed codes only — never text. */

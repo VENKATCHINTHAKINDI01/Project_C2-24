@@ -624,7 +624,15 @@ class MockEOfficeAdapter:
         if d.kind != DraftKind.DFA_DRAFT.value:
             raise ValueError("only a draft for approval (DFA) is put up for approval")
         _check_issuable(d.versions[-1].text or "")
-        up = d.model_copy(update={"status": DraftStatus.SUBMITTED, "submitted_at": self._clock()})
+        up = d.model_copy(
+            update={
+                "status": DraftStatus.SUBMITTED,
+                "submitted_at": self._clock(),
+                "review_remarks": None,
+                "returned_by": None,
+                "returned_at": None,
+            }
+        )
         self.drafts[draft_id] = up
         return up
 
@@ -660,10 +668,21 @@ class MockEOfficeAdapter:
             raise ConnectorError("draft not available")
         return d
 
-    def return_draft(self, computer_no: str, draft_id: str, user_id: str) -> Draft:
+    def return_draft(
+        self, computer_no: str, draft_id: str, user_id: str, remarks: str | None = None
+    ) -> Draft:
         """The approver sends the DFA back to its author, who can edit and put it up again."""
         d = self._awaiting(computer_no, draft_id, user_id)
-        back = d.model_copy(update={"status": DraftStatus.DRAFT, "submitted_at": None})
+        clean_remarks = remarks.strip() if remarks and remarks.strip() else None
+        back = d.model_copy(
+            update={
+                "status": DraftStatus.DRAFT,
+                "submitted_at": None,
+                "review_remarks": clean_remarks,
+                "returned_by": user_id,
+                "returned_at": self._clock(),
+            }
+        )
         self.drafts[draft_id] = back
         return back
 

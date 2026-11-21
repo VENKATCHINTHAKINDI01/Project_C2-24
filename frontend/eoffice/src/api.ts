@@ -190,8 +190,16 @@ export function createApi(userId: string | null, fetchFn: Fetch = (i, init) => f
       call<{ draft_id: string; status: string }>(`${draftPath(computerNo, draftId)}/submit`, {}),
     approveAndIssue: (computerNo: string, draftId: string) =>
       call<{ draft_id: string; status: string; issued_as: string }>(`${approvalPath(computerNo, draftId)}/issue`, {}),
-    returnDraft: (computerNo: string, draftId: string) =>
-      call<{ draft_id: string; status: string }>(`${approvalPath(computerNo, draftId)}/return`, {}),
+    returnDraft: (computerNo: string, draftId: string, remarks?: string) =>
+      call<{ draft_id: string; status: string; review_remarks?: string | null }>(
+        `${approvalPath(computerNo, draftId)}/return`,
+        remarks ? { remarks } : {},
+      ),
+    reviseDraft: (computerNo: string, draftId: string | undefined, currentText: string, reviewRemarks: string) =>
+      call<{ revised_text: string; changes_summary: string; engine?: string | null; fallback?: boolean; reason?: string | null }>(
+        "/assist/draft/revise",
+        { computer_no: computerNo, draft_id: draftId, current_text: currentText, review_remarks: reviewRemarks },
+      ),
     /** Attach a paper: the file itself is the body (no form encoding); the name rides in the query. */
     attach: async (computerNo: string, file: File): Promise<{ attachment_id: string; filename: string }> => {
       const res = await fetchFn(

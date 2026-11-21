@@ -96,6 +96,7 @@ from app.memory.session import SessionError, SessionMemory
 from app.noting.chain import FileSoFar, file_so_far
 from app.noting.closing import closing_remarks
 from app.noting.draft_context import draft_context
+from app.noting.draft_revision import suggest_revision
 from app.noting.draft_studio import PROMPT_ID as ORDER_PROMPT
 from app.noting.draft_studio import (
     DraftInputs,
@@ -298,6 +299,13 @@ class DraftIn(_In):
     body: str = Field(min_length=1, max_length=20000)
     citations: tuple[str, ...] = Field(default=(), max_length=50)
     request_id: str = Field(min_length=1, max_length=64)
+
+
+class DraftReviseIn(_In):
+    computer_no: str = Field(pattern=r"^\d{4,12}$")
+    draft_id: str | None = None
+    current_text: str = Field(min_length=1, max_length=20000)
+    review_remarks: str = Field(min_length=1, max_length=5000)
 
 
 class DocOut(BaseModel):
@@ -2648,6 +2656,38 @@ def build_assist_router(
         )
         saved_drafts.discard(o.ctx.user_id, body.computer_no)  # it is on the file now (ADR-0046)
         return {"request_id": o.request_id, **receipt.model_dump(mode="json")}
+
+    @r.post("/draft/revise")
+    def draft_revise(
+        body: DraftReviseIn, o: Annotated[Officer, Depends(officer)]
+    ) -> dict[str, Any]:
+        """Revise draft text based on higher officer's review remarks (plan §11.5; ADR-0060)."""
+        action = "assist.draft.revise"
+        run = rt(o, action)
+        fc = open_file(o, run, body.computer_no, action)
+        rev = suggest_revision(
+            current_text=body.current_text,
+            review_remarks=body.review_remarks,
+            subject=fc.subject,
+            llm=run.llm,
+        )
+        audit.record(
+            o.request_id,
+            o.ctx.user_id,
+            action,
+            "ok" if rev.reason is None else rev.reason,
+            ids=(body.computer_no, *([body.draft_id] if body.draft_id else [])),
+        )
+        return {
+            "request_id": o.request_id,
+            "computer_no": body.computer_no,
+            "draft_id": body.draft_id,
+            "revised_text": rev.revised_text,
+            "changes_summary": rev.changes_summary,
+            "engine": rev.engine,
+            "fallback": rev.fallback,
+            "reason": rev.reason,
+        }
 
     # ---- draft recovery (ADR-0046): the workspace, kept by the server as the officer works ----
 

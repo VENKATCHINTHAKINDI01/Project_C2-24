@@ -29,6 +29,10 @@ class OrderArrivesIn(BaseModel):
     id: str  # canonical ID of a held-back order, as listed by GET /orders/pending
 
 
+class ReturnDraftIn(BaseModel):
+    remarks: str | None = None
+
+
 class DraftSaveIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
     text: str = Field(min_length=1, max_length=20000)
@@ -188,6 +192,9 @@ def build_sandbox_router(
                 "text": d.versions[-1].text if d.versions else None,
                 "request_id": d.request_id,
                 "versions": len(d.versions),
+                "review_remarks": d.review_remarks,
+                "returned_by_post": adapter.post_of(d.returned_by) if d.returned_by else None,
+                "returned_at": d.returned_at.isoformat() if d.returned_at else None,
             }
             for d in adapter.my_drafts(computer_no, p.user_id)  # the author's own, until confirmed
         ]
@@ -320,15 +327,24 @@ def build_sandbox_router(
 
     @r.post("/files/{computer_no}/approvals/{draft_id}/return")
     def return_draft(
-        computer_no: str, draft_id: str, p: Annotated[SandboxProfile, Depends(me)]
+        computer_no: str,
+        draft_id: str,
+        p: Annotated[SandboxProfile, Depends(me)],
+        body: ReturnDraftIn | None = None,
     ) -> dict[str, Any]:
         """The approving officer sends the DFA back to its author for changes."""
         own_draft_file(computer_no, p)
         try:
-            d = adapter.return_draft(computer_no, draft_id, p.user_id)
+            remarks = body.remarks if body is not None else None
+            d = adapter.return_draft(computer_no, draft_id, p.user_id, remarks=remarks)
         except ConnectorError:
             raise HTTPException(status_code=404, detail=DRAFT_NOT_AVAILABLE) from None
-        return {"banner": BANNER, "draft_id": d.draft_id, "status": d.status.value}
+        return {
+            "banner": BANNER,
+            "draft_id": d.draft_id,
+            "status": d.status.value,
+            "review_remarks": d.review_remarks,
+        }
 
     @r.post("/files/{computer_no}/attachments")
     async def attach(

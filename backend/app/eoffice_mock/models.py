@@ -131,6 +131,9 @@ class Draft(_Model):
     approved_by: str | None = None  # the approving officer (simulated signature, no DSC/eSign)
     issued_as: str | None = None  # the number and date allotted on issue (SYNTHETIC numbering)
     issued_uri: str | None = None  # where the issued order went to ingestion
+    review_remarks: str | None = None  # requested changes when returned by higher officer
+    returned_by: str | None = None  # officer who returned it for changes
+    returned_at: dt.datetime | None = None
 
 
 class Attachment(_Model):

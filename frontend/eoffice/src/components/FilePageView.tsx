@@ -247,6 +247,8 @@ function RecordsTab({ records, attachments, view }: {
 function ApprovalCard({ api, computerNo, d, onChanged }: { api: Api; computerNo: string; d: DfaRow; onChanged: () => void }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [returning, setReturning] = useState(false);
+  const [remarks, setRemarks] = useState("");
   const act = (fn: () => Promise<unknown>) => {
     setBusy(true); setError(null);
     fn().then(onChanged).catch((e: Error) => setError(e.message)).finally(() => setBusy(false));
@@ -255,12 +257,36 @@ function ApprovalCard({ api, computerNo, d, onChanged }: { api: Api; computerNo:
     <article className="note approval">
       <h4>For your approval <span className="muted">put up by {d.author_post ?? "an officer"}</span></h4>
       <pre className="draft-text">{d.text}</pre>
-      <div className="actions">
-        <button className="primary" disabled={busy}
-          title="Your approval and signature (simulated). The order is numbered, dated and issued, and enters the records."
-          onClick={() => act(() => api.approveAndIssue(computerNo, d.draft_id))}>Approve, sign and issue</button>
-        <button disabled={busy} onClick={() => act(() => api.returnDraft(computerNo, d.draft_id))}>Return for changes</button>
-      </div>
+      {returning ? (
+        <div className="return-box" style={{ marginTop: "1rem", padding: "0.75rem", background: "var(--bg-subtle, #f8f9fa)", borderRadius: "6px", border: "1px solid var(--border, #dee2e6)" }}>
+          <p style={{ margin: "0 0 0.5rem 0", fontWeight: 600 }}>Return draft with review remarks / requested changes:</p>
+          <textarea
+            aria-label="Review remarks"
+            placeholder="Specify what should be changed (e.g. 'Revise paragraph 3: reduce sanction ceiling to Rs 50 lakhs as per G.O.Ms. 88')..."
+            value={remarks}
+            rows={3}
+            style={{ width: "100%", boxSizing: "border-box", marginBottom: "0.5rem" }}
+            onChange={(e) => setRemarks(e.target.value)}
+          />
+          <div className="actions">
+            <button
+              className="primary"
+              disabled={busy}
+              onClick={() => act(() => api.returnDraft(computerNo, d.draft_id, remarks))}
+            >
+              Confirm return
+            </button>
+            <button disabled={busy} onClick={() => setReturning(false)}>Cancel</button>
+          </div>
+        </div>
+      ) : (
+        <div className="actions">
+          <button className="primary" disabled={busy}
+            title="Your approval and signature (simulated). The order is numbered, dated and issued, and enters the records."
+            onClick={() => act(() => api.approveAndIssue(computerNo, d.draft_id))}>Approve, sign and issue</button>
+          <button disabled={busy} onClick={() => setReturning(true)}>Return for changes</button>
+        </div>
+      )}
       {error && <p className="error">{error}</p>}
     </article>
   );
@@ -292,16 +318,60 @@ function DraftCard({ api, computerNo, d, view, onChanged }: {
   const [text, setText] = useState(d.text ?? "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [revising, setRevising] = useState(false);
+  const [revisionSummary, setRevisionSummary] = useState<string | null>(null);
+
   const act = (f: () => Promise<unknown>) => {
     setBusy(true); setError(null);
     f().then(() => { setEditing(false); onChanged(); })
       .catch((e: Error) => setError(e.message))
       .finally(() => setBusy(false));
   };
+
+  const handleAiRevise = () => {
+    if (!d.review_remarks) return;
+    setRevising(true); setError(null); setRevisionSummary(null);
+    api.reviseDraft(computerNo, d.draft_id, text || (d.text ?? ""), d.review_remarks)
+      .then((res) => {
+        setText(res.revised_text);
+        setEditing(true);
+        setRevisionSummary(res.changes_summary);
+      })
+      .catch((e: Error) => setError(e.message))
+      .finally(() => setRevising(false));
+  };
+
   return (
     <article className="note yellow">
       <h4>{DRAFT_TITLE[d.kind] ?? "Draft"} <span className="muted">{d.draft_id} · version {d.versions}</span></h4>
       <p className="ai">AI-assisted draft — inserted by you, editable, visible only to you. Not confirmed, signed or sent.</p>
+
+      {d.review_remarks && (
+        <div className="review-banner" style={{ margin: "0.75rem 0", padding: "0.75rem", background: "var(--bg-warn-subtle, #fff8e1)", borderLeft: "4px solid #ffb300", borderRadius: "4px" }}>
+          <p style={{ margin: "0 0 0.35rem 0", fontWeight: 600, color: "#e65100" }}>
+            Returned for changes{d.returned_by_post ? ` by ${d.returned_by_post}` : ""}:
+          </p>
+          <blockquote style={{ margin: "0 0 0.5rem 0", fontStyle: "italic", color: "inherit" }}>
+            "{d.review_remarks}"
+          </blockquote>
+          {revisionSummary && (
+            <p style={{ margin: "0.25rem 0 0.5rem 0", fontSize: "0.85rem", color: "#2e7d32" }}>
+              ✓ <strong>AI revision:</strong> {revisionSummary}
+            </p>
+          )}
+          <div className="actions" style={{ marginTop: "0.25rem" }}>
+            <button
+              className="primary"
+              disabled={busy || revising}
+              onClick={handleAiRevise}
+              title="Use C2-24 to revise draft based on senior reviewer's instructions"
+            >
+              {revising ? "Revising with AI…" : "✨ Revise draft with AI"}
+            </button>
+          </div>
+        </div>
+      )}
+
       {editing
         ? <textarea aria-label="Edit draft" value={text} rows={12} onChange={(e) => setText(e.target.value)} />
         : view}
