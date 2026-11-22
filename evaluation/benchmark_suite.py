@@ -40,9 +40,6 @@ from app.retrieval.graph_expansion import (  # noqa: E402
     select_relationships_by_intent,
 )
 from app.retrieval.ladder import (  # noqa: E402
-    Direction as LadderDirection,
-)
-from app.retrieval.ladder import (  # noqa: E402
     LadderConfig,
     LadderRequest,
     run_ladder,
@@ -197,7 +194,7 @@ def run_latency_benchmarks(stack: Any) -> dict[str, Any]:
             user_id="U01",
             canonical_ids=(test_cid,),
             relations=frozenset({EdgeKind.SUPERSEDES, EdgeKind.AMENDS}),
-            direction=LadderDirection.BOTH,
+            direction=Direction.BOTH,
         )
         run_ladder(
             req_l3,
@@ -250,7 +247,7 @@ def run_concurrency_benchmarks(stack: Any) -> dict[str, Any]:
         user_id="U01",
         canonical_ids=(test_cid,),
         relations=frozenset({EdgeKind.SUPERSEDES, EdgeKind.AMENDS}),
-        direction=LadderDirection.BOTH,
+        direction=Direction.BOTH,
     )
 
     concurrency = 8
@@ -313,7 +310,7 @@ def run_high_degree_foundational_benchmark() -> dict[str, Any]:
     for i, kind in enumerate(edge_types):
         child_cid = f"AP-FIN01-GOMS-{1000 + i}-PENSION"
         child_tags = DocumentAccessTags(
-            doc_id=f"D_{1000+i}",
+            doc_id=f"D_{1000 + i}",
             department="FIN01",
             section=None,
             classification="UNCLASSIFIED",

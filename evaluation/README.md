@@ -1,20 +1,75 @@
-# Evaluation harness
+# Evaluation Harness & Benchmark Suite
 
-Independent of `backend/app/` (CLAUDE.md §9.2): only this folder and the tests read the ground truth in `data/synthetic/*/ground_truth/`; the app never does.
+Independent of `backend/app/` ([CLAUDE.md §9.2](../CLAUDE.md)): only this folder and the tests read the ground truth in `data/synthetic/*/ground_truth/`; the core application never does.
 
-**Run:** `make eval` from the repo root (or, from `backend/`, `python ../evaluation/run_eval.py`). Writes `reports/<date>-baseline.{md,json}`; exit code 1 if any disclosure is found.
+**Primary Commands:**
+- Continuous regression harness: `make eval` (runs `run_eval.py` $\to$ writes `reports/<date>-baseline.{md,json}`; exits 1 if any unauthorized disclosure is detected).
+- Comprehensive benchmark suite: `uv run python evaluation/benchmark_suite.py` (latency, recall, concurrency, and high-degree fan-out simulation).
 
-| Part | What it does |
-|---|---|
-| `harness/stack.py` | Builds the system under test with the real ingestion job over every corpus file. Held scans are re-submitted as their hand transcription — a declared stand-in for Document AI + reviewer confirmation |
-| `slots_v1.json` | Stand-in for the orchestrator's intent + slots (Gemini later), written from question wording only. Measures retrieval given a correct intent |
-| `harness/suites.py` | Retrieval (Recall@5/10, P@5, MRR, NDCG@10, ladder-level accuracy) · conflicts A–G via the pre-send check · leakage matrix (8 paths × 8 officers, oracle `access_matrix.csv`) · touchpoint scenarios that need no screens |
-| `harness/metrics.py` | Metric definitions |
+---
 
-**RAG quality (ADR-0050):** `rag_samples.py` (backend env) scores citation correctness / completeness and context precision / recall by record with no judge, and writes the samples; `ragas_score.py` scores them with RAGAS 0.4.4 and a Gemini judge in its own throwaway environment (`uv run --no-project --with ragas==0.4.4 --with google-genai --with jsonref python evaluation/ragas_score.py <samples.jsonl> [--live]`; billed with `--live`, cached in `.ragas_cache/`).
+## Directory Organization & Script Catalog
 
-**Also here:** `harness/sandbox_flow.py` runs the touchpoint scenarios over HTTP against a fresh sandbox, as the screens call them. The scripts at the top of this folder (`ask_golden.py`, `leakage_v2.py`, `presend_v2.py`, `noting_live.py`, `ocr_scans.py`, `cloud_ladder_check.py`) are separate runs against the v2 corpus or live services; each one says in its docstring what it needs.
+```
+evaluation/
+├── harness/                        # Reusable test harness infrastructure
+│   ├── stack.py                    # Ingests corpus files and builds evaluation stack
+│   ├── suites.py                   # Retrieval, conflict, leakage, and touchpoint suites
+│   ├── metrics.py                  # Formal definitions (Recall@K, MRR, NDCG@10, P@K)
+│   ├── limits.py                   # Request limiter overrides for burst evaluations
+│   ├── opposites.py                # Fail-closed opposite scenario validator
+│   └── sandbox_flow.py             # HTTP-level touchpoint flow tests
+├── data/                           # Evaluation-specific fixtures and datasets
+│   ├── l2_validation_dataset.json  # L2 hybrid search calibration ground truth
+│   └── semantic_cache_pairs.json   # Semantic cache reworded pairs
+├── reports/                        # Immutable, dated Markdown and JSON run reports
+├── benchmark_suite.py              # Automated latency, recall, QPS & fan-out benchmark suite
+├── run_eval.py                     # Main CLI entrypoint for regression evaluation (`make eval`)
+├── ask_golden.py                   # Golden question evaluation against live or recorded Gemini
+├── calibrate_l2.py                 # Threshold calibration script for Rung L2 hybrid search
+├── cloud_ladder_check.py           # Verification script comparing Cloud SQL, Spanner, and BigQuery
+├── leakage_v2.py                   # Comprehensive permission leakage matrix across all roles
+├── noting_live.py                  # Live noted draft verification against synthetic precedents
+├── ocr_scans.py                    # Document AI OCR confidence gating and review probe
+├── ocr_telugu_probe.py             # Telugu/English bilingual OCR accuracy probe
+├── presend_v2.py                   # 7-type statutory conflict detection evaluation
+├── rag_samples.py                  # RAG sample generator for citation & groundedness scoring
+├── ragas_score.py                  # RAGAS 0.4.4 LLM-judge groundedness evaluation
+├── semantic_cache_calibrate.py     # Embedding threshold calibration for semantic answer cache
+└── slots_v1.json                   # Golden intent and slot extraction mappings
+```
 
-To compare with a saved run, use `python ../evaluation/run_eval.py --label <name> --compare ../evaluation/reports/<run>.json`.
+---
 
-All numbers are on the SYNTHETIC corpus, with uncalibrated test thresholds; the default run uses a keyword stand-in for L2. They are a baseline for comparison, not a result to quote as system performance. Reports are dated and never edited after they are written.
+## Script Categories & Usage
+
+### 1. Regression & Benchmarking
+| Script | Command | Purpose |
+| :--- | :--- | :--- |
+| `run_eval.py` | `make eval` | Runs the full evaluation harness over the synthetic corpus; asserts zero disclosure. |
+| `benchmark_suite.py` | `uv run python evaluation/benchmark_suite.py` | Measures Recall@K, MRR, NDCG@10, sub-millisecond rung latencies, 5,800+ QPS concurrency, and high-degree graph fan-out bounds (ADR-0063). |
+
+### 2. RAG Quality & Groundedness (ADR-0050)
+| Script | Environment | Purpose |
+| :--- | :--- | :--- |
+| `rag_samples.py` | Backend venv | Extracts cited evidence packages and evaluates citation correctness / completeness offline without an external judge. |
+| `ragas_score.py` | Throwaway venv | Evaluates faithfulness and answer relevancy using RAGAS 0.4.4 and Gemini in `asia-south1` (caching judge responses in `.ragas_cache/`). |
+
+### 3. Security & Access Control
+| Script | Command | Purpose |
+| :--- | :--- | :--- |
+| `leakage_v2.py` | `uv run python evaluation/leakage_v2.py --jobs 4` | Evaluates multi-officer access matrices across direct reference, keyword, vector, graph, summary, and count paths. |
+| `presend_v2.py` | `uv run python evaluation/presend_v2.py` | Evaluates the 7 conflict types (A–G) during pre-send file dispatch. |
+
+### 4. Cloud Infrastructure & Calibration
+| Script | Command | Purpose |
+| :--- | :--- | :--- |
+| `cloud_ladder_check.py` | `uv run python evaluation/cloud_ladder_check.py` | Verifies that Cloud BigQuery and Cloud SQL/Spanner produce identical candidate sets to the in-memory reference stack. |
+| `calibrate_l2.py` | `uv run python evaluation/calibrate_l2.py` | Tunes the cosine similarity threshold for L2 hybrid search against known-item validation data. |
+| `semantic_cache_calibrate.py` | `uv run python evaluation/semantic_cache_calibrate.py` | Calibrates similarity thresholds for scoped answer cache hits. |
+
+---
+
+## Guidelines for Reports
+
+All evaluation outputs are saved to `evaluation/reports/` with ISO timestamps (e.g. `reports/YYYY-MM-DD-label.md`). Reports are immutable historical artifacts: once committed, they are never modified.
