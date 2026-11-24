@@ -26,6 +26,7 @@ ENV="${ENV},C2_CLOUDSQL_DB=${PREFIX},C2_LLM_PROVIDER=${LLM:-recorded}"
 if [[ "${LLM:-recorded}" == "vertex" ]]; then
   ENV="${ENV},C2_LLM_TIMEOUT_S=${LLM_TIMEOUT_S:-30},C2_LLM_MAX_OUTPUT_TOKENS=${LLM_MAX_OUTPUT_TOKENS:-4096}"
   ENV="${ENV},C2_DRAFT_WORDING_PER_DAY=${WORDING_PER_DAY:-40},C2_RATE_MODEL_PER_MINUTE=${MODEL_PER_MINUTE:-20}"
+  ENV="${ENV},C2_LLM_RECORDED_DIR=/tmp/llm"
 fi
 [[ -n "${EMBEDDING_MODEL:-}" ]] && ENV="${ENV},C2_EMBEDDING_MODEL=${EMBEDDING_MODEL},C2_EMBEDDING_DIMENSIONS=${EMBEDDING_DIMENSIONS:-768}"
 # only an owner-approved value (cloud_ladder_check.py proposes one); unset = cloud L2 never ends the

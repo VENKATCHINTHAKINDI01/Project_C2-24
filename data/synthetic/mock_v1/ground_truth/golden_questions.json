@@ -403,5 +403,50 @@
     "answer_key": "Secretary to Government; Deputy Secretary may only recommend.",
     "expected_conflicts": [],
     "answer_status": "answered"
+  },
+  {
+    "id": "Q25",
+    "user": "U01",
+    "user_label": "Officer A — Section Officer",
+    "question": "What are the rules regarding station tenure under the general transfer guidelines?",
+    "expected_docs": [
+      "D04",
+      "D05"
+    ],
+    "forbidden_docs": [],
+    "expected_ladder_level": "L1",
+    "answer_key": "G.O.Ms.No.31/2025 and Memo dt.21-05-2025: station tenure is computed as on 30-04-2025; G.O.Ms.No.88/2022 is superseded.",
+    "expected_conflicts": [],
+    "answer_status": "answered"
+  },
+  {
+    "id": "Q26",
+    "user": "U03",
+    "user_label": "Officer C — Section Officer",
+    "question": "What is the monetary limit for administrative sanction of works by the Engineer-in-Chief?",
+    "expected_docs": [
+      "D14"
+    ],
+    "forbidden_docs": [],
+    "expected_ladder_level": "L1",
+    "answer_key": "Rs.1.00 crore under G.O.Ms.No.27/2024; G.O.Ms.No.14/2021 was superseded on 06-08-2024.",
+    "expected_conflicts": [],
+    "answer_status": "answered"
+  },
+  {
+    "id": "Q27",
+    "user": "U03",
+    "user_label": "Officer C — Section Officer",
+    "question": "Can the Commissioner sanction emergency restoration works costing Rs.1.30 crore?",
+    "expected_docs": [
+      "D14"
+    ],
+    "forbidden_docs": [],
+    "expected_ladder_level": "L1",
+    "answer_key": "No; emergency works above Rs.1.00 crore require Government administrative sanction under G.O.Ms.No.27/2024; Circular Memo No. 9/2023 is overridden.",
+    "expected_conflicts": [
+      "G"
+    ],
+    "answer_status": "answered"
   }
 ]

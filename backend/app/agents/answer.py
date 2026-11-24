@@ -1010,7 +1010,8 @@ def ask(
         # statement counts as removed (it is never verified, streamed or shown)
         withheld = sum(status_claim(c.text) for c in claims) if unconfirmed else 0
         claims = [c for c in claims if not (unconfirmed and status_claim(c.text))]
-    except (LLMError, KeyError, TypeError, ValueError):
+    except (LLMError, KeyError, TypeError, ValueError) as exc:
+        log.warning("answer generation failed: %s (%s)", type(exc).__name__, exc)
         return engine_missing(ENGINE_DOWN)
     emit({"type": "stage", "stage": "checking"})
     # a statement with no quote can never be confirmed: it would be the model's word alone
