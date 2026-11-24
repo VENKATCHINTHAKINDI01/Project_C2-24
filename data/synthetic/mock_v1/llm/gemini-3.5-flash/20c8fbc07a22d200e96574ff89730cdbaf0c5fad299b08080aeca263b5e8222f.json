@@ -1,0 +1,1 @@
+{"prompt": "answer_compose.v1", "model": "gemini-3.5-flash", "response": {"lead": "An emergency work of this cost can be sanctioned by the Government only, or by the Commissioner.", "lead_uses": [1, 2, 3], "sections": [{"heading": "Government sanction authority", "items": [1]}, {"heading": "Commissioner sanction authority", "items": [2, 3]}]}}

@@ -12,6 +12,8 @@ from __future__ import annotations
 
 import datetime as dt
 import json
+import logging
+import math
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
@@ -19,8 +21,12 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict
 
 from app.auth.models import Scope
+from app.graph.repository import WalkableGraph
 from app.retrieval.confidence_policy import CalibrationMetadata
 from app.retrieval.ladder import HybridRetriever, ScoredDocument
+from app.retrieval.safeguards import verify_cross_candidate_graph, verify_entity_attributes
+
+log = logging.getLogger(__name__)
 
 
 class _Frozen(BaseModel):
@@ -76,6 +82,12 @@ class QueryPrediction(_Frozen):
     top_canonical_id: str | None
     is_relevant_hit: bool  # True if top_canonical_id is in query's relevant_canonical_ids
     expected_l2_termination: bool
+    category: str = "general"
+    # as the ladder decides (24 Nov 2026): gap to the best *other* order (None = only one order
+    # found) and whether the exit safeguards let this top hit end the ladder
+    runner_up_gap: float | None = None
+    gates_ok: bool = True
+    gate_note: str | None = None
 
 
 class CandidateEvaluation(_Frozen):
@@ -92,6 +104,25 @@ class CandidateEvaluation(_Frozen):
     termination_rate: float
     unnecessary_escalation_rate: float
     false_termination_rate: float
+    precision_ci_low: float = 0.0  # 95% Wilson lower bound of the precision
+
+
+def wilson_low(successes: int, total: int, z: float = 1.96) -> float:
+    """Lower bound of the Wilson score interval (95% by default); 0 when nothing exited."""
+    if total == 0:
+        return 0.0
+    p = successes / total
+    denom = 1 + z * z / total
+    centre = p + z * z / (2 * total)
+    spread = z * math.sqrt(p * (1 - p) / total + z * z / (4 * total * total))
+    return max(0.0, (centre - spread) / denom)
+
+
+def exits(p: QueryPrediction, threshold: float, min_margin: float | None = None) -> bool:
+    """Would the ladder end at L2 on this query? Same rule as L2ConfidencePolicy + the gates."""
+    if p.top_score < threshold or not p.gates_ok:
+        return False
+    return min_margin is None or p.runner_up_gap is None or p.runner_up_gap >= min_margin
 
 
 class CalibrationResult(_Frozen):
@@ -108,6 +139,7 @@ class CalibrationResult(_Frozen):
 def evaluate_predictions_at_threshold(
     predictions: Sequence[QueryPrediction],
     threshold: float,
+    min_margin: float | None = None,
 ) -> CandidateEvaluation:
     """Compute precision, recall, F1, and termination metrics at a specific candidate threshold.
 
@@ -124,7 +156,7 @@ def evaluate_predictions_at_threshold(
     total = len(predictions)
 
     for p in predictions:
-        terminated = p.top_score >= threshold
+        terminated = exits(p, threshold, min_margin)
         if terminated:
             if p.is_relevant_hit:
                 tp += 1
@@ -156,6 +188,7 @@ def evaluate_predictions_at_threshold(
         termination_rate=round(termination_rate, 4),
         unnecessary_escalation_rate=round(unnecessary_escalation_rate, 4),
         false_termination_rate=round(false_termination_rate, 4),
+        precision_ci_low=round(wilson_low(tp, tp + fp), 4),
     )
 
 
@@ -164,22 +197,39 @@ def collect_predictions(
     retriever: HybridRetriever,
     scope_fn: Any,
     top_k: int = 10,
+    *,
+    graph: WalkableGraph | None = None,
 ) -> list[QueryPrediction]:
-    """Execute validation queries against retriever to gather candidate scores."""
+    """Run each validation query on the retriever and record what the ladder would see: hits
+    reduced to one per order (best passage), the gap to the runner-up order, and the attribute
+    gate and (when `graph` is given) the graph gate, exactly as `run_ladder` applies them."""
     preds: list[QueryPrediction] = []
-    for q in dataset.queries:
+    total = len(dataset.queries)
+    for i, q in enumerate(dataset.queries):
         scope: Scope = scope_fn(q.user_id)
         hits: list[ScoredDocument] = retriever.search(q.query, scope, top_k)
-        if hits:
-            top_hit = hits[0]
-            top_score = top_hit.score
-            top_cid = top_hit.doc.canonical_id
-            is_rel = top_cid in q.relevant_canonical_ids
-        else:
-            top_score = 0.0
-            top_cid = None
-            is_rel = False
-
+        best: dict[str, ScoredDocument] = {}
+        for h in hits:
+            cid = h.doc.canonical_id
+            if cid not in best or h.score > best[cid].score:
+                best[cid] = h
+        ranked = sorted(best.values(), key=lambda h: (-h.score, h.doc.canonical_id))
+        top = ranked[0] if ranked else None
+        top_cid = top.doc.canonical_id if top else None
+        is_rel = top_cid in q.relevant_canonical_ids if top_cid else False
+        gap = round(ranked[0].score - ranked[1].score, 6) if len(ranked) >= 2 else None
+        ok, note = True, None
+        if top is not None:
+            ok, note = verify_entity_attributes(q.query, top.doc.subject)
+            if ok and graph is not None and len(ranked) >= 2:
+                ok, note = verify_cross_candidate_graph(
+                    [h.doc.canonical_id for h in ranked], graph, scope
+                )
+        top_score = top.score if top else 0.0
+        log.info(
+            "[%03d/%03d] %s (%s): score=%.4f relevant=%s hit=%s gates=%s",
+            i + 1, total, q.id, q.category, top_score, is_rel, top_cid, ok,
+        )  # fmt: skip
         preds.append(
             QueryPrediction(
                 query_id=q.id,
@@ -187,6 +237,10 @@ def collect_predictions(
                 top_canonical_id=top_cid,
                 is_relevant_hit=is_rel,
                 expected_l2_termination=q.expected_l2_termination,
+                category=q.category,
+                runner_up_gap=gap,
+                gates_ok=ok,
+                gate_note=note,
             )
         )
     return preds
@@ -199,6 +253,8 @@ def calibrate_threshold(
     min_precision: float = 0.85,
     dataset_version: str = "1.0",
     retriever: str,
+    min_margin: float | None = None,
+    safeguards: Sequence[str] = (),
 ) -> CalibrationResult:
     """`retriever` names the retriever whose REAL scores `predictions` hold (ADR-0061 addendum):
     a policy built from this result is calibrated only if they were measured and the selected
@@ -208,10 +264,13 @@ def calibrate_threshold(
     if not predictions:
         raise ValueError("predictions cannot be empty")
 
-    evals = [evaluate_predictions_at_threshold(predictions, t) for t in candidate_thresholds]
+    evals = [
+        evaluate_predictions_at_threshold(predictions, t, min_margin) for t in candidate_thresholds
+    ]
 
-    # Filter candidates meeting minimum precision
-    qualifying = [c for c in evals if c.precision >= min_precision]
+    # A threshold qualifies only if its precision clears the target at the low end of its 95%
+    # interval (24 Nov 2026), so a handful of lucky exits cannot qualify
+    qualifying = [c for c in evals if c.precision_ci_low >= min_precision]
 
     if qualifying:
         # Choose qualifying candidate with highest F1 score (ties broken by higher precision)
@@ -233,6 +292,9 @@ def calibrate_threshold(
         termination_rate=best.termination_rate,
         unnecessary_escalation_rate=best.unnecessary_escalation_rate,
         false_termination_rate=best.false_termination_rate,
+        precision_ci_low=best.precision_ci_low,
+        min_margin=min_margin,
+        safeguards=tuple(safeguards),
     )
 
     return CalibrationResult(

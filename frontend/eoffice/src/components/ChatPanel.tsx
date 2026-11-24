@@ -1,24 +1,51 @@
-import { SendHorizontal, Square } from "lucide-react";
+import { History, Plus, SendHorizontal, Square, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { ApiError } from "../api";
 import type { Api } from "../api";
-import type { Confidence, ChatEvent, ChatStatement, ChatTurn } from "../types";
+import type { ChatCitation, ChatConversationRow, Confidence, ChatEvent, ChatStatement, ChatTurn } from "../types";
 import { usePrefs } from "../prefs";
 import { CitePreview } from "./CitePreview";
 import { Feedback } from "./Feedback";
 
-/** "Ask C2-24" — the conversation for the open file (plan §8.1, §10.1; ADR-0029). Every statement
- * shows where it comes from; nothing here is inserted into the file except on the officer's click. */
-export function ChatPanel({ api, computerNo, onInserted, onOpenDoc, suggestions = [], titled = true }: {
+/** A question about the open file that one of its own tools answers (summary, movements, records,
+ *  pre-send check, drafts…): read through the file's own scoped endpoint, no search and no model. */
+export interface FileTool {
+  id: string;
+  /** shown as a chip when set */
+  label?: string;
+  /** a typed question this tool answers (the fixed rules: the fallback when the model cannot say) */
+  match: (q: string) => boolean;
+  /** whether the tool can answer this message at all (e.g. the general chat needs a named file) */
+  ready?: (q: string) => boolean;
+  run: (asked: string) => Promise<ReactNode>;
+}
+
+/** One exchange on screen: a searched answer, a tool's card, or a restored turn (ADR-0066). */
+interface Shown { asked: string; reply?: ChatTurn; card?: ReactNode; tool?: string; withheld?: boolean }
+
+const fmtWhen = (iso: string) => new Date(iso).toLocaleString(undefined, { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
+
+/** "Ask C2-24" — a conversation (plan §8.1, §10.1; ADR-0029). Every statement shows where it comes
+ * from; nothing is inserted into the file except on the officer's click. The server keeps the
+ * officer's conversations (ADR-0066): the last one here opens again and continues where it
+ * stopped; earlier ones can be reopened or deleted. */
+export function ChatPanel({ api, computerNo, onInserted, onOpenDoc, suggestions = [], titled = true, tools = [], caveat }: {
   api: Api; computerNo?: string; onInserted?: () => void;
   onOpenDoc?: (canonicalId: string) => void;
   /** Questions this file invites (ADR-0034): one click asks them. */
   suggestions?: string[];
   /** false inside a panel that has its own heading (Ask AI) */
   titled?: boolean;
+  /** the open file's own answers (ADR-0064 addendum 1); asked by chip or by a matching question */
+  tools?: FileTool[];
+  caveat?: string;
 }) {
+  const place = computerNo ?? "all";
   const [session, setSession] = useState<string | null>(null);
-  const [turns, setTurns] = useState<{ asked: string; reply: ChatTurn }[]>([]);
+  const [turns, setTurns] = useState<Shown[]>([]);
+  const [convs, setConvs] = useState<ChatConversationRow[]>([]);
+  const [listing, setListing] = useState(false);
+  const [actions, setActions] = useState(false);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -27,7 +54,61 @@ export function ChatPanel({ api, computerNo, onInserted, onOpenDoc, suggestions 
   const [pending, setPending] = useState<Pending | null>(null);
   const stop = useRef<AbortController | null>(null);
   const input = useRef<HTMLInputElement | null>(null);
-  const latest = turns[turns.length - 1]?.reply;
+  const latest = [...turns].reverse().find((x) => x.reply)?.reply;
+  // the newest exchange scrolls into view from its question (a long draft is read from the top)
+  const end = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const all = end.current?.parentElement?.querySelectorAll<HTMLElement>(".turn");
+    all?.[all.length - 1]?.scrollIntoView?.({ block: "start" });
+  }, [turns.length, pending?.asked]);
+
+  // the officer's conversations here; the latest one opens again (ADR-0066)
+  const refresh = () => api.chatHistory?.(place).then((r) => setConvs(r.conversations)).catch(() => undefined);
+  const open = async (id: string) => {
+    setError(null); setListing(false);
+    try {
+      const c = await api.chatConversation(id);
+      setSession(c.conversation_id); setInserted(null);
+      const shown = c.turns.map((x): Shown => (x.kind === "tool"
+        ? { asked: x.asked, tool: x.tool ?? undefined }
+        : x.answer ? { asked: x.asked, reply: x.answer } : { asked: x.asked, withheld: true }));
+      setTurns(shown);
+      // a file tool's answer is never stored: read the latest ones again now, under today's access
+      const recent = shown.map((x, i) => [x, i] as const).filter(([x]) => x.tool).slice(-5);
+      for (const [x, i] of recent) {
+        const tool = tools.find((t) => t.id === x.tool);
+        if (!tool) continue;
+        void tool.run(x.asked).then((card) => setTurns((t) => t.map((y, j) => (j === i && y.asked === x.asked ? { ...y, card } : y))))
+          .catch(() => undefined);
+      }
+    } catch { setConvs((cs) => cs.filter((c) => c.conversation_id !== id)); }
+  };
+  // a tool asked from the page (Send, First-cut note) before the history is back waits for it, so
+  // it lands in the conversation it continues
+  const [loaded, setLoaded] = useState(false);
+  const queued = useRef<string | null>(null);
+  useEffect(() => {
+    let gone = false;
+    const done = () => { if (!gone) setLoaded(true); };
+    if (!api.chatHistory) { done(); return undefined; }
+    api.chatHistory(place).then(async (r) => {
+      if (gone) return;
+      setConvs(r.conversations);
+      // like a chat app: the conversation continues if it was used in the last two hours; an older
+      // one waits under "Earlier chats" and the officer starts fresh
+      const last = r.conversations[0];
+      if (last && Date.now() - new Date(last.updated_at).getTime() < 2 * 3600_000) await open(last.conversation_id);
+    }).catch(() => undefined).finally(done);
+    return () => { gone = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once per place
+  }, [api, place]);
+  const newChat = () => { setSession(null); setTurns([]); setInserted(null); setError(null); setListing(false); input.current?.focus(); };
+  const remove = (id: string) => {
+    void api.deleteChat(id).then(() => {
+      setConvs((cs) => cs.filter((c) => c.conversation_id !== id));
+      if (id === session) newChat();
+    }).catch((e: Error) => setError(e.message));
+  };
 
   const prefs = usePrefs();
   // Ctrl/⌘+K: ask; Ctrl/⌘+Enter: insert the latest first-cut note as a Yellow Note (a draft)
@@ -37,7 +118,7 @@ export function ChatPanel({ api, computerNo, onInserted, onOpenDoc, suggestions 
       if (!(e.ctrlKey || e.metaKey)) return;
       if (e.key.toLowerCase() === "k") {
         e.preventDefault();
-        // a box in a collapsed panel cannot take focus: open the panel on Ask (AssistDock)
+        // a box in a closed panel cannot take focus: open the panel on Ask (AssistDock)
         if (input.current?.offsetParent) input.current.focus();
         else window.dispatchEvent(new Event("c2:ask"));
       }
@@ -49,10 +130,78 @@ export function ChatPanel({ api, computerNo, onInserted, onOpenDoc, suggestions 
     return () => window.removeEventListener("keydown", onKey);
   });
 
+  // the file page's own buttons (Send = pre-send check, First-cut note) ask through this chat
+  useEffect(() => {
+    const onTool = (e: Event) => {
+      const id = (e as CustomEvent<string>).detail;
+      if (!loaded) { queued.current = id; return; }
+      const tool = tools.find((x) => x.id === id);
+      if (tool && !busy) void runTool(tool, tool.label ?? tool.id);
+    };
+    window.addEventListener("c2:file-tool", onTool);
+    return () => window.removeEventListener("c2:file-tool", onTool);
+  });
+
+  useEffect(() => {
+    if (!loaded || !queued.current) return;
+    const tool = tools.find((x) => x.id === queued.current);
+    queued.current = null;
+    if (tool) void runTool(tool, tool.label ?? tool.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once the history is back
+  }, [loaded]);
+
+  /** What the officer is asking for (ADR-0067): the model reads the message and picks one of the
+   *  tools offered here, or the search; when it cannot say (no model, error, slow), the fixed
+   *  rules decide. Either way the tool is the same scoped endpoint as its button. */
+  async function pick(asked: string): Promise<FileTool | null> {
+    const offered = tools.filter((x) => x.ready?.(asked) ?? true);
+    if (offered.length === 0) return null;
+    const base = (id: string) => id.split("@")[0];
+    setBusy(true);
+    setPending({ asked, stage: "Understanding your question…", statements: [], review: [] });
+    try {
+      const r = await Promise.race([
+        api.intent(asked, computerNo, [...new Set(offered.map((x) => base(x.id)))]),
+        new Promise<null>((ok) => setTimeout(() => ok(null), 6000)),
+      ]);
+      if (r && r.tool) return r.tool === "search" ? null : offered.find((x) => base(x.id) === r.tool) ?? null;
+    } catch { /* the rules decide */ } finally { setBusy(false); setPending(null); }
+    return offered.find((x) => x.match(asked)) ?? null;
+  }
+
+  async function runTool(tool: FileTool, asked: string) {
+    setBusy(true); setError(null); setActions(false);
+    setPending({ asked, stage: "Reading this file's records…", statements: [], review: [] });
+    try {
+      const card = await tool.run(asked);
+      setTurns((t) => [...t, { asked, card, tool: tool.id }]);
+      setMessage("");
+      if (computerNo) {
+        // kept in the history as the question and the tool only; read again when shown
+        void api.chatToolTurn(session, computerNo, asked, tool.id)
+          .then((r) => { setSession(r.conversation_id); void refresh(); }).catch(() => undefined);
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Request failed");
+    } finally { setPending(null); setBusy(false); }
+  }
+
+  /** a restored tool turn: read again under the officer's access now */
+  async function again(i: number) {
+    const tool = tools.find((x) => x.id === turns[i]?.tool);
+    if (!tool) return;
+    try {
+      const card = await tool.run(turns[i].asked);
+      setTurns((t) => t.map((x, j) => (j === i ? { ...x, card } : x)));
+    } catch (e) { setError(e instanceof Error ? e.message : "Request failed"); }
+  }
+
   async function send(text?: string) {
     const asked = (text ?? message).trim();
     if (asked.length < 2) return;
-    setBusy(true); setError(null);
+    const tool = await pick(asked);
+    if (tool) { await runTool(tool, asked); return; }
+    setBusy(true); setError(null); setActions(false);
     setPending({ asked, stage: STAGES.searching, statements: [], review: [] });
     const ctrl = new AbortController();
     stop.current = ctrl;
@@ -71,6 +220,7 @@ export function ChatPanel({ api, computerNo, onInserted, onOpenDoc, suggestions 
       setTurns((t) => [...t, { asked, reply }]);
       setMessage("");
       setPending(null);
+      void refresh();
     } catch (e) {
       if (ctrl.signal.aborted) {
         setPending((p) => (p ? { ...p, stopped: true } : p));
@@ -88,24 +238,64 @@ export function ChatPanel({ api, computerNo, onInserted, onOpenDoc, suggestions 
     setInserted(r.draft_id); onInserted?.();
   }
 
+  const chips = tools.filter((x) => x.label);
   return (
     <section className="chat">
       {titled && <h3>Ask C2-24</h3>}
-      <p className="caveat">Answers come only from records you may see, each line with its source. Drafts only.</p>
-      {turns.map(({ asked, reply }, i) => (
-        <ChatReply key={i} api={api} asked={asked} reply={reply} onOpenDoc={onOpenDoc}
-          onInsert={computerNo ? () => insert(reply) : undefined} />
+      <div className="chat-bar">
+        <button className="link" onClick={newChat} disabled={busy || (!session && turns.length === 0)}><Plus size={14} aria-hidden="true" />New chat</button>
+        {convs.length > 0 && (
+          <button className="link" aria-expanded={listing} onClick={() => setListing((l) => !l)}>
+            <History size={14} aria-hidden="true" />Earlier chats ({convs.length})
+          </button>
+        )}
+      </div>
+      {listing && (
+        <ul className="chat-list" aria-label="Earlier chats">
+          {convs.map((c) => (
+            <li key={c.conversation_id} className={c.conversation_id === session ? "on" : undefined}>
+              <button className="chat-open" onClick={() => void open(c.conversation_id)}>
+                <span className="chat-title">{c.title}</span><span className="muted small">{fmtWhen(c.updated_at)}</span>
+              </button>
+              <button className="icon-btn" aria-label={`Delete chat: ${c.title}`} title="Delete this chat" onClick={() => remove(c.conversation_id)}>
+                <Trash2 size={14} aria-hidden="true" />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <p className="caveat">{caveat ?? "Answers come only from records you may see, each line with its source. Drafts only."}</p>
+      {chips.length > 0 && !busy && (turns.length === 0 || actions) && (
+        <div className="chips tools" aria-label="About this file">
+          {chips.map((x) => <button key={x.id} className="chip tool" onClick={() => void runTool(x, x.label as string)}>{x.label}</button>)}
+        </div>
+      )}
+      {turns.map((x, i) => (x.reply
+        ? <ChatReply key={i} api={api} asked={x.asked} reply={x.reply} onOpenDoc={onOpenDoc}
+            onInsert={computerNo ? () => insert(x.reply as ChatTurn) : undefined} />
+        : (
+          <div key={i} className="turn">
+            <p className="asked"><strong>You:</strong> {x.asked}</p>
+            {x.card ?? (x.withheld
+              ? <p className="noanswer">This answer cited records that are no longer available to you, so it is not shown.</p>
+              : <button className="link" onClick={() => void again(i)}>Show the current answer</button>)}
+          </div>
+        )
       ))}
       {pending && <PendingReply p={pending} />}
+      <div ref={end} />
       {inserted && <p className="ok">Inserted as Yellow Note (draft {inserted}). It is yours to edit and sign.</p>}
-      {suggestions.length > 0 && !busy && (
+      {chips.length > 0 && turns.length > 0 && !busy && !actions && (
+        <button className="link chat-actions" onClick={() => setActions(true)}>File actions: summary, movements, checks, drafts…</button>
+      )}
+      {suggestions.length > 0 && !busy && turns.length === 0 && (
         <div className="chips" aria-label="Suggested questions">
           {suggestions.map((q) => <button key={q} className="chip" onClick={() => { setMessage(q); void send(q); }}>{q}</button>)}
         </div>
       )}
       <div className="row composer">
         <input ref={input} aria-label="Ask C2-24 (Ctrl+K)" onKeyDown={(e) => { if (e.key === "Enter" && !e.ctrlKey && !e.metaKey && !busy) void send(); }} value={message} onChange={(e) => setMessage(e.target.value)} maxLength={500}
-          placeholder='e.g. "Has this been decided before?" then "Draft the noting using that precedent."' />
+          placeholder={computerNo ? 'Ask about this file, e.g. "Where is this file pending?"' : 'e.g. "Has this been decided before?" then "Draft the noting using that precedent."'} />
         {busy
           ? <button onClick={() => stop.current?.abort()}><Square size={14} aria-hidden="true" />Stop</button>
           : <button className="primary" onClick={() => void send()}><SendHorizontal size={14} aria-hidden="true" />Ask</button>}
@@ -143,20 +333,19 @@ function step(p: Pending, e: ChatEvent): Pending {
 /** The answer as it is written (ADR-0033). Only statements that already passed the citation check
  *  arrive here; the full answer replaces this when it is done. */
 function PendingReply({ p }: { p: Pending }) {
+  const nums = sourceNumbers([...p.statements, ...p.review]);
   return (
     <div className="turn pending" aria-live="polite" aria-busy={!p.stopped}>
       <p className="asked"><strong>You:</strong> {p.asked}</p>
-      {p.stopped
-        ? <p className="meta">Stopped. The statements shown were checked; the answer may be incomplete.</p>
-        : <p className="stage"><span className="dot" />{p.stage}</p>}
-      {p.statements.length > 0 && (
-        <ol>{p.statements.map((s, i) => <StatementLine key={i} s={s} typing={!p.stopped} />)}</ol>
-      )}
-      {p.review.length > 0 && (
-        <div className="review"><h4>Review needed</h4>
-          <ol>{p.review.map((s, i) => <StatementLine key={i} s={s} typing={!p.stopped} />)}</ol>
-        </div>
-      )}
+      <div className="reply">
+        {p.stopped
+          ? <p className="meta">Stopped. The statements shown were checked; the answer may be incomplete.</p>
+          : <p className="stage"><span className="dot" />{p.stage}</p>}
+        {p.statements.length > 0 && <AnswerBody statements={p.statements} nums={nums} typing={!p.stopped} />}
+        {p.review.length > 0 && (
+          <div className="review"><h4>Review needed</h4><AnswerBody statements={p.review} nums={nums} typing={!p.stopped} /></div>
+        )}
+      </div>
     </div>
   );
 }
@@ -183,51 +372,171 @@ export function ChatReply({ api, asked, reply, onOpenDoc, onInsert }: {
   api?: Api; asked: string; reply: ChatTurn; onOpenDoc?: (cid: string) => void; onInsert?: () => void;
 }) {
   const cut = reply.first_cut;
+  const all = [...reply.statements, ...reply.review_needed];
+  const nums = sourceNumbers(all);
   return (
     <div className="turn">
       <p className="asked"><strong>You:</strong> {asked}</p>
-      {reply.used_earlier_turn && <p className="meta">Using what this conversation found earlier (re-checked now).</p>}
-      {reply.from_cache && <p className="meta">Same answer as before for your access.</p>}
-      {reply.notices.map((n, i) => <p key={i} className="caveat">{n}</p>)}
-      {reply.statements.length > 0 ? (
-        <ol>{reply.statements.map((s, i) => (
-          <StatementLine key={i} s={s} api={api} onOpenDoc={onOpenDoc}
-            feedback={api && s.citations[0] ? <Feedback api={api} choices={THUMBS}
-              target={{ kind: "statement", request_id: reply.request_id, canonical_id: s.citations[0].canonical_id }} /> : null} />
-        ))}</ol>
-      ) : (
-        <p className="noanswer">{reply.message ?? "No sufficiently supported answer was found in the authorised records."}</p>
-      )}
-      {reply.statements.length === 0 && reply.documents.length > 0 && (
-        // no answer written (no model, or nothing supported): the records found, to open and read
-        <ul className="found-docs" aria-label="Records found">
-          {reply.documents.map((d) => (
-            <li key={d}>{onOpenDoc ? <button className="link" onClick={() => onOpenDoc(d)}>{d}</button> : d}</li>
-          ))}
-        </ul>
-      )}
-      {reply.review_needed.length > 0 && (
-        <div className="review">
-          <h4>Review needed</h4>
-          <ol>{reply.review_needed.map((s, i) => <StatementLine key={i} s={s} onOpenDoc={onOpenDoc} />)}</ol>
-        </div>
-      )}
-      {reply.removed > 0 && <p className="meta">{reply.removed} statement(s) withheld: not supported by the cited text.</p>}
-      {api && reply.status !== "denied" && reply.status !== "not_run" && (
-        <p className="meta">Was this answer useful?{" "}
-          <Feedback api={api} choices={THUMBS}
-            target={{ kind: "answer", request_id: reply.request_id, session_id: reply.session_id }} />
+      <div className="reply">
+        {reply.used_earlier_turn && <p className="meta">Using what this conversation found earlier (re-checked now).</p>}
+        {reply.from_cache && <p className="meta">Same answer as before for your access.</p>}
+        {reply.notices.map((n, i) => <p key={i} className="caveat">{n}</p>)}
+        {reply.statements.length > 0 ? (
+          reply.composed
+            ? <ComposedBody c={reply.composed} statements={reply.statements} nums={nums} onOpenDoc={onOpenDoc} />
+            : <AnswerBody statements={reply.statements} nums={nums} onOpenDoc={onOpenDoc} />
+        ) : (
+          <p className="noanswer">{reply.message ?? "No sufficiently supported answer was found in the authorised records."}</p>
+        )}
+        {reply.statements.length === 0 && reply.documents.length > 0 && (
+          // no answer written (no model, or nothing supported): the records found, to open and read
+          <ul className="found-docs" aria-label="Records found">
+            {reply.documents.map((d) => (
+              <li key={d}>{onOpenDoc ? <button className="link" onClick={() => onOpenDoc(d)}>{d}</button> : d}</li>
+            ))}
+          </ul>
+        )}
+        {reply.review_needed.length > 0 && (
+          <div className="review">
+            <h4>Review needed</h4>
+            <AnswerBody statements={reply.review_needed} nums={nums} onOpenDoc={onOpenDoc} />
+          </div>
+        )}
+        {reply.removed > 0 && <p className="meta">{reply.removed} statement(s) withheld: not supported by the cited text.</p>}
+        {all.length > 0 && <SourceList statements={all} nums={nums} api={api} requestId={reply.request_id} onOpenDoc={onOpenDoc} />}
+        {(all.length > 0 || (api && reply.status !== "denied" && reply.status !== "not_run")) && (
+          <div className="reply-actions">
+            {all.length > 0 && <CopyText text={reply.statements.map(withReferences).join("\n")} label="Copy answer" />}
+            {api && reply.status !== "denied" && reply.status !== "not_run" && (
+              <span className="meta">Was this answer useful?{" "}
+                <Feedback api={api} choices={THUMBS}
+                  target={{ kind: "answer", request_id: reply.request_id, session_id: reply.session_id }} />
+              </span>
+            )}
+          </div>
+        )}
+        {cut && (
+          <div className="firstcut">
+            <h4>First-cut note for this file</h4>
+            <pre>{cut.note?.sections.length ? cut.note_text : cut.body}</pre>
+            {cut.note && cut.note.removed > 0 && <p className="meta">{cut.note.removed} line(s) removed by the check.</p>}
+            {onInsert && cut.note?.sections.length ? <button onClick={onInsert}>Insert as Yellow Note</button> : null}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** Each record cited in an answer gets one number, in the order the answer first cites it. */
+function sourceNumbers(statements: ChatStatement[]): Map<string, number> {
+  const m = new Map<string, number>();
+  for (const s of statements) for (const c of s.citations) if (!m.has(c.canonical_id)) m.set(c.canonical_id, m.size + 1);
+  return m;
+}
+
+/** The answer as an assistant writes it (24 Nov 2026): one or two statements as a paragraph, more as
+ *  points; each sentence carries small numbered markers to its sources (opened on a click), and a
+ *  low-confidence sentence says so where it stands. Every sentence is still one checked statement. */
+function AnswerBody({ statements, nums, onOpenDoc, typing = false, points = false }: {
+  statements: ChatStatement[]; nums: Map<string, number>; onOpenDoc?: (cid: string) => void; typing?: boolean;
+  /** always as points (a composed section) */
+  points?: boolean;
+}) {
+  const sentence = (s: ChatStatement, i: number) => (
+    <span key={i} className="sentence">
+      {typing ? <Typed text={s.text} on /> : s.text}
+      {[...new Set(s.citations.map((c) => c.canonical_id))].map((cid) => (
+        <sup key={cid}>
+          <button className="cn" title={`Source ${nums.get(cid)}: ${s.citations.find((c) => c.canonical_id === cid)?.reference || cid}`}
+            onClick={() => onOpenDoc?.(cid)}>{nums.get(cid)}</button>
+        </sup>
+      ))}
+      {s.confidence?.band === "low" && <span className="lowconf" title={BAND.low}> (check before relying on it)</span>}
+      {" "}
+    </span>
+  );
+  return statements.length <= 2 && !points
+    ? <p className="answer-text">{statements.map(sentence)}</p>
+    : <ul className="answer-points">{statements.map((s, i) => <li key={i}>{sentence(s, i)}</li>)}</ul>;
+}
+
+/** ADR-0067: the model's layout of the CHECKED statements — a direct first line (its numbers and
+ *  references already checked against the statements it names, server side) and grouped points.
+ *  Every statement is still shown once, with its own sources. */
+function ComposedBody({ c, statements, nums, onOpenDoc }: {
+  c: NonNullable<ChatTurn["composed"]>; statements: ChatStatement[]; nums: Map<string, number>; onOpenDoc?: (cid: string) => void;
+}) {
+  const at = (i: number) => statements[i - 1];
+  const leadCites = [...new Set(c.lead_uses.flatMap((i) => at(i)?.citations.map((x) => x.canonical_id) ?? []))];
+  return (
+    <>
+      {c.lead && (
+        <p className="answer-lead">{c.lead}
+          {leadCites.map((cid) => <sup key={cid}><button className="cn" onClick={() => onOpenDoc?.(cid)} title={`Source ${nums.get(cid)}`}>{nums.get(cid)}</button></sup>)}
         </p>
       )}
-      {cut && (
-        <div className="firstcut">
-          <h4>First-cut note for this file</h4>
-          <pre>{cut.note?.sections.length ? cut.note_text : cut.body}</pre>
-          {cut.note && cut.note.removed > 0 && <p className="meta">{cut.note.removed} line(s) removed by the check.</p>}
-          {onInsert && cut.note?.sections.length ? <button onClick={onInsert}>Insert as Yellow Note</button> : null}
-        </div>
-      )}
-    </div>
+      {c.sections.map((s, k) => {
+        const items = s.items.map(at).filter(Boolean) as ChatStatement[];
+        return (
+          <div key={k} className="answer-section">
+            {s.heading && <h4>{s.heading}</h4>}
+            <AnswerBody statements={items} nums={nums} onOpenDoc={onOpenDoc} points />
+          </div>
+        );
+      })}
+    </>
+  );
+}
+
+const KIND: Record<ChatStatement["source"], string> = {
+  "order records": "From the order records", "file records": "Counted from the file records you may see",
+  "link records": "From the links between records", "entity records": "From the records that name them", evidence: "Source",
+};
+
+/** The numbered sources under an answer, folded: each record once, with the words it was quoted
+ *  for, how far it can be relied on (ADR-0054), a copy in e-Office reference form, and feedback. */
+function SourceList({ statements, nums, api, requestId, onOpenDoc }: {
+  statements: ChatStatement[]; nums: Map<string, number>; api?: Api; requestId: string; onOpenDoc?: (cid: string) => void;
+}) {
+  const rows = [...nums.entries()].map(([cid, n]) => {
+    const using = statements.filter((s) => s.citations.some((c) => c.canonical_id === cid));
+    const c = using[0].citations.find((x) => x.canonical_id === cid) as ChatCitation;
+    const quotes = [...new Set(using.map((s) => s.quote).filter(Boolean))] as string[];
+    const conf = using.map((s) => s.confidence).filter(Boolean).sort((a, b) => (a as Confidence).score - (b as Confidence).score)[0] as Confidence | undefined;
+    return { cid, n, c, kind: using[0].source, quotes, conf, first: using[0] };
+  });
+  return (
+    <details className="sources-list">
+      <summary>Sources ({rows.length})</summary>
+      <ol>
+        {rows.map((r) => (
+          <li key={r.cid} value={r.n}>
+            <span className="src-kind">{KIND[r.kind]}: </span>
+            <CitePreview api={api} c={r.c} quote={r.quotes[0] ?? null}>
+              <button className="cite" onClick={() => onOpenDoc?.(r.cid)}>
+                {r.c.reference || r.cid}{r.c.status ? ` (${r.c.status.replace(/_/g, " ")})` : ""}
+              </button>
+            </CitePreview>
+            {r.quotes.map((q) => <q key={q} className="quote">{q}</q>)}
+            <span className="src-tools">
+              {r.conf && <ConfidenceNote c={r.conf} />}
+              <CopyRef s={r.first} />
+              {api && <Feedback api={api} choices={THUMBS} target={{ kind: "statement", request_id: requestId, canonical_id: r.cid }} />}
+            </span>
+          </li>
+        ))}
+      </ol>
+    </details>
+  );
+}
+
+function CopyText({ text, label }: { text: string; label: string }) {
+  const [done, setDone] = useState(false);
+  return (
+    <button className="fb" onClick={() => { void navigator.clipboard?.writeText(text).then(() => { setDone(true); setTimeout(() => setDone(false), 1500); }); }}>
+      {done ? "Copied" : label}
+    </button>
   );
 }
 
@@ -260,32 +569,5 @@ function ConfidenceNote({ c }: { c: Confidence }) {
       <summary>{BAND[c.band]}</summary>
       <ul>{why.map((f) => <li key={f.name}>{f.reason}</li>)}</ul>
     </details>
-  );
-}
-
-function StatementLine({ s, api, onOpenDoc, feedback, typing = false }: {
-  s: ChatStatement; api?: Api; onOpenDoc?: (cid: string) => void; feedback?: ReactNode; typing?: boolean;
-}) {
-  return (
-    <li>
-      {typing ? <Typed text={s.text} on /> : s.text}
-      {s.quote && <q className="quote">{s.quote}</q>}
-      <span className="sources">
-        {s.source === "order records" ? "From the order records: "
-          : s.source === "file records" ? "Counted from the file records you may see: "
-          : s.source === "link records" ? "From the links between records: "
-          : s.source === "entity records" ? "From the records that name them: " : "Source: "}
-        {s.citations.map((c, i) => (
-          <CitePreview key={i} api={api} c={c} quote={s.quote}>
-            <button className="cite" onClick={() => onOpenDoc?.(c.canonical_id)}>
-              {c.reference || c.canonical_id}{c.status ? ` (${c.status})` : ""}
-            </button>
-          </CitePreview>
-        ))}
-      </span>
-      {!typing && s.confidence && <ConfidenceNote c={s.confidence} />}
-      {!typing && <CopyRef s={s} />}
-      {feedback}
-    </li>
   );
 }

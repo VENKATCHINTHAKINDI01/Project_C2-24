@@ -11,6 +11,7 @@ file only as a Yellow Note on the officer's click, and becomes a note only when 
 
 from __future__ import annotations
 
+import logging
 import re
 from collections.abc import Sequence
 from typing import Any
@@ -22,6 +23,8 @@ from app.agents.llm import LLMClient, LLMError, load_prompt
 from app.citation.verifier import _norm, _tokens
 from app.noting.file_facts import FileParagraph
 from app.retrieval.evidence import addressed_to_ai
+
+log = logging.getLogger(__name__)
 
 PROMPT_ID = "noting_draft.v2"
 PROMPT_ID_FILE = "noting_draft.v3"  # v2 + the file's own paragraphs as sources (ADR-0060)
@@ -200,7 +203,10 @@ def draft_note(
             schema=SCHEMA,
         )
         given = [x for x in raw.get("sections") or [] if isinstance(x, dict)]
-    except (LLMError, TypeError, ValueError):
+    except (LLMError, TypeError, ValueError) as exc:  # the error's type only, never content
+        log.warning(
+            "note draft not written: %s", exc if isinstance(exc, LLMError) else type(exc).__name__
+        )
         return _empty("engine_down")
     by_id = {s.sid: s for s in sources}
     removed = 0

@@ -25,6 +25,7 @@ from typing import Any, Protocol
 from app.auth.models import Scope
 from app.retrieval.bigquery_index import SCOPE_SQL, Param, QueryRunner, _doc, scope_params
 from app.retrieval.ladder import ScoredDocument, _terms
+from app.retrieval.request_memo import timed_query
 
 log = logging.getLogger(__name__)
 
@@ -147,13 +148,14 @@ class VertexEmbedder:
         for attempt in range(self._retries + 1):
             try:
                 self.calls += 1
-                res = self._client.models.embed_content(
-                    model=self._model,
-                    contents=list(texts),
-                    config=self._types.EmbedContentConfig(
-                        task_type=task, output_dimensionality=self._dims
-                    ),
-                )
+                with timed_query("embedding"):
+                    res = self._client.models.embed_content(
+                        model=self._model,
+                        contents=list(texts),
+                        config=self._types.EmbedContentConfig(
+                            task_type=task, output_dimensionality=self._dims
+                        ),
+                    )
                 vectors = [list(e.values or []) for e in (res.embeddings or [])]
                 break
             except Exception as exc:  # the SDK raises many types; none may pass silently

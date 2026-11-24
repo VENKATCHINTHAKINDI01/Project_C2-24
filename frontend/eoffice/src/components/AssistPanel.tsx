@@ -171,52 +171,65 @@ export function AssistPanel({ api, computerNo, report, onReport, onInserted, onO
       )}
 
       {checks && report && (
-        <section className="presend">
-          <h4 className={report.outcome === "conflicts_found" ? "warn" : ""}>{outcomeLabel(report)}</h4>
-          {report.message && <p className="card">{report.message}</p>}
-          {report.flags?.map((f, i) => (
-            <div key={i} className="flag" tabIndex={-1} data-flag={i}>
-              <div className="flag-head">
-                <strong>{f.type} · {FLAG_NAMES[f.type]}</strong>
-                <span className={f.certain ? "badge" : "badge soft"}>{f.certain ? "from records" : "uncertain"}</span>
-              </div>
-              <p>{f.explanation}</p>
-              {f.evidence_ids.length > 0 && (
-                <p className="src">Sources:{" "}
-                  {f.evidence_ids.map((e, j) => (
-                    <span key={e}>{j > 0 && " · "}{onOpenDoc
-                      ? <button type="button" className="doclink" onClick={() => onOpenDoc(e)} title={`Open ${e}`}>{e}</button>
-                      : e}</span>
-                  ))}
-                </p>
-              )}
-              <Feedback api={api} choices={[["accepted", "Needs review"], ["dismissed", "Set aside"]]}
-                target={{ kind: "conflict_flag", request_id: report.request_id, computer_no: computerNo,
-                  flag_type: f.type, canonical_id: f.cited.split(" ")[0] }} />
-            </div>
-          ))}
-          {!!report.status_unconfirmed?.length && (
-            <p className="card">Status not confirmed from your records: {report.status_unconfirmed.join(" · ")}</p>
-          )}
-          {!!report.awaiting_review?.length && (
-            <p className="card">
-              Not found yet — may be among your records awaiting review (e.g. a scan not yet read):{" "}
-              {report.awaiting_review.join(" · ")}
-            </p>
-          )}
-          {!!report.fact_gaps?.length && <p className="card">Not stated clearly in the note: {report.fact_gaps.map(factWords).join(", ")}</p>}
-          {report.authority_message && <p className="card">{report.authority_message}</p>}
-          <Caveats calibrated={report.calibrated} mockRules={report.mock_rules} />
-          {!!report.flags?.length && (
-            <div className="actions">
-              <button className="primary" disabled={busy || inserted !== null} onClick={insert}>Insert as Yellow Note</button>
-              {inserted && <span className="muted">Draft {inserted} added to the noting panel.</span>}
-            </div>
-          )}
-        </section>
+        <PresendCard api={api} computerNo={computerNo} report={report} busy={busy} inserted={inserted}
+          onInsert={insert} onOpenDoc={onOpenDoc} />
       )}
       <p className="footnote">Drafts only. Nothing is saved, signed or sent without the officer.</p>
     </aside>
+  );
+}
+
+
+/** The pre-send check's result (touchpoint 11): flags with their sources; "Insert as Yellow Note"
+ *  makes a draft only on the officer's click. Used in the Check tab and in the file chat. */
+export function PresendCard({ api, computerNo, report, busy, inserted, onInsert, onOpenDoc }: {
+  api: Api; computerNo: string; report: PresendReport; busy: boolean; inserted: string | null;
+  onInsert: () => void; onOpenDoc?: (cid: string) => void;
+}) {
+  return (
+    <section className="presend">
+      <h4 className={report.outcome === "conflicts_found" ? "warn" : ""}>{outcomeLabel(report)}</h4>
+      {report.message && <p className="card">{report.message}</p>}
+      {report.flags?.map((f, i) => (
+        <div key={i} className="flag" tabIndex={-1} data-flag={i}>
+          <div className="flag-head">
+            <strong>{f.type} · {FLAG_NAMES[f.type]}</strong>
+            <span className={f.certain ? "badge" : "badge soft"}>{f.certain ? "from records" : "uncertain"}</span>
+          </div>
+          <p>{f.explanation}</p>
+          {f.evidence_ids.length > 0 && (
+            <p className="src">Sources:{" "}
+              {f.evidence_ids.map((e, j) => (
+                <span key={e}>{j > 0 && " · "}{onOpenDoc
+                  ? <button type="button" className="doclink" onClick={() => onOpenDoc(e)} title={`Open ${e}`}>{e}</button>
+                  : e}</span>
+              ))}
+            </p>
+          )}
+          <Feedback api={api} choices={[["accepted", "Needs review"], ["dismissed", "Set aside"]]}
+            target={{ kind: "conflict_flag", request_id: report.request_id, computer_no: computerNo,
+              flag_type: f.type, canonical_id: f.cited.split(" ")[0] }} />
+        </div>
+      ))}
+      {!!report.status_unconfirmed?.length && (
+        <p className="card">Status not confirmed from your records: {report.status_unconfirmed.join(" · ")}</p>
+      )}
+      {!!report.awaiting_review?.length && (
+        <p className="card">
+          Not found yet — may be among your records awaiting review (e.g. a scan not yet read):{" "}
+          {report.awaiting_review.join(" · ")}
+        </p>
+      )}
+      {!!report.fact_gaps?.length && <p className="card">Not stated clearly in the note: {report.fact_gaps.map(factWords).join(", ")}</p>}
+      {report.authority_message && <p className="card">{report.authority_message}</p>}
+      <Caveats calibrated={report.calibrated} mockRules={report.mock_rules} />
+      {!!report.flags?.length && (
+        <div className="actions">
+          <button className="primary" disabled={busy || inserted !== null} onClick={onInsert}>Insert as Yellow Note</button>
+          {inserted && <span className="muted">Draft {inserted} added to the noting panel.</span>}
+        </div>
+      )}
+    </section>
   );
 }
 

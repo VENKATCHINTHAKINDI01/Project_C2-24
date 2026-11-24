@@ -144,6 +144,11 @@ class Settings(BaseSettings):
     l2_cloud_min_score: float | None = Field(default=None, gt=0, le=1)
     l2_cloud_calibrated: bool = False
     l2_cloud_calibration_metadata: dict[str, Any] | None = None
+    # score gap to the runner-up a calibrated exit also needs; must match the calibration's
+    l2_cloud_min_margin: float | None = Field(default=None, ge=0, le=1)
+    # opt-in wall-clock profile of these API paths, comma-separated (app/tracking/profiler.py);
+    # logs code locations and seconds only. Empty = off.
+    profile_paths: str = ""
 
     @property
     def sandbox_enabled(self) -> bool:
@@ -253,6 +258,7 @@ class RetrievalConfig(_Frozen):
     l3_max_hops: int | None = Field(default=None, ge=1)
     l3_max_nodes: int | None = Field(default=50, ge=1)
     l3_max_edges: int | None = Field(default=100, ge=1)
+    l2_min_margin: float | None = Field(default=None, ge=0, le=1)
     l2_calibrated: bool = False
     l2_calibration_metadata: dict[str, Any] | None = None
 

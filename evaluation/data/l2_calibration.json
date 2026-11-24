@@ -1,4 +1,17 @@
 {
-  "withdrawn": "2026-11-24",
-  "reason": "The 20 Nov values came from hard-coded scores in calibrate_l2.py, not a retriever (ADR-0061 addendum). A measured calibration from `calibrate_l2.py --backend cloud --write` replaces this file."
+  "optimal_threshold": 0.88,
+  "metadata": {
+    "calibrated_at": "2026-11-24T05:41:25+00:00",
+    "retriever": "bigquery-hybrid@asia-south1",
+    "dataset_version": "known-item-s7-n150",
+    "sample_size": 150,
+    "precision": 0.9118,
+    "recall": 0.2719,
+    "f1": 0.4189,
+    "target_min_precision": 0.9,
+    "optimal_threshold": 0.88,
+    "termination_rate": 0.2267,
+    "unnecessary_escalation_rate": 0.5533,
+    "false_termination_rate": 0.02
+  }
 }

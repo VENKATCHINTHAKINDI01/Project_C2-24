@@ -97,6 +97,7 @@ def pg() -> Iterator[Pg]:
             "0003_sessions",
             "0004_draft_workspaces",
             "0005_model_usage",
+            "0006_chat_history",
         ]
         apply_migrations(p, MIGRATIONS)  # idempotent
         yield p
@@ -262,3 +263,33 @@ def test_a_draft_workspace_survives_a_restart_and_stays_its_officers(pg: Pg) -> 
     assert again.get("U02", "1771342") is None and again.get("U01", "new") is None
     assert again.discard("U01", "1771342") and again.get("U01", "1771342") is None
     assert not again.discard("U01", "1771342")
+
+
+@needs_pg
+def test_chat_history_matches_in_memory_contract(pg: Pg) -> None:
+    """ADR-0066: per officer, bounded, the owner alone reads, writes into or deletes it."""
+    import datetime as _dt
+
+    from app.memory.history import ALL, MAX_TURNS, HistTurn, PostgresChatHistory
+
+    def turn(asked: str) -> HistTurn:
+        return HistTurn(
+            at=_dt.datetime.now(_dt.UTC), asked=asked, kind="chat", answer={"x": 1}, cited=("A",)
+        )
+
+    h = PostgresChatHistory(pg)
+    h.add("U01", "a" * 32, ALL, turn("first"))
+    h.add("U01", "a" * 32, ALL, turn("second"))
+    h.add("U02", "a" * 32, ALL, turn("not U01's"))  # ignored
+    got = h.get("U01", "a" * 32)
+    assert got is not None and [t.asked for t in got.turns] == ["first", "second"]
+    assert got.title == "first" and got.turns[0].cited == ("A",)
+    assert h.get("U02", "a" * 32) is None and h.list("U02", None) == []
+    for i in range(MAX_TURNS + 2):
+        h.add("U01", "b" * 32, "1311050", turn(f"q{i}"))
+    b = h.get("U01", "b" * 32)
+    assert b is not None and len(b.turns) == MAX_TURNS and b.turns[0].asked == "q2"
+    assert [c.conversation_id for c in h.list("U01", "1311050")] == ["b" * 32]
+    assert len(h.list("U01", None)) == 2
+    assert not h.delete("U02", "b" * 32) and h.delete("U01", "b" * 32)
+    assert h.get("U01", "b" * 32) is None

@@ -27,11 +27,12 @@ from app.graph.repository import (
     GraphNode,
     GraphWalkResult,
     StepOrder,
+    split_edges,
     statutory_first,
 )
 from app.graph.sync import SyncPlan, check, plan
 from app.pg import Pg
-from app.retrieval.request_memo import count_query
+from app.retrieval.request_memo import timed_query
 
 _NODE_COLS = "canonical_id, department, section, classification, file_no, doc_id"
 _PROPS = ("doc_type", "hierarchy_level", "issue_date", "effective_from", "valid_until", "subject")
@@ -112,8 +113,7 @@ class PostgresGraphRepository:
         wanted = list(dict.fromkeys(ids))
         if not wanted:
             return {}
-        count_query("cloudsql-graph")
-        with self._pg.tx() as cur:
+        with timed_query("cloudsql-graph"), self._pg.tx() as cur:
             cur.execute(  # placeholders only; values are bound
                 f"SELECT {_NODE_COLS} FROM graph_nodes WHERE canonical_id IN "  # noqa: S608
                 f"({_marks(len(wanted))})",
@@ -139,8 +139,7 @@ class PostgresGraphRepository:
             return tuple(r[0] for r in cur.fetchall())
 
     def _edges(self, which: str, params: tuple[Any, ...] = ()) -> list[GraphEdge]:
-        count_query("cloudsql-graph")
-        with self._pg.tx() as cur:
+        with timed_query("cloudsql-graph"), self._pg.tx() as cur:
             cur.execute(_EDGES[which], params)
             rows = cur.fetchall()
         return [
@@ -150,6 +149,30 @@ class PostgresGraphRepository:
 
     def edges(self) -> list[GraphEdge]:
         return self._edges("all")
+
+    def nodes_many(self, ids: Iterable[str]) -> dict[str, GraphNode]:
+        """Many nodes in one query (request memo warm-up, 24 Nov 2026)."""
+        return self._nodes(ids)
+
+    def edges_many(
+        self, ids: Iterable[str]
+    ) -> tuple[dict[str, tuple[GraphEdge, ...]], dict[str, tuple[GraphEdge, ...]]]:
+        """Out- and in-edges of many nodes in one query, ordered as `edges_from` / `edges_to`."""
+        wanted = list(dict.fromkeys(ids))
+        if not wanted:
+            return {}, {}
+        marks = _marks(len(wanted))
+        with timed_query("cloudsql-graph"), self._pg.tx() as cur:
+            cur.execute(  # placeholders only; values are bound
+                f"{_EDGE} WHERE source IN ({marks}) OR target IN ({marks})",  # noqa: S608
+                (*wanted, *wanted),
+            )
+            rows = cur.fetchall()
+        edges = [
+            GraphEdge(source=r[0], kind=EdgeKind(r[1]), target=r[2], confirmed=bool(r[3]))
+            for r in rows
+        ]
+        return split_edges(wanted, edges)
 
     def edges_to(self, cid: str) -> tuple[GraphEdge, ...]:
         return tuple(sorted(self._edges("to", (cid,)), key=lambda e: (e.kind, e.source)))

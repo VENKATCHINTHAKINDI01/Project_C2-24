@@ -14,6 +14,13 @@ These are recurring checks for the deployed PoC. Each line names the script that
 | After applying or changing backup settings | Settings read back as configured | `APPLY=1 RESTART_OK=1 … 29_cloudsql_backups.py` (or the dry run to read only) | all `✓` |
 | Monthly | Backup cost against the estimate in ADR-0057 | Billing report, SKU "Backups" in asia-south1 | within estimate, or ADR updated |
 
+## Cloud Run access settings — do not change (ADR-0065)
+The TechBharat admins own who can reach c2-frontend and c2-api (auth, IAP, ingress, IAM/IAP bindings). Changing them caused the c2-frontend 403s.
+- Redeploy only with `20_api_service.sh` / `23_frontend_service.sh` (default `PART=dev`): they keep an existing service's access settings as they are.
+- Never run `gcloud run services update … --ingress/--[no-]allow-unauthenticated/--iap`, `add-/remove-iam-policy-binding`, `set-iam-policy`, `gcloud iap web …`, or change these in the console, without the admins' agreement first.
+- After agreement: `SECURITY_CHANGE=approved PART=owner IAP_MEMBERS=… APPLY=1 bash 23_frontend_service.sh`. Without the flag the commands are printed, not run.
+- After every deploy: open the c2-frontend URL in a browser; a 403 means report to the admins — do not try to fix it by changing access.
+
 ## Other alerts already in place
 - **Tracking buffer full** (`28_tracking_alert.sh`, ADR-0049): BigQuery query-log rows were dropped. Check BigQuery access and quota.
 

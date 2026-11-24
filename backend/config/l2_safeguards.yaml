@@ -1,0 +1,18 @@
+# L2 early-exit attribute gate (ADR-0061 addendum, 24 Nov 2026; app/retrieval/safeguards.py).
+# Each group lists values that exclude one another: if the question names one and the top
+# order's subject names a different one from the same group, L2 may not end the ladder (the
+# question goes on to L3). The gate can only block an exit, never allow one.
+# Written for the public G.O. corpus in use (education and establishment orders); extend it when
+# new departments are loaded. Matching ignores case, dots and the spacing / hyphen inside a term
+# ("B.P.Ed" = "BPEd", "non-gazetted" = "non gazetted").
+groups:
+  course:
+    - [b.p.ed, m.p.ed]
+    - [b.ed, m.ed]
+    - [d.ed, b.ed]
+    - [d.el.ed, b.ed]
+    - [language pandit, b.ed]
+    - [language pandit, m.ed]
+  cadre:
+    - [gazetted, non-gazetted]
+    - [assistant secretary, section officer, deputy secretary, joint secretary, secretary]

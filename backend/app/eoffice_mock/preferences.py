@@ -33,7 +33,7 @@ class Preferences(BaseModel):
     landing: Literal["inbox", "receipts", "search", "monitor"] = "inbox"
     due_soon_days: int = Field(default=3, ge=0, le=30)
     # assistant
-    assistant_panel: Literal["open", "collapsed"] = "open"
+    assistant_panel: Literal["open", "collapsed"] = "collapsed"  # AI button only; chat on a click
     stream_answers: bool = True
     shortcuts: bool = True
     show_notices: bool = True

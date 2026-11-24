@@ -3,6 +3,7 @@
 
 export interface Profile {
   user_id: string; name: string; post: string; department?: string; section?: string | null; clearance?: string;
+  search_scopes?: string[];
 }
 
 export interface Me extends Profile {
@@ -145,6 +146,11 @@ export interface FileSoFar extends AssistMeta {
   last_direction: number | null; gaps: [number, number][]; gap_message: string | null;
   pending_documents: number; pending_message: string | null;
 }
+/** ADR-0067 addendum: a written summary of the notes; each sentence names the notes it rests on
+ *  (gated server side: no number, date or reference that those notes do not carry). */
+export interface FileSummary extends FileSoFar {
+  summary: { lead: string | null; lead_notes: number[]; points: { text: string; notes: number[] }[] } | null;
+}
 
 export interface LinkSuggestion { file_no: string; rank: number; documents: DocOut[] }
 
@@ -275,6 +281,9 @@ export interface ChatTurn extends AssistMeta {
   statements: ChatStatement[]; review_needed: ChatStatement[]; removed: number;
   message: string | null; documents: string[]; notices: string[]; as_of: string;
   first_cut: (FirstCut & { note: DraftNote | null }) | null;
+  /** ADR-0067: the checked statements laid out as an assistant answers (numbers are 1-based
+   *  positions in `statements`); absent or null: shown as they are */
+  composed?: { lead: string | null; lead_uses: number[]; sections: { heading: string | null; items: number[] }[] } | null;
 }
 
 /** Streamed turn (ADR-0033): progress, then statements that already passed the citation check,
@@ -442,7 +451,7 @@ export interface Preferences {
 export const DEFAULT_PREFERENCES: Preferences = {
   theme: "light", text_size: "normal", density: "comfortable", contrast: "standard", reduce_motion: false,
   date_style: "dd-mm-yyyy", note_font: "serif", landing: "inbox", due_soon_days: 3,
-  assistant_panel: "open", stream_answers: true, shortcuts: true, show_notices: true,
+  assistant_panel: "collapsed", stream_answers: true, shortcuts: true, show_notices: true,
 };
 
 /* ---- Draft workspace (ADR-0044) ---- */
@@ -491,3 +500,12 @@ export interface DraftContext {
   histories: { order: string; lines: { text: string; refs: string[] }[]; in_force: string[]; status_reportable: boolean }[];
   people: { name: string; role: string | null; officer_id: string | null; records: [string, string][] }[];
 }
+
+/** Chat history (ADR-0066). */
+export interface ChatConversationRow { conversation_id: string; title: string; updated_at: string }
+export interface ChatHistoryTurn {
+  at: string; asked: string; kind: "chat" | "tool"; tool: string | null;
+  /** the answer as it was shown; null when withheld (it cites a record no longer open to you) */
+  answer: ChatTurn | null; withheld: boolean;
+}
+export interface ChatConversation { conversation_id: string; place: string; title: string; turns: ChatHistoryTurn[] }

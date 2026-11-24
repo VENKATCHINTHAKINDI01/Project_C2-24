@@ -1,6 +1,7 @@
 // Thin client for the sandbox + assist API. Sign-in is SIMULATED with a header (sandbox only,
 // ADR-0012). Errors keep the server's neutral wording; nothing is retried with less scope.
 import type {
+  ChatConversation, ChatConversationRow, FileSummary,
   Brief, ChatTurn, DraftWorkspace, FileRecords, ClosingRemarks, Diarise, Handover, Movements, PreviousRefs, SinceDecision, DfaPreview, DocumentInfo, Highlights, OcrReviewDetail, OcrReviewItem, OcrReviewResult, ChatEvent, Digest, DraftReceipt, MonitorData, PassageContext, FeedbackIn, FilePage, FileRow, FileSoFar, FirstCut, LinkSuggestions, Me, Preferences, NoteReferenceSuggestion, NoteReferences, Notices, PresendReport, Profile, ReceiptReview, ReceiptRow, ReferenceResult, SearchResult, DraftFormats, DraftInputs, PreparedDraft } from "./types";
 
 export const SANDBOX_USER_HEADER = "X-Sandbox-User";
@@ -67,6 +68,12 @@ export function createApi(userId: string | null, fetchFn: Fetch = (i, init) => f
     files: () => call<{ banner: string; files: FileRow[] }>("/sandbox/files"),
     file: (computerNo: string) => call<FilePage>(`/sandbox/files/${encodeURIComponent(computerNo)}`),
     presend: (computerNo: string) => call<PresendReport>("/assist/presend", { computer_no: computerNo }),
+    /** ADR-0067 addendum 4: the draft's inputs filled by the model from the file's notes */
+    draftAutofill: (computerNo: string, formatId: string, request: string) =>
+      call<{ inputs: DraftInputs; sources: Record<string, number[]>; reason: string | null }>(
+        "/assist/draft/autofill", { computer_no: computerNo, format_id: formatId, request }),
+    fileSummary: (computerNo: string, request: string) =>
+      call<FileSummary>("/assist/file-summary", { computer_no: computerNo, request }),
     fileSoFar: (computerNo: string) => call<FileSoFar>("/assist/file-so-far", { computer_no: computerNo }),
     linkSuggestions: (computerNo: string) =>
       call<LinkSuggestions>("/assist/link-suggestions", { computer_no: computerNo }),
@@ -213,6 +220,19 @@ export function createApi(userId: string | null, fetchFn: Fetch = (i, init) => f
       }
       return (await res.json()) as { attachment_id: string; filename: string };
     },
+    // Chat history (ADR-0066): the officer's own conversations, kept by the server, re-checked on read.
+    chatHistory: (place: string) =>
+      call<{ conversations: ChatConversationRow[] }>(`/assist/chat/history?place=${encodeURIComponent(place)}`),
+    chatConversation: (conversationId: string) =>
+      call<ChatConversation>(`/assist/chat/history/${encodeURIComponent(conversationId)}`),
+    chatToolTurn: (conversationId: string | null, computerNo: string, asked: string, tool: string) =>
+      call<{ conversation_id: string }>("/assist/chat/history/tool", { conversation_id: conversationId, computer_no: computerNo, asked, tool }),
+    clearChats: () => call<{ cleared: number }>("/assist/chat/history/clear", {}),
+    /** ADR-0067: which of the offered tools the message asks for (model, closed list); null = use the rules. */
+    intent: (message: string, computerNo: string | undefined, tools: string[]) =>
+      call<{ tool: string | null; by: "model" | "rules" }>("/assist/intent", { message, computer_no: computerNo ?? null, tools }),
+    deleteChat: (conversationId: string) =>
+      call<{ deleted: boolean }>(`/assist/chat/history/${encodeURIComponent(conversationId)}/delete`, {}),
     fileRecords: (computerNo: string) => call<FileRecords>(`/assist/files/${encodeURIComponent(computerNo)}/records`),
     // Draft recovery (ADR-0046): the workspace the server keeps as the officer works.
     getWorkspace: (computerNo: string | null) =>

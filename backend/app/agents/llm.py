@@ -26,6 +26,8 @@ import time
 import urllib.error
 import urllib.request
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import TimeoutError as CallTimeout
 from pathlib import Path
 from typing import Any, Protocol
 from urllib.parse import urlparse
@@ -89,6 +91,29 @@ def request_key(model: str, prompt_id: str, system: str, user: str, schema: dict
     return hashlib.sha256(blob.encode("utf-8")).hexdigest()
 
 
+# Gemini calls run here so the caller can stop waiting after `timeout_s` in total. The SDK's own
+# timeout is httpx's, which limits each read, not the whole call: a slow answer could hold a request
+# for minutes (24 Nov 2026 cloud profile). An abandoned call finishes in the background and is
+# discarded; if all workers are busy, a new call waits in the queue inside its own time limit.
+_GEMINI_CALLS = ThreadPoolExecutor(max_workers=16, thread_name_prefix="c2-gemini")
+# Quota (429) and passing server errors are retried with backoff, all inside the call's total
+# time limit above: a retry never makes a request wait longer than `timeout_s`.
+RETRY: dict[str, Any] = {
+    "attempts": 6,  # a per-minute quota needs up to a minute to refill (24 Nov 2026: 429s on a
+    "initial_delay": 2.0,  # draft right after its pre-send check); waits ≈ 2+4+8+16+20 s at most
+    "max_delay": 20.0,
+    "http_status_codes": [429, 500, 502, 503, 504],
+}
+
+
+def _kind(exc: BaseException) -> str:
+    """The error's class plus, for an API error, its HTTP code and status (never its message,
+    which may echo the request): e.g. ClientError(429 RESOURCE_EXHAUSTED)."""
+    code, status = getattr(exc, "code", None), getattr(exc, "status", None)
+    extra = " ".join(str(x) for x in (code, status) if isinstance(x, (int, str)) and x != "")
+    return f"{type(exc).__name__}({extra})" if extra else type(exc).__name__
+
+
 class GeminiVertexClient:
     """Live Gemini on the regional Vertex AI endpoint. Temperature 0; JSON answer with a schema."""
 
@@ -121,7 +146,10 @@ class GeminiVertexClient:
                 vertexai=True,
                 project=self.project,
                 location=self.location,
-                http_options=types.HttpOptions(timeout=int(self.timeout_s * 1000)),
+                http_options=types.HttpOptions(
+                    timeout=int(self.timeout_s * 1000),
+                    retry_options=types.HttpRetryOptions(**RETRY),
+                ),
             )
         return self._client
 
@@ -139,10 +167,29 @@ class GeminiVertexClient:
                 response_mime_type="application/json",
                 response_schema=schema,
             )
-            resp = client.models.generate_content(model=self.model, contents=user, config=config)
-            out = json.loads(resp.text or "")
+            call = _GEMINI_CALLS.submit(
+                client.models.generate_content, model=self.model, contents=user, config=config
+            )
+            try:
+                resp = call.result(timeout=self.timeout_s)  # the whole call, not one read
+            except CallTimeout:
+                call.cancel()  # not started yet: dropped; already running: its answer is ignored
+                raise LLMError("Gemini call failed: timeout") from None
+            text = resp.text or ""
+            try:
+                out = json.loads(text)
+            except ValueError:  # say why the model stopped and how much it wrote, never what
+                stop = getattr(
+                    (getattr(resp, "candidates", None) or [None])[0], "finish_reason", None
+                )
+                reason = getattr(stop, "name", stop)
+                raise LLMError(
+                    f"Gemini answer not JSON (finish {reason}, {len(text)} chars)"
+                ) from None
+        except LLMError:
+            raise
         except Exception as exc:  # SDK and JSON errors of many types; never pass content on
-            raise LLMError(f"Gemini call failed: {type(exc).__name__}") from exc
+            raise LLMError(f"Gemini call failed: {_kind(exc)}") from exc
         if not isinstance(out, dict):
             raise LLMError("Gemini answer is not a JSON object")
         return out
@@ -180,7 +227,7 @@ class GeminiVertexClient:
         except LLMError:
             raise
         except Exception as exc:  # SDK and JSON errors of many types; never pass content on
-            raise LLMError(f"Gemini call failed: {type(exc).__name__}") from exc
+            raise LLMError(f"Gemini call failed: {_kind(exc)}") from exc
         if not isinstance(out, dict):
             raise LLMError("Gemini answer is not a JSON object")
         return out

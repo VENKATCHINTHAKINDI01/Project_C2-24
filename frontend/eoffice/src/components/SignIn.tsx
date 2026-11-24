@@ -1,285 +1,137 @@
-import {
-  Building2,
-  ChevronRight,
-  Filter,
-  Landmark,
-  Lock,
-  Search,
-  ShieldAlert,
-  ShieldCheck,
-  UserCheck,
-  X,
-} from "lucide-react";
+import { ChevronRight, Landmark, Lock, Search, ShieldCheck } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import type { Api } from "../api";
 import type { Profile } from "../types";
 
-const CLEARANCE_META: Record<
-  string,
-  { label: string; tone: "secret" | "confidential" | "restricted" | "unclassified"; icon: typeof Lock }
-> = {
-  SECRET: { label: "Secret", tone: "secret", icon: ShieldAlert },
-  CONFIDENTIAL: { label: "Confidential", tone: "confidential", icon: Lock },
-  RESTRICTED: { label: "Restricted", tone: "restricted", icon: ShieldCheck },
-  UNCLASSIFIED: { label: "Unclassified", tone: "unclassified", icon: UserCheck },
+const CLEARANCE: Record<string, string> = {
+  UNCLASSIFIED: "Unclassified", RESTRICTED: "Restricted", CONFIDENTIAL: "Confidential", SECRET: "Secret",
 };
 
-const DEPT_NAMES: Record<string, string> = {
-  FIN01: "Finance Department",
-  GAD01: "General Administration Department",
-  ESE01: "School Education Department",
-  USD01: "Municipal Admin & Urban Development",
+/** How far the officer's e-Office search reaches (sandbox profile, plan §11). */
+const SCOPE: Record<string, string> = {
+  individual: "Own files",
+  section: "Own section",
+  section_hierarchy: "Own and subordinate sections",
+  department: "Whole department",
 };
 
-/** Simulated sign-in (no Parichay, no password; ADR-0012): pick a mock officer.
- *  Grouped by department, each with post, section, and clearance that determine visibility. */
+const isMonitor = (p: Profile) => /^monitoring officer/i.test(p.post);
+const shortName = (p: Profile) => p.name.split(" — ")[0];
+const initials = (p: Profile) =>
+  shortName(p).replace(/\(.*?\)/g, "").replace(/^(Ch|Sri|Smt|Dr)\.\s*/i, "").split(/[\s.]+/)
+    .filter(Boolean).slice(0, 2).map((w) => w[0]).join("").toUpperCase();
+
+/** The department's name as its own senior posts write it ("Joint Secretary, Finance" → Finance);
+ *  the code when no post names it. Read from the sandbox profiles, never invented. */
+function departmentName(code: string, ps: Profile[]): string {
+  const counts = new Map<string, number>();
+  for (const p of ps) {
+    const m = /,\s*([^,()]+)$/.exec(p.post);
+    if (m && !/government/i.test(m[1])) counts.set(m[1].trim(), (counts.get(m[1].trim()) ?? 0) + 1);
+  }
+  const best = [...counts.entries()].sort((a, b) => b[1] - a[1])[0];
+  return best ? `${best[0]} Department` : code || "Officers";
+}
+
+interface Group { key: string; title: string; code: string | null; officers: Profile[] }
+
+/** Simulated sign-in (no Parichay, no password; ADR-0012): pick a mock officer. Grouped by
+ *  department in the order of the sandbox seed (junior to senior), each with the post, section,
+ *  clearance and search scope that decide what they will see. */
 export function SignIn({ api, onSignIn }: { api: Api; onSignIn: (p: Profile) => void }) {
   const [profiles, setProfiles] = useState<Profile[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [filterDept, setFilterDept] = useState<string>("ALL");
-  const [searchQuery, setSearchQuery] = useState<string>("");
-
+  const [find, setFind] = useState("");
+  const [only, setOnly] = useState<string>("all");
   useEffect(() => {
-    api
-      .profiles()
-      .then((r) => setProfiles(r.profiles))
-      .catch((e: Error) => setError(e.message));
+    api.profiles().then((r) => setProfiles(r.profiles)).catch((e: Error) => setError(e.message));
   }, [api]);
 
-  const departments = useMemo(() => {
-    if (!profiles) return [];
-    const counts = new Map<string, number>();
-    for (const p of profiles) {
-      const d = p.department || "Other";
-      counts.set(d, (counts.get(d) ?? 0) + 1);
+  const groups = useMemo<Group[]>(() => {
+    const byDept = new Map<string, Profile[]>();
+    const monitors: Profile[] = [];
+    for (const p of profiles ?? []) {
+      if (isMonitor(p)) monitors.push(p);
+      else byDept.set(p.department ?? "", [...(byDept.get(p.department ?? "") ?? []), p]);
     }
-    return Array.from(counts.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+    const out: Group[] = [...byDept.entries()].map(([code, ps]) => (
+      { key: code, title: departmentName(code, ps), code: code || null, officers: ps }));
+    if (monitors.length) out.push({ key: "monitoring", title: "C2-24 monitoring", code: null, officers: monitors });
+    return out;
   }, [profiles]);
 
-  const filteredProfiles = useMemo(() => {
-    if (!profiles) return [];
-    const q = searchQuery.trim().toLowerCase();
-    return profiles.filter((p) => {
-      const matchesDept = filterDept === "ALL" || p.department === filterDept;
-      if (!matchesDept) return false;
-      if (!q) return true;
-      return (
-        p.name.toLowerCase().includes(q) ||
-        (p.post ?? "").toLowerCase().includes(q) ||
-        (p.section ?? "").toLowerCase().includes(q) ||
-        (p.department ?? "").toLowerCase().includes(q) ||
-        (p.user_id ?? "").toLowerCase().includes(q)
-      );
-    });
-  }, [profiles, filterDept, searchQuery]);
-
-  const grouped = useMemo(() => {
-    const m = new Map<string, Profile[]>();
-    for (const p of filteredProfiles) {
-      const dept = p.department ?? "General";
-      m.set(dept, [...(m.get(dept) ?? []), p]);
-    }
-    return Array.from(m.entries()).sort((a, b) => a[0].localeCompare(b[0]));
-  }, [filteredProfiles]);
-
-  const totalCount = profiles?.length ?? 0;
-  const filteredCount = filteredProfiles.length;
+  const q = find.trim().toLowerCase();
+  const matches = (p: Profile) =>
+    !q || [shortName(p), p.post, p.section ?? "", p.department ?? "", p.user_id].some((s) => s.toLowerCase().includes(q));
+  const shown = groups
+    .filter((g) => only === "all" || g.key === only)
+    .map((g) => ({ ...g, officers: g.officers.filter(matches) }))
+    .filter((g) => g.officers.length > 0);
+  const total = (profiles ?? []).length;
 
   return (
-    <main className="signin signin-modern">
-      {/* Official Government of Andhra Pradesh Header Banner */}
-      <div className="signin-emblem-banner">
-        <div className="emblem-crest">
-          <Landmark size={28} aria-hidden="true" />
-        </div>
-        <div className="emblem-text">
-          <span className="state-name">GOVERNMENT OF ANDHRA PRADESH</span>
-          <span className="portal-title">e-Office Sovereign Institutional Memory & Decision Support System</span>
-          <span className="portal-sub">Project C2-24 · High-Assurance Statutory Assistant · Asia-South1</span>
-        </div>
+    <main className="signin">
+      <div className="signin-brand">
+        <span className="brand-mark" aria-hidden="true"><Landmark size={22} /></span>
+        <span><strong>eFile</strong> sandbox<span className="muted"> · C2-24 assistant</span></span>
       </div>
-
-      <div className="signin-hero-card">
-        <div className="hero-content">
-          <h1>Select Officer Credentials</h1>
-          <p className="lede">
-            Sign in as an authorized officer to test deterministic statutory boundary enforcement,
-            cross-departmental file noting, and citation-backed intelligence. All sandbox data is synthetic.
-          </p>
-        </div>
-        <div className="hero-security-badge">
-          <ShieldCheck size={20} className="badge-icon" />
-          <div>
-            <strong>Deterministic Boundary Guard</strong>
-            <p>Access control is verified at every rung, independent of LLM execution.</p>
-          </div>
-        </div>
-      </div>
-
-      {error && (
-        <div className="callout-error" role="alert">
-          <ShieldAlert size={20} />
-          <div>
-            <strong>Sandbox service unavailable</strong>
-            <p>Could not connect to backend ({error}). Check server status and reload.</p>
-          </div>
-        </div>
-      )}
-
-      {!profiles && !error && (
-        <div className="signin-loading">
-          <div className="spinner" aria-hidden="true" />
-          <p>Loading officer rosters from secure institutional memory…</p>
-        </div>
-      )}
-
+      <h1>Sign in to the eFile sandbox</h1>
+      <p className="lede">
+        Choose a mock officer. Their post, section, clearance and search scope decide which files and
+        records they see, and so what the assistant can use for them. All data here is synthetic.
+      </p>
+      {error && <p className="error">The sandbox service is not answering ({error}). Start it with <code>make run</code> and reload.</p>}
+      {!profiles && !error && <p className="muted">Loading officers…</p>}
       {profiles && (
-        <>
-          {/* Controls: Search bar + Department Filter Pills */}
-          <div className="signin-toolbar">
-            <div className="signin-search-box">
-              <Search size={18} className="search-icon" aria-hidden="true" />
-              <input
-                type="search"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search officer by name, post, section, or ID (e.g. U01, Section Officer)…"
-                aria-label="Filter officers"
-              />
-              {searchQuery && (
-                <button
-                  type="button"
-                  className="search-clear-btn"
-                  onClick={() => setSearchQuery("")}
-                  aria-label="Clear search"
-                >
-                  <X size={16} />
-                </button>
-              )}
-            </div>
-
-            <div className="dept-filter-bar" role="tablist" aria-label="Filter by department">
-              <button
-                type="button"
-                role="tab"
-                aria-selected={filterDept === "ALL"}
-                className={`dept-tab ${filterDept === "ALL" ? "active" : ""}`}
-                onClick={() => setFilterDept("ALL")}
-              >
-                <span>All Departments</span>
-                <span className="count-pill">{totalCount}</span>
-              </button>
-              {departments.map(([dept, cnt]) => (
-                <button
-                  key={dept}
-                  type="button"
-                  role="tab"
-                  aria-selected={filterDept === dept}
-                  className={`dept-tab ${filterDept === dept} ? "active" : ""`}
-                  onClick={() => setFilterDept(dept)}
-                >
-                  <Building2 size={14} className="dept-icon" aria-hidden="true" />
-                  <span>{dept}</span>
-                  <span className="count-pill">{cnt}</span>
-                </button>
-              ))}
-            </div>
+        <div className="signin-tools">
+          <label className="signin-find">
+            <Search size={16} aria-hidden="true" />
+            <span className="sr-only">Find an officer</span>
+            <input value={find} onChange={(e) => setFind(e.target.value)} placeholder="Find by name, post or section" />
+          </label>
+          <div className="segmented signin-depts" role="radiogroup" aria-label="Department">
+            {[{ key: "all", title: "All", n: total }, ...groups.map((g) => ({ key: g.key, title: g.title.replace(/ Department$/, ""), n: g.officers.length }))].map((o) => (
+              <label key={o.key} className={only === o.key ? "on" : undefined}>
+                <input type="radio" name="dept" checked={only === o.key} onChange={() => setOnly(o.key)} />
+                {o.title} <span className="seg-count">{o.n}</span>
+              </label>
+            ))}
           </div>
-
-          <div className="results-summary">
-            <span>
-              Showing <strong>{filteredCount}</strong> of {totalCount} officers
-              {filterDept !== "ALL" ? ` in ${DEPT_NAMES[filterDept] ?? filterDept}` : ""}
-              {searchQuery ? ` matching "${searchQuery}"` : ""}
-            </span>
-          </div>
-
-          {filteredProfiles.length === 0 && (
-            <div className="signin-empty-state">
-              <Filter size={32} className="muted" />
-              <p>No officers match your search query "{searchQuery}".</p>
-              <button
-                type="button"
-                className="button-like"
-                onClick={() => {
-                  setSearchQuery("");
-                  setFilterDept("ALL");
-                }}
-              >
-                Reset filters
-              </button>
-            </div>
-          )}
-
-          {grouped.map(([dept, ps]) => (
-            <section key={dept} className="dept-group" aria-label={`Department ${dept}`}>
-              <div className="dept-group-header">
-                <div className="dept-title-wrap">
-                  <span className="dept-code">{dept}</span>
-                  <h2>{DEPT_NAMES[dept] ?? dept}</h2>
-                </div>
-                <span className="dept-officer-count">{ps.length} officer{ps.length === 1 ? "" : "s"}</span>
-              </div>
-
-              <ul className="profiles profiles-dossier-grid">
-                {ps.map((p) => {
-                  const clearMeta = CLEARANCE_META[p.clearance ?? ""] ?? {
-                    label: p.clearance ?? "Unclassified",
-                    tone: "unclassified",
-                    icon: ShieldCheck,
-                  };
-                  const ClearIcon = clearMeta.icon;
-                  const initials = p.name
-                    .split(" — ")[0]
-                    .replace(/\(.*?\)/g, "")
-                    .split(/\s+/)
-                    .filter(Boolean)
-                    .slice(0, 2)
-                    .map((w) => w[0])
-                    .join("")
-                    .toUpperCase();
-
-                  return (
-                    <li key={p.user_id} className="profile-item">
-                      <button
-                        type="button"
-                        className="officer-card-btn"
-                        onClick={() => onSignIn(p)}
-                        title={`Sign in as ${p.name}`}
-                      >
-                        <div className={`p-avatar tone-${clearMeta.tone}`} aria-hidden="true">
-                          {initials}
-                        </div>
-                        <div className="p-details">
-                          <div className="p-header-line">
-                            <span className="p-name">{p.name.split(" — ")[0]}</span>
-                            <span className="p-id-badge">{p.user_id}</span>
-                          </div>
-                          <span className="p-post">{p.post}</span>
-                          <div className="p-meta-chips">
-                            {p.section && (
-                              <span className="meta-chip section-chip">
-                                Section {p.section}
-                              </span>
-                            )}
-                            <span className={`meta-chip clearance-chip chip-${clearMeta.tone}`}>
-                              <ClearIcon size={12} className="chip-icon" />
-                              {clearMeta.label}
-                            </span>
-                          </div>
-                        </div>
-                        <div className="p-action-arrow">
-                          <ChevronRight size={20} className="p-go" aria-hidden="true" />
-                        </div>
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
-            </section>
-          ))}
-        </>
+        </div>
       )}
+      {profiles && shown.length === 0 && <p className="muted">No officer matches “{find}”.</p>}
+      {shown.map((g) => (
+        <section key={g.key} aria-label={g.title} className="signin-group">
+          <h2>
+            {g.title}
+            {g.code && <span className="dept-code">{g.code}</span>}
+            <span className="dept-n">{g.officers.length} {g.officers.length === 1 ? "officer" : "officers"}</span>
+          </h2>
+          <ul className="profiles">
+            {g.officers.map((p) => (
+              <li key={p.user_id}>
+                <button onClick={() => onSignIn(p)}>
+                  <span className="p-avatar" aria-hidden="true">{initials(p)}</span>
+                  <span className="p-name">{shortName(p)}</span>
+                  <span className="p-post">{p.post}</span>
+                  <span className="p-meta">
+                    {p.section && <span className="p-chip">Section {p.section}</span>}
+                    <span className={`p-chip clr ${(p.clearance ?? "").toLowerCase()}`}>
+                      <Lock size={11} aria-hidden="true" />{CLEARANCE[p.clearance ?? ""] ?? p.clearance} clearance
+                    </span>
+                    {(p.search_scopes ?? []).map((s) => (
+                      <span key={s} className="p-chip scope" title="How far this officer's e-Office search reaches">
+                        <ShieldCheck size={11} aria-hidden="true" />{SCOPE[s] ?? s}
+                      </span>
+                    ))}
+                  </span>
+                  <ChevronRight className="p-go" size={18} aria-hidden="true" />
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ))}
     </main>
   );
 }

@@ -323,3 +323,119 @@ def test_settings_build_the_failover_chain() -> None:
     assert isinstance(llm, FailoverLLM) and "ollama-local" in llm.name
     with pytest.raises(LLMError):  # fallback asked for, no model named
         llm_from_settings(s.model_copy(update={"ollama_model": None}))
+
+
+# --- time bounds (ADR-0039; 24 Nov 2026 cloud profile: 90 % of a 317 s draft waited here) -------
+
+
+class Slow(Fake):
+    """A fake model that takes `delay` seconds per pair."""
+
+    def __init__(self, delay: float, **kw: Any) -> None:
+        super().__init__(**kw)
+        self.delay = delay
+
+    def generate_json(self, **kw: Any) -> dict[str, Any]:
+        import time
+
+        time.sleep(self.delay)
+        return super().generate_json(**kw)
+
+
+LOWER = [
+    Evidence(canonical_id=f"AP-ESE01-CIRMEMO-X-{i}-2020", level=7, text=f"Rule {i} applies.")
+    for i in range(3)
+]
+
+
+def test_pairs_are_asked_side_by_side_not_one_after_another() -> None:
+    import time
+
+    docs = [GO, *LOWER]  # 6 pairs, every one asked (each has an instrument below a G.O.)
+    t = time.monotonic()
+    res = contradiction_flags(docs, Slow(0.3), workers=6, budget_s=5.0)
+    took = time.monotonic() - t
+    assert res.asked == 6 and res.failed == 0
+    assert took < 1.2  # one after another would take ≥ 1.8 s
+
+
+def test_pairs_left_when_the_budget_runs_out_count_as_failed_and_return_on_time() -> None:
+    import time
+
+    docs = [GO, *LOWER]
+    t = time.monotonic()
+    res = contradiction_flags(docs, Slow(2.0), workers=2, budget_s=0.3)
+    took = time.monotonic() - t
+    assert res.flags == () and res.asked == 6 and res.failed == 6  # incomplete, never guessed
+    assert took < 1.0
+
+
+def test_answers_keep_the_pair_order_whatever_order_they_arrive_in() -> None:
+    ans = {
+        "AP-ESE01-CIRMEMO-SYNESE01GEN-41-2020-D20201020": {
+            "verdict": "contradiction",
+            "quote_a": "more than half the Academic year would be considered",
+            "quote_b": "Only completed academic years shall be counted",
+            "explanation": "",
+        }
+    }
+    serial = contradiction_flags([GO, CIR1, CIR2], Fake(ans), workers=1)
+    parallel = contradiction_flags([GO, CIR1, CIR2], Slow(0.05, answers=ans), workers=3)
+    assert [f.model_dump() for f in serial.flags] == [f.model_dump() for f in parallel.flags]
+
+
+def test_a_gemini_call_past_its_time_limit_ends_closed_on_time() -> None:
+    import time
+
+    pytest.importorskip("google.genai")  # the `gcp` extra builds the request config
+
+    class Stuck:
+        class models:  # noqa: N801 — mirrors the SDK's attribute
+            @staticmethod
+            def generate_content(**kw: Any) -> Any:
+                time.sleep(3)
+                raise AssertionError("should have been abandoned")
+
+    g = GeminiVertexClient("p", "asia-south1", "m", client=Stuck(), timeout_s=0.2)
+    t = time.monotonic()
+    with pytest.raises(LLMError, match="timeout"):
+        g.generate_json(prompt_id="x", system="s", user="u", schema={"type": "object"})
+    assert time.monotonic() - t < 1.0
+
+
+def test_quota_and_passing_server_errors_are_retried_within_the_time_limit() -> None:
+    from app.agents.llm import RETRY
+
+    types = pytest.importorskip("google.genai.types")
+    assert 429 in RETRY["http_status_codes"] and RETRY["attempts"] >= 2
+    assert 400 not in RETRY["http_status_codes"]  # a bad request is never repeated
+    types.HttpRetryOptions(**RETRY)  # the SDK accepts it as given
+
+
+def test_an_api_error_is_named_by_code_and_status_never_by_its_message() -> None:
+    from app.agents.llm import _kind
+
+    class ClientError(Exception):
+        code, status = 429, "RESOURCE_EXHAUSTED"
+
+    assert _kind(ClientError("echo of the request text")) == "ClientError(429 RESOURCE_EXHAUSTED)"
+    assert _kind(ValueError("x")) == "ValueError"
+
+
+def test_a_reply_that_is_not_json_says_why_the_model_stopped_not_what_it_wrote() -> None:
+    pytest.importorskip("google.genai")
+
+    class Cut:
+        text = '{"sections": [{"heading": "Background", "lines": [{"text": "secret wor'
+        candidates = [type("C", (), {"finish_reason": type("F", (), {"name": "MAX_TOKENS"})()})()]
+
+    class Client:
+        class models:  # noqa: N801 — mirrors the SDK's attribute
+            @staticmethod
+            def generate_content(**kw: Any) -> Any:
+                return Cut()
+
+    g = GeminiVertexClient("p", "asia-south1", "m", client=Client(), timeout_s=5)
+    with pytest.raises(LLMError) as err:
+        g.generate_json(prompt_id="x", system="s", user="u", schema={"type": "object"})
+    assert "finish MAX_TOKENS" in str(err.value) and "secret" not in str(err.value)

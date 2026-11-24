@@ -437,7 +437,7 @@ class AssistRuntime:
         return node.tags if node else None
 
     def doc(self, cid: str) -> IndexedDocument | None:
-        return next((d for d in self.stores.index._docs if d.canonical_id == cid), None)  # noqa: SLF001
+        return self.stores.index.first(cid)
 
     def windows(self) -> list[ActionWindow]:
         return [w for ws in self.stores.windows.values() for w in ws]

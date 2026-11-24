@@ -1,0 +1,1 @@
+{"prompt": "answer_compose.v1", "model": "gemini-3.5-flash", "response": {"lead": "The Vigilance & Enforcement wing reported suspected cartelisation and possible bid rotation in drain works contracts.", "lead_uses": [1, 3], "sections": [{"heading": "Investigation and findings", "items": [1, 2, 3]}, {"heading": "Recommended actions", "items": [4]}]}}

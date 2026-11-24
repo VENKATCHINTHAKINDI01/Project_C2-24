@@ -1,0 +1,1221 @@
+{
+  "version": "holdout-family-disjoint-s42-n100",
+  "description": "Family-disjoint holdout evaluation dataset (100 queries). Strictly partitioned: 0% overlap with calibration queries or their amendment/supersession chains.",
+  "queries": [
+    {
+      "id": "HO-001",
+      "query": "School Education-Aided-Request for approval of Aided Teaching posts in various R.C.M Aided School, Parvathipuram,Vizianagaram District under the Management of Diocese of Srikakulam-Proposal-Received-Permission for approval of certain selection/absorptions where the process of the recruitment had already been commenced prior to ban in Aided Schools-Pursuant to the initial permission granted",
+      "user_id": "U01",
+      "relevant_canonical_ids": [
+        "AP-ESE01-GOMS-61-2017"
+      ],
+      "distractor_canonical_ids": [],
+      "expected_l2_termination": true,
+      "category": "ESE01",
+      "family_root_id": "AP-ESE01-GOMS-61-2017"
+    },
+    {
+      "id": "HO-002",
+      "query": "UNIVERSITIES - Dravidian University, Kuppam - Sanction of certain posts to Dravidian University, Kuppam- Modifications and Amendment",
+      "user_id": "U01",
+      "relevant_canonical_ids": [
+        "AP-FIN01-GOMS-92-2021"
+      ],
+      "distractor_canonical_ids": [],
+      "expected_l2_termination": true,
+      "category": "FIN01",
+      "family_root_id": "AP-FIN01-GOMS-92-2021"
+    },
+    {
+      "id": "HO-003",
+      "query": "General Administration Department – Cabinet – Creation of new Department i.e., “Department of Economically Weaker Sections Welfare”",
+      "user_id": "U01",
+      "relevant_canonical_ids": [
+        "AP-GAD01-GOMS-130-2021"
+      ],
+      "distractor_canonical_ids": [],
+      "expected_l2_termination": true,
+      "category": "GAD01",
+      "family_root_id": "AP-GAD01-GOMS-130-2021"
+    },
+    {
+      "id": "HO-004",
+      "query": "Secondary Education Department – Mandal Parishad Upper Primary School, Ramannagudem, T.P.Gudem , West Godavari District - Permission to Up-gradation of existing School into High School by opening of Class IX , from the academic year 2014–15",
+      "user_id": "U01",
+      "relevant_canonical_ids": [
+        "AP-ESE01-GOMS-36-2015"
+      ],
+      "distractor_canonical_ids": [],
+      "expected_l2_termination": true,
+      "category": "ESE01",
+      "family_root_id": "AP-ESE01-GOMS-36-2015"
+    },
+    {
+      "id": "HO-005",
+      "query": "Public Services: Andhra Pradesh Government Life Insurance services – Special rules, 1993 – Amendment",
+      "user_id": "U01",
+      "relevant_canonical_ids": [
+        "AP-FIN01-GOMS-55-2019",
+        "AP-GAZ-GAZETTE-WI-161-2019"
+      ],
+      "distractor_canonical_ids": [],
+      "expected_l2_termination": true,
+      "category": "FIN01",
+      "family_root_id": "AP-FIN01-GOMS-55-2019"
+    },
+    {
+      "id": "HO-006",
+      "query": "General Administration.Department – Cabinet – Inclusion of A.P. Industrial Corridors Infrastructure Development Corporation Limited as Autonomous Organization under administrative control of Industries & Commerce Department – Amendment to the Second Schedule of A.P. Government Business Rules, 2018",
+      "user_id": "U01",
+      "relevant_canonical_ids": [
+        "AP-GAD01-GOMS-138-2025"
+      ],
+      "distractor_canonical_ids": [],
+      "expected_l2_termination": true,
+      "category": "GAD01",
+      "family_root_id": "AP-GAD01-GOMS-138-2025"
+    },
+    {
+      "id": "HO-007",
+      "query": "School Education- Comprehensive Evaluation pattern of examination system -Introduction of six paper pattern to reduce the strain caused to the students due to COVID-19 situation and the consequent lockdown",
+      "user_id": "U01",
+      "relevant_canonical_ids": [
+        "AP-ESE01-GOMS-30-2020"
+      ],
+      "distractor_canonical_ids": [],
+      "expected_l2_termination": true,
+      "category": "ESE01",
+      "family_root_id": "AP-ESE01-GOMS-30-2020"
+    },
+    {
+      "id": "HO-008",
+      "query": "Human Resources – Contract and Outsourcing Services in Government Departments – Extension of the contractual and outsourcing services up to",
+      "user_id": "U01",
+      "relevant_canonical_ids": [
+        "AP-FIN01-GOMS-6-2020"
+      ],
+      "distractor_canonical_ids": [],
+      "expected_l2_termination": true,
+      "category": "FIN01",
+      "family_root_id": "AP-FIN01-GOMS-6-2020"
+    },
+    {
+      "id": "HO-009",
+      "query": "General Administration Department –Cabinet-Amendment to Second Schedule of the Andhra Pradesh Government Business Rules, 2018",
+      "user_id": "U01",
+      "relevant_canonical_ids": [
+        "AP-GAD01-GOMS-27-2021"
+      ],
+      "distractor_canonical_ids": [],
+      "expected_l2_termination": true,
+      "category": "GAD01",
+      "family_root_id": "AP-GAD01-GOMS-27-2021"
+    },
+    {
+      "id": "HO-010",
+      "query": "School Education Department– The Andhra Pradesh School Education Regulatory and Monitoring Commission Act, 2019– Notification",
+      "user_id": "U01",
+      "relevant_canonical_ids": [
+        "AP-ESE01-GOMS-57-2019"
+      ],
+      "distractor_canonical_ids": [],
+      "expected_l2_termination": true,
+      "category": "ESE01",
+      "family_root_id": "AP-ESE01-GOMS-57-2019"
+    },
+    {
+      "id": "HO-011",
+      "query": "LOANS AND ADVANCES – Loans to Government Servants – Allotment of funds for Purchase of Motorcycle and Moped to Government Servants and Government Drivers towards 2nd and 3rd quarters for 2016-17",
+      "user_id": "U01",
+      "relevant_canonical_ids": [
+        "AP-FIN01-GORT-2223-2016"
+      ],
+      "distractor_canonical_ids": [],
+      "expected_l2_termination": true,
+      "category": "FIN01",
+      "family_root_id": "AP-FIN01-GORT-2223-2016"
+    },
+    {
+      "id": "HO-012",
+      "query": "General Administration Department-Implementation of 10% reservation to the Economically Weaker Sections in initial appointments -Amendment for substituting the words with \"Direct recruitments\", in place of \"initial appointments\"",
+      "user_id": "U01",
+      "relevant_canonical_ids": [
+        "AP-GAD01-GOMS-115-2023"
+      ],
+      "distractor_canonical_ids": [],
+      "expected_l2_termination": true,
+      "category": "GAD01",
+      "family_root_id": "AP-GAD01-GOMS-115-2023"
+    },
+    {
+      "id": "HO-013",
+      "query": "The Andhra Pradesh Teacher Recruitment Test for the posts of Principals, Post Graduate Teachers , Trained Graduate Teachers , Physical Education Teachers , Craft, Art and Music Teachers Scheme of Selection Rules, 2018– Amendment",
+      "user_id": "U01",
+      "relevant_canonical_ids": [
+        "AP-ESE01-GOMS-16-2019",
+        "AP-GAZ-GAZETTE-WI-751-2019"
+      ],
+      "distractor_canonical_ids": [],
+      "expected_l2_termination": true,
+      "category": "ESE01",
+      "family_root_id": "AP-ESE01-GOMS-16-2019"
+    },
+    {
+      "id": "HO-014",
+      "query": "Budget Estimates 2020 - 21 Budget Release Order for Rs. 5000000.00 /- to",
+      "user_id": "U01",
+      "relevant_canonical_ids": [
+        "AP-FIN01-GORT-1362-2020"
+      ],
+      "distractor_canonical_ids": [],
+      "expected_l2_termination": true,
+      "category": "FIN01",
+      "family_root_id": "AP-FIN01-GORT-1362-2020"
+    },
+    {
+      "id": "HO-015",
+      "query": "GAD – Implementation of 10% Reservation to the Economically Weaker Sections for admissions into Educational Institutions",
+      "user_id": "U01",
+      "relevant_canonical_ids": [
+        "AP-GAD01-GOMS-65-2021"
+      ],
+      "distractor_canonical_ids": [],
+      "expected_l2_termination": true,
+      "category": "GAD01",
+      "family_root_id": "AP-GAD01-GOMS-65-2021"
+    },
+    {
+      "id": "HO-016",
+      "query": "School Education Department – Continuous and Comprehensive Evaluation pattern of examination system – Implementation of Examination Reforms for Classes VI to IX from the Academic year 2015-16 and for class X from the Academic Year 2016-17 in fullest extent – Amendment",
+      "user_id": "U01",
+      "relevant_canonical_ids": [
+        "AP-ESE01-GOMS-62-2018"
+      ],
+      "distractor_canonical_ids": [],
+      "expected_l2_termination": true,
+      "category": "ESE01",
+      "family_root_id": "AP-ESE01-GOMS-62-2018"
+    },
+    {
+      "id": "HO-017",
+      "query": "Finance Department - Regulation of Deposits with Banks including Cooperative Banks, Regional Rural Banks and Financial Institutions - Amendment for inclusion of DBS bank India Limited",
+      "user_id": "U01",
+      "relevant_canonical_ids": [
+        "AP-FIN01-GOMS-110-2023"
+      ],
+      "distractor_canonical_ids": [],
+      "expected_l2_termination": true,
+      "category": "FIN01",
+      "family_root_id": "AP-FIN01-GOMS-110-2023"
+    },
+    {
+      "id": "HO-018",
+      "query": "GAD – Cabinet - PAY REVISION COMMISSION – Constitution of a Committee to deliberate with Employees' Associations and to clear the apprehension of the employees about orders of the Government and to sort out the issues",
+      "user_id": "U01",
+      "relevant_canonical_ids": [
+        "AP-GAD01-GORT-127-2022"
+      ],
+      "distractor_canonical_ids": [],
+      "expected_l2_termination": true,
+      "category": "GAD01",
+      "family_root_id": "AP-GAD01-GORT-127-2022"
+    },
+    {
+      "id": "HO-019",
+      "query": "School Education Department – The Andhra Pradesh Admission and Fee Regulatory Committee for professional courses offered in 15 Private Un-Aided Professional Colleges – Fixation of Fee structure and special fee for B.P.Ed course in the State of Andhra Pradesh for the block period 2017 – 18 to 2019 – 20 – Notification",
+      "user_id": "U01",
+      "relevant_canonical_ids": [
+        "AP-ESE01-GOMS-57-2017"
+      ],
+      "distractor_canonical_ids": [],
+      "expected_l2_termination": true,
+      "category": "ESE01",
+      "family_root_id": "AP-ESE01-GOMS-57-2017"
+    },
+    {
+      "id": "HO-020",
+      "query": "PENSIONS Dearness Relief Dearness relief to Pensioners /Family Pensioners for the period with effect from",
+      "user_id": "U01",
+      "relevant_canonical_ids": [
+        "AP-FIN01-GOMS-67-2023"
+      ],
+      "distractor_canonical_ids": [],
+      "expected_l2_termination": true,
+      "category": "FIN01",
+      "family_root_id": "AP-FIN01-GOMS-67-2023"
+    },
+    {
+      "id": "HO-021",
+      "query": "GAD- Special Enforcement Bureau -Uniform allowance and Uniform Maintenance to the SEB uniformed service employees",
+      "user_id": "U01",
+      "relevant_canonical_ids": [
+        "AP-GAD01-GOMS-126-2021"
+      ],
+      "distractor_canonical_ids": [],
+      "expected_l2_termination": true,
+      "category": "GAD01",
+      "family_root_id": "AP-GAD01-GOMS-126-2021"
+    },
+    {
+      "id": "HO-022",
+      "query": "School Education Department - Implementation of Physical Literacy in all Schools across the State of Andhra Pradesh from the academic year 2017-18 – Guidelines",
+      "user_id": "U01",
+      "relevant_canonical_ids": [
+        "AP-ESE01-GOMS-35-2017"
+      ],
+      "distractor_canonical_ids": [],
+      "expected_l2_termination": true,
+      "category": "ESE01",
+      "family_root_id": "AP-ESE01-GOMS-35-2017"
+    },
+    {
+      "id": "HO-023",
+      "query": "Andhra Pradesh Appropriation Act, 2024 – Communicated",
+      "user_id": "U01",
+      "relevant_canonical_ids": [
+        "AP-FIN01-GOMS-98-2024"
+      ],
+      "distractor_canonical_ids": [],
+      "expected_l2_termination": true,
+      "category": "FIN01",
+      "family_root_id": "AP-FIN01-GOMS-98-2024"
+    },
+    {
+      "id": "HO-024",
+      "query": "The Andhra Pradesh State Human Rights Commission Chairperson and Members Rules, 2008 – Amendment to Rule 3 - Notification",
+      "user_id": "U01",
+      "relevant_canonical_ids": [
+        "AP-GAD01-GOMS-98-2017"
+      ],
+      "distractor_canonical_ids": [],
+      "expected_l2_termination": true,
+      "category": "GAD01",
+      "family_root_id": "AP-GAD01-GOMS-98-2017"
+    },
+    {
+      "id": "HO-025",
+      "query": "school Education - Ensuring of subject teachers in the pre-High school, High schools & High School plus and the required number of teachers in foundational schools, foundational school plus - The Andhra Pradesh Teachers rules",
+      "user_id": "U01",
+      "relevant_canonical_ids": [
+        "AP-ESE01-GOMS-47-2023",
+        "AP-GAZ-GAZETTE-EI-297-2023"
+      ],
+      "distractor_canonical_ids": [],
+      "expected_l2_termination": true,
+      "category": "ESE01",
+      "family_root_id": "AP-ESE01-GOMS-47-2023"
+    },
+    {
+      "id": "HO-026",
+      "query": "Allowances – Special Compensatory Allowance to the employees working in scheduled Areas - Recommendations of the Tenth Pay Revision Commission",
+      "user_id": "U01",
+      "relevant_canonical_ids": [
+        "AP-FIN01-GOMS-176-2015"
+      ],
+      "distractor_canonical_ids": [],
+      "expected_l2_termination": true,
+      "category": "FIN01",
+      "family_root_id": "AP-FIN01-GOMS-176-2015"
+    },
+    {
+      "id": "HO-027",
+      "query": "Andhra Pradesh Administrative Tribunal – Andhra Pradesh Administrative Tribunal Amendment Rules, 1989 – Amendment to Rule 8 – Notification of Government of India – Re-published",
+      "user_id": "U01",
+      "relevant_canonical_ids": [
+        "AP-GAD01-GOMS-108-2019",
+        "AP-GAZ-GAZETTE-EI-397-2019"
+      ],
+      "distractor_canonical_ids": [],
+      "expected_l2_termination": true,
+      "category": "GAD01",
+      "family_root_id": "AP-GAD01-GOMS-108-2019"
+    },
+    {
+      "id": "HO-028",
+      "query": "School Education Dept. – The Andhra Pradesh Admission and Fee Regulatory Committee for professional courses offered in Private Un-aided Professional Institutions Rules 2006 – Fixation of Fee structure and special fee for B.Ed. course in Private Un-aided Minority/Non Minority colleges in the State of Andhra Pradesh for the block period 2016 – 17 to 2018 – 19 – Notification",
+      "user_id": "U01",
+      "relevant_canonical_ids": [
+        "AP-ESE01-GOMS-118-2016"
+      ],
+      "distractor_canonical_ids": [],
+      "expected_l2_termination": true,
+      "category": "ESE01",
+      "family_root_id": "AP-ESE01-GOMS-118-2016"
+    },
+    {
+      "id": "HO-029",
+      "query": "Allowances - House Rent Allowance - Enhancement of the Rate of HRA from 12% to 16% in the District headquarters of Parvathipuram, Paderu, Anakapalli, Amalapuram, Bhimavaram, Bapatla, Narsaraopeta, Puttaparthy and Rayachoty",
+      "user_id": "U01",
+      "relevant_canonical_ids": [
+        "AP-FIN01-GOMS-69-2023"
+      ],
+      "distractor_canonical_ids": [],
+      "expected_l2_termination": true,
+      "category": "FIN01",
+      "family_root_id": "AP-FIN01-GOMS-69-2023"
+    },
+    {
+      "id": "HO-030",
+      "query": "General Administration Department - Andhra Pradesh Non-Resident Telugu Society - Amendment to the Memorandum of Association and Byelaws of the Andhra Pradesh Non-Resident Telugu Society",
+      "user_id": "U01",
+      "relevant_canonical_ids": [
+        "AP-GAD01-GOMS-219-2023"
+      ],
+      "distractor_canonical_ids": [],
+      "expected_l2_termination": true,
+      "category": "GAD01",
+      "family_root_id": "AP-GAD01-GOMS-219-2023"
+    },
+    {
+      "id": "HO-031",
+      "query": "School Education Dept. – The Andhra Pradesh Admission and Fee Regulatory Committee for professional courses offered in Private Un-aided Professional Institutions Rules 2006 – Fixation of Fee structure and special fee for B.Ed. course in Private Un-aided Minority/Non Minority colleges in the State of Andhra Pradesh for the block period 2016 – 17 to 2018 – 19 – Notification",
+      "user_id": "U01",
+      "relevant_canonical_ids": [
+        "AP-ESE01-GOMS-110-2016",
+        "AP-GAZ-GAZETTE-EI-817-2016"
+      ],
+      "distractor_canonical_ids": [],
+      "expected_l2_termination": true,
+      "category": "ESE01",
+      "family_root_id": "AP-ESE01-GOMS-110-2016"
+    },
+    {
+      "id": "HO-032",
+      "query": "PUBLIC SERVICES – AP STATE JUDICIAL SERVICE – Revision of Pay and Allowances of Judicial Officers ––Revision of rates of House Rent Allowance and City Compensatory Allowance to the Judicial Officers – Amendment",
+      "user_id": "U01",
+      "relevant_canonical_ids": [
+        "AP-FIN01-GOMS-71-2020"
+      ],
+      "distractor_canonical_ids": [],
+      "expected_l2_termination": true,
+      "category": "FIN01",
+      "family_root_id": "AP-FIN01-GOMS-71-2020"
+    },
+    {
+      "id": "HO-033",
+      "query": "Andhra Pradesh Secretariat Subordinate Services - Amendment to Andhra Pradesh Secretariat Subordinate Service Rules, 1997 - Notification",
+      "user_id": "U01",
+      "relevant_canonical_ids": [
+        "AP-GAD01-GOMS-2-2022",
+        "AP-GAZ-GAZETTE-WI-547-2022"
+      ],
+      "distractor_canonical_ids": [],
+      "expected_l2_termination": true,
+      "category": "GAD01",
+      "family_root_id": "AP-GAD01-GOMS-2-2022"
+    },
+    {
+      "id": "HO-034",
+      "query": "COURT CASES-AIDED-Orders of the Hon’ble High Court of A.P. in W.P. of 2005 and batch cases Interim Orders in W.P.M.P. in W.A. , Orders of the Hon’ble Apex Court in S.L.P. , Implemented-Ban Memo. CoSE/A2/2004-4, Withdrawan with immediate effect",
+      "user_id": "U01",
+      "relevant_canonical_ids": [
+        "AP-ESE01-GOMS-40-2017"
+      ],
+      "distractor_canonical_ids": [],
+      "expected_l2_termination": true,
+      "category": "ESE01",
+      "family_root_id": "AP-ESE01-GOMS-40-2017"
+    },
+    {
+      "id": "HO-035",
+      "query": "ALLOWANCES – Dearness Allowance – Dearness Allowance to the State Government Employees from 1st July 2016",
+      "user_id": "U01",
+      "relevant_canonical_ids": [
+        "AP-FIN01-GOMS-140-2017"
+      ],
+      "distractor_canonical_ids": [],
+      "expected_l2_termination": true,
+      "category": "FIN01",
+      "family_root_id": "AP-FIN01-GOMS-140-2017"
+    },
+    {
+      "id": "HO-036",
+      "query": "The Andhra Pradesh State and Subordinate Service Rules, 1996 – Amendment to Rule-22-A relating to 331/3% reservation for Women Horizontally in Direct Recruitment to Public Services",
+      "user_id": "U01",
+      "relevant_canonical_ids": [
+        "AP-GAD01-GOMS-63-2018"
+      ],
+      "distractor_canonical_ids": [],
+      "expected_l2_termination": true,
+      "category": "GAD01",
+      "family_root_id": "AP-GAD01-GOMS-63-2018"
+    },
+    {
+      "id": "HO-037",
+      "query": "School Education Dept. - Public Services – Andhra Pradesh Government Text Book Press – Supersession of the post of Asst. Accounts Officer under category in the Andhra Pradesh Government Text Book Press Services",
+      "user_id": "U01",
+      "relevant_canonical_ids": [
+        "AP-ESE01-GORT-62-2018"
+      ],
+      "distractor_canonical_ids": [],
+      "expected_l2_termination": true,
+      "category": "ESE01",
+      "family_root_id": "AP-ESE01-GORT-62-2018"
+    },
+    {
+      "id": "HO-038",
+      "query": "Finance Department - District Restructuring, 2022 – Human Resources - Allocation - Provisional allocation of posts & personnel in the restructured District / Division offices – Procedural Guidelines",
+      "user_id": "U01",
+      "relevant_canonical_ids": [
+        "AP-FIN01-GOMS-31-2022"
+      ],
+      "distractor_canonical_ids": [],
+      "expected_l2_termination": true,
+      "category": "FIN01",
+      "family_root_id": "AP-FIN01-GOMS-31-2022"
+    },
+    {
+      "id": "HO-039",
+      "query": "General Administration Department – Cabinet – Creation of new Department i.e., “Department of Economically Weaker Sections Welfare” – Amendment to the First Schedule of the Andhra Pradesh Government Business Rules, 2018",
+      "user_id": "U01",
+      "relevant_canonical_ids": [
+        "AP-GAD01-GOMS-138-2021"
+      ],
+      "distractor_canonical_ids": [],
+      "expected_l2_termination": true,
+      "category": "GAD01",
+      "family_root_id": "AP-GAD01-GOMS-138-2021"
+    },
+    {
+      "id": "HO-040",
+      "query": "School Education Department – Andhra Pradesh Adult Education Subordinate Service Rules – Rules relating to Assistant Project Officer/Statistical Assistant/ Supervisor",
+      "user_id": "U01",
+      "relevant_canonical_ids": [
+        "AP-ESE01-GOMS-38-2019",
+        "AP-GAZ-GAZETTE-ERSI-198-2019"
+      ],
+      "distractor_canonical_ids": [],
+      "expected_l2_termination": true,
+      "category": "ESE01",
+      "family_root_id": "AP-ESE01-GOMS-38-2019"
+    },
+    {
+      "id": "HO-041",
+      "query": "Public Services – Contractual employment – Remuneration of the Personnel working on contract basis in Government departments – Enhancement of remuneration",
+      "user_id": "U01",
+      "relevant_canonical_ids": [
+        "AP-FIN01-GOMS-95-2017"
+      ],
+      "distractor_canonical_ids": [],
+      "expected_l2_termination": true,
+      "category": "FIN01",
+      "family_root_id": "AP-FIN01-GOMS-95-2017"
+    },
+    {
+      "id": "HO-042",
+      "query": "Public Services – Personal Files – Annual Confidential Report to the Government Employees of the cadre of Group-I, Equivalent cadre and above level officials – Introducing Online Portal – Approved",
+      "user_id": "U01",
+      "relevant_canonical_ids": [
+        "AP-GAD01-GOMS-103-2023"
+      ],
+      "distractor_canonical_ids": [],
+      "expected_l2_termination": true,
+      "category": "GAD01",
+      "family_root_id": "AP-GAD01-GOMS-103-2023"
+    },
+    {
+      "id": "HO-043",
+      "query": "School Education Department – Samagra Shiksha - Strengthening of District Administration – Revamped the Administrative structure of Samagra Shiksha – Operational Guidelines framed",
+      "user_id": "U01",
+      "relevant_canonical_ids": [
+        "AP-ESE01-GOMS-76-2019"
+      ],
+      "distractor_canonical_ids": [],
+      "expected_l2_termination": true,
+      "category": "ESE01",
+      "family_root_id": "AP-ESE01-GOMS-76-2019"
+    },
+    {
+      "id": "HO-044",
+      "query": "ALLOWANCES - Manual of Special Pays and Allowances - Recommendations– Revised rates of Uniform Allowance and Uniform Maintenance allowance of Tenth Pay Revision Commission",
+      "user_id": "U01",
+      "relevant_canonical_ids": [
+        "AP-FIN01-GOMS-175-2015"
+      ],
+      "distractor_canonical_ids": [],
+      "expected_l2_termination": true,
+      "category": "FIN01",
+      "family_root_id": "AP-FIN01-GOMS-175-2015"
+    },
+    {
+      "id": "HO-045",
+      "query": "RTI Act, 2005 Rules under Section 27 of the Act – Issued – Head of Account for operationalisation of the Act – Change of Head of Account – Amendment to A.P.Information Rules, 2005 – Notification",
+      "user_id": "U01",
+      "relevant_canonical_ids": [
+        "AP-GAD01-GOMS-356-2011"
+      ],
+      "distractor_canonical_ids": [],
+      "expected_l2_termination": true,
+      "category": "GAD01",
+      "family_root_id": "AP-GAD01-GOMS-356-2011"
+    },
+    {
+      "id": "HO-046",
+      "query": "School Education – Samagra Shiksha - Strengthening of District Administration - Operational Guidelines framed for revamping the Administrative structure of Samagra Shiksha – Amendment",
+      "user_id": "U01",
+      "relevant_canonical_ids": [
+        "AP-ESE01-GOMS-2-2021"
+      ],
+      "distractor_canonical_ids": [],
+      "expected_l2_termination": true,
+      "category": "ESE01",
+      "family_root_id": "AP-ESE01-GOMS-2-2021"
+    },
+    {
+      "id": "HO-047",
+      "query": "Payment of Salaries to the employees working in Grant in aid institutions on 1st of every month - Streamlining the existing system of payment of Grants in aid towards salaries to the institutions - Relaxation of quarterly regulations",
+      "user_id": "U01",
+      "relevant_canonical_ids": [
+        "AP-FIN01-GOMS-182-2017"
+      ],
+      "distractor_canonical_ids": [],
+      "expected_l2_termination": true,
+      "category": "FIN01",
+      "family_root_id": "AP-FIN01-GOMS-182-2017"
+    },
+    {
+      "id": "HO-048",
+      "query": "GAD fixation of Allowances to the Chairman of Profit Making Corporations and Welfare Corporations Further",
+      "user_id": "U01",
+      "relevant_canonical_ids": [
+        "AP-GAD01-GOMS-149-2021"
+      ],
+      "distractor_canonical_ids": [],
+      "expected_l2_termination": true,
+      "category": "GAD01",
+      "family_root_id": "AP-GAD01-GOMS-149-2021"
+    },
+    {
+      "id": "HO-049",
+      "query": "School Education Department – Rules relating to admission of students into Elementary Teacher Training Institutes / District Institutes of Education and Training through Common Entrance Test, Rules, 2013",
+      "user_id": "U01",
+      "relevant_canonical_ids": [
+        "AP-ESE01-GOMS-63-2013"
+      ],
+      "distractor_canonical_ids": [],
+      "expected_l2_termination": true,
+      "category": "ESE01",
+      "family_root_id": "AP-ESE01-GOMS-63-2013"
+    },
+    {
+      "id": "HO-050",
+      "query": "Budget – Classification of Accounts – Standardization of Object Heads – Revised Object Heads – Adoption in the State Government Accounts – Amendment",
+      "user_id": "U01",
+      "relevant_canonical_ids": [
+        "AP-FIN01-GOMS-130-2019"
+      ],
+      "distractor_canonical_ids": [],
+      "expected_l2_termination": true,
+      "category": "FIN01",
+      "family_root_id": "AP-FIN01-GOMS-130-2019"
+    },
+    {
+      "id": "HO-051",
+      "query": "PUBLIC SERVICES - 11th Pay Revision Commission - Study of the pay structure and other service matter of Public Transport Department employees and extension of term of the Commission for a further period of two months upto 31st March, 2020",
+      "user_id": "U01",
+      "relevant_canonical_ids": [
+        "AP-GAD01-GORT-566-2020"
+      ],
+      "distractor_canonical_ids": [],
+      "expected_l2_termination": true,
+      "category": "GAD01",
+      "family_root_id": "AP-GAD01-GORT-566-2020"
+    },
+    {
+      "id": "HO-052",
+      "query": "School Education – A.P.Model Schools – Guidelines and procedure for admission of students into Model Schools for classes VI and Intermediate from the Academic Year 2020-21",
+      "user_id": "U01",
+      "relevant_canonical_ids": [
+        "AP-ESE01-GOMS-32-2020"
+      ],
+      "distractor_canonical_ids": [],
+      "expected_l2_termination": true,
+      "category": "ESE01",
+      "family_root_id": "AP-ESE01-GOMS-32-2020"
+    },
+    {
+      "id": "HO-053",
+      "query": "LOANS AND ADVANCES – House Building Advance – Admissibility in Revised Pay Scales, 2015 – Recommendation of Tenth Pay Revision Commission – Accepted",
+      "user_id": "U01",
+      "relevant_canonical_ids": [
+        "AP-FIN01-GOMS-130-2016"
+      ],
+      "distractor_canonical_ids": [],
+      "expected_l2_termination": true,
+      "category": "FIN01",
+      "family_root_id": "AP-FIN01-GOMS-130-2016"
+    },
+    {
+      "id": "HO-054",
+      "query": "General Administration Department – Panel of Deputy Director in Information & Public Relations for the panel year 2019-2020 for promotion to the post of Joint Director – Approval of the Departmental Promotion Committee recommendations",
+      "user_id": "U01",
+      "relevant_canonical_ids": [
+        "AP-GAD01-GOMS-144-2019"
+      ],
+      "distractor_canonical_ids": [],
+      "expected_l2_termination": true,
+      "category": "GAD01",
+      "family_root_id": "AP-GAD01-GOMS-144-2019"
+    },
+    {
+      "id": "HO-055",
+      "query": "School Education - Norms for Rationalisation of Schools, Posts and Staff under various managements Government, Zilla Parishad, Mandal Parishad Schools – Amendment",
+      "user_id": "U01",
+      "relevant_canonical_ids": [
+        "AP-ESE01-GOMS-42-2017"
+      ],
+      "distractor_canonical_ids": [],
+      "expected_l2_termination": true,
+      "category": "ESE01",
+      "family_root_id": "AP-ESE01-GOMS-42-2017"
+    },
+    {
+      "id": "HO-056",
+      "query": "Public Services – Revision of Pay Scales -Interim Relief Pending Revision of Scales of Pay",
+      "user_id": "U01",
+      "relevant_canonical_ids": [
+        "AP-FIN01-GOMS-21-2019"
+      ],
+      "distractor_canonical_ids": [],
+      "expected_l2_termination": true,
+      "category": "FIN01",
+      "family_root_id": "AP-FIN01-GOMS-21-2019"
+    },
+    {
+      "id": "HO-057",
+      "query": "GAD - Scheme of Examination for the recruitment to the post of English Reporters in A,P. Legislature Service - Fixing dictation speed in English Shorthand i.e. 150 words Per Minute for English Reporters - Amendment",
+      "user_id": "U01",
+      "relevant_canonical_ids": [
+        "AP-GAD01-GOMS-33-2023"
+      ],
+      "distractor_canonical_ids": [],
+      "expected_l2_termination": true,
+      "category": "GAD01",
+      "family_root_id": "AP-GAD01-GOMS-33-2023"
+    },
+    {
+      "id": "HO-058",
+      "query": "School Education – Continuous and Comprehensive Evaluation pattern of examination system – Introduction of six paper pattern in SSC Public Examinations from the AY 2022-23 on wards, duly modifying the , School Education Department",
+      "user_id": "U01",
+      "relevant_canonical_ids": [
+        "AP-ESE01-GOMS-136-2022"
+      ],
+      "distractor_canonical_ids": [],
+      "expected_l2_termination": true,
+      "category": "ESE01",
+      "family_root_id": "AP-ESE01-GOMS-136-2022"
+    },
+    {
+      "id": "HO-059",
+      "query": "Establishment - Presidential Order - Repatriation of non-locals Sri T. Sridhar, Junior Assistant Office of the Pay & Accounts Office, Vijayawada repatriated to Assistant Pay & Accounts Office, TGP, Nellore District",
+      "user_id": "U01",
+      "relevant_canonical_ids": [
+        "AP-FIN01-GOMS-24-2008"
+      ],
+      "distractor_canonical_ids": [],
+      "expected_l2_termination": true,
+      "category": "FIN01",
+      "family_root_id": "AP-FIN01-GOMS-24-2008"
+    },
+    {
+      "id": "HO-060",
+      "query": "General Administration Department- Cabinet– Allocation of the subject matter “CSR-Corporate Social Responsibility” to Planning Department",
+      "user_id": "U01",
+      "relevant_canonical_ids": [
+        "AP-GAD01-GOMS-51-2021"
+      ],
+      "distractor_canonical_ids": [],
+      "expected_l2_termination": true,
+      "category": "GAD01",
+      "family_root_id": "AP-GAD01-GOMS-51-2021"
+    },
+    {
+      "id": "HO-061",
+      "query": "School Education Department - Policy for takeover of willing private aided school including Minority School by the Government",
+      "user_id": "U01",
+      "relevant_canonical_ids": [
+        "AP-ESE01-GOMS-50-2021"
+      ],
+      "distractor_canonical_ids": [],
+      "expected_l2_termination": true,
+      "category": "ESE01",
+      "family_root_id": "AP-ESE01-GOMS-50-2021"
+    },
+    {
+      "id": "HO-062",
+      "query": "Public Services- Andhra Pradesh Reorganization Act, 2014 - Enhancement of age of superannuation to the employees working in the State Public Sector Undertakings and Institutions included in SchedulesIX and X of A.P. Re-organization Act, 2014 – Amendment to",
+      "user_id": "U01",
+      "relevant_canonical_ids": [
+        "AP-FIN01-GOMS-138-2017"
+      ],
+      "distractor_canonical_ids": [],
+      "expected_l2_termination": true,
+      "category": "FIN01",
+      "family_root_id": "AP-FIN01-GOMS-138-2017"
+    },
+    {
+      "id": "HO-063",
+      "query": "Andhra Pradesh Ministerial Service Rules, 1998 - Change the nomenclature of the post of Senior Assistant/UD Typist as Senior Office Assistant; Junior Assistant/ Assistant cum Typist including Clerk-cum-Typist or Junior Assistant-cum-Typist/ LD Typist (Telugu / Hindi/",
+      "user_id": "U01",
+      "relevant_canonical_ids": [
+        "AP-GAD01-GOMS-26-2024",
+        "AP-GAZ-GAZETTE-WI-4061-2024"
+      ],
+      "distractor_canonical_ids": [],
+      "expected_l2_termination": true,
+      "category": "GAD01",
+      "family_root_id": "AP-GAD01-GOMS-26-2024"
+    },
+    {
+      "id": "HO-064",
+      "query": "School Education - Implementation & funding of the Jagananna Amma Vodi Programme for the Academic Year 2021-22 by Andhra Pradesh State Beverage Corporation Limited & Corporations of the Minorities Welfare Department & Corporations of the Department of Economically Weaker Sections – Amendment",
+      "user_id": "U01",
+      "relevant_canonical_ids": [
+        "AP-ESE01-GOMS-123-2022"
+      ],
+      "distractor_canonical_ids": [],
+      "expected_l2_termination": true,
+      "category": "ESE01",
+      "family_root_id": "AP-ESE01-GOMS-123-2022"
+    },
+    {
+      "id": "HO-065",
+      "query": "BUDGET ESTIMATES 2020-21 – Vote on Account for first three months of the financial year 2020-21 - Andhra Pradesh Appropriation Ordinance, 2020 – Communicated",
+      "user_id": "U01",
+      "relevant_canonical_ids": [
+        "AP-FIN01-GOMS-25-2020"
+      ],
+      "distractor_canonical_ids": [],
+      "expected_l2_termination": true,
+      "category": "FIN01",
+      "family_root_id": "AP-FIN01-GOMS-25-2020"
+    },
+    {
+      "id": "HO-066",
+      "query": "ACTS-The Andhra Pradesh Lokayukta Act, 2023 - Notification under sub-section of section 1 of the said Act-To bring the said Act into force",
+      "user_id": "U01",
+      "relevant_canonical_ids": [
+        "AP-GAD01-GOMS-63-2023"
+      ],
+      "distractor_canonical_ids": [],
+      "expected_l2_termination": true,
+      "category": "GAD01",
+      "family_root_id": "AP-GAD01-GOMS-63-2023"
+    },
+    {
+      "id": "HO-067",
+      "query": "School Education – Examination reforms – Continuous and Comprehensive Evaluation pattern of examination system – Modifications in SSC Public Examinations w.e.f March 2020 and onwards – Amendment",
+      "user_id": "U01",
+      "relevant_canonical_ids": [
+        "AP-ESE01-GOMS-3-2020"
+      ],
+      "distractor_canonical_ids": [],
+      "expected_l2_termination": true,
+      "category": "ESE01",
+      "family_root_id": "AP-ESE01-GOMS-3-2020"
+    },
+    {
+      "id": "HO-068",
+      "query": "PENSIONS – Dearness Relief to Pensioners with effect from – Revised",
+      "user_id": "U01",
+      "relevant_canonical_ids": [
+        "AP-FIN01-GOMS-173-2016"
+      ],
+      "distractor_canonical_ids": [],
+      "expected_l2_termination": true,
+      "category": "FIN01",
+      "family_root_id": "AP-FIN01-GOMS-173-2016"
+    },
+    {
+      "id": "HO-069",
+      "query": "Public Services - Andhra Pradesh State and Subordinate Service Rules, 1996 - Rule of Reservation in promotions to Scheduled Castes of three Groups – Amendments – Notification",
+      "user_id": "U01",
+      "relevant_canonical_ids": [
+        "AP-GAD01-GOMS-127-2025",
+        "AP-GAZ-GAZETTE-WI-445-2025"
+      ],
+      "distractor_canonical_ids": [],
+      "expected_l2_termination": true,
+      "category": "GAD01",
+      "family_root_id": "AP-GAD01-GOMS-127-2025"
+    },
+    {
+      "id": "HO-070",
+      "query": "School Education Department- SSC Public Examinations, 2018- Result- Detailed Study on trend of SSC results particularly huge number of 10/10 GPA and Pass Percentage- Committee- Constituted",
+      "user_id": "U01",
+      "relevant_canonical_ids": [
+        "AP-ESE01-GORT-135-2018"
+      ],
+      "distractor_canonical_ids": [],
+      "expected_l2_termination": true,
+      "category": "ESE01",
+      "family_root_id": "AP-ESE01-GORT-135-2018"
+    },
+    {
+      "id": "HO-071",
+      "query": "Budget Estimates-2020-21 – Release of Budget along with instructions for incurring expenditure during the first three months of the Financial Year 2020-21 i.e., 1st April, 2020 to 30th June, 2020",
+      "user_id": "U01",
+      "relevant_canonical_ids": [
+        "AP-FIN01-GOMS-28-2020"
+      ],
+      "distractor_canonical_ids": [],
+      "expected_l2_termination": true,
+      "category": "FIN01",
+      "family_root_id": "AP-FIN01-GOMS-28-2020"
+    },
+    {
+      "id": "HO-072",
+      "query": "General Administration Department- Cabinet –Transfer of the subject matter of Virtual Class Room Corporation from Industries, Infrastructure, Investment and Commerce Department to School Education Department – Amendment to Schedule. II of AP. Government Business Rules,2018",
+      "user_id": "U01",
+      "relevant_canonical_ids": [
+        "AP-GAD01-GOMS-149-2019",
+        "AP-GAZ-GAZETTE-EI-733-2019"
+      ],
+      "distractor_canonical_ids": [],
+      "expected_l2_termination": true,
+      "category": "GAD01",
+      "family_root_id": "AP-GAD01-GOMS-149-2019"
+    },
+    {
+      "id": "HO-073",
+      "query": "School Education Department – The A.P. Right of Children to Free and Compulsory Education Rules, 2010 under the provisions of the Right of Children to Free and Compulsory Education Act, 2009 – Constitution of State Level Committe for determination of per child expenditure to be met by the State Government",
+      "user_id": "U01",
+      "relevant_canonical_ids": [
+        "AP-ESE01-GORT-103-2025"
+      ],
+      "distractor_canonical_ids": [],
+      "expected_l2_termination": true,
+      "category": "ESE01",
+      "family_root_id": "AP-ESE01-GORT-103-2025"
+    },
+    {
+      "id": "HO-074",
+      "query": "ALLOWANCES - Manual of Special Pays and Allowances - Recommendations of the Tenth Pay Revision Commission – Revised rates of Ration Allowance",
+      "user_id": "U01",
+      "relevant_canonical_ids": [
+        "AP-FIN01-GOMS-164-2015"
+      ],
+      "distractor_canonical_ids": [],
+      "expected_l2_termination": true,
+      "category": "FIN01",
+      "family_root_id": "AP-FIN01-GOMS-164-2015"
+    },
+    {
+      "id": "HO-075",
+      "query": "General Administration Department - APSFTVTDC – Categorisation of areas – Fee payable for according shooting permissions – Shooting permissions to the Film & TV Producers under single window system by APSFTVTDC Ltd. – Shooting permission charges payable to Departments – Amendment",
+      "user_id": "U01",
+      "relevant_canonical_ids": [
+        "AP-GAD01-GOMS-45-2020"
+      ],
+      "distractor_canonical_ids": [],
+      "expected_l2_termination": true,
+      "category": "GAD01",
+      "family_root_id": "AP-GAD01-GOMS-45-2020"
+    },
+    {
+      "id": "HO-076",
+      "query": "School Education - Issue a fresh notification inviting applications from children residing beyond 3 km and up to 5 km for admission into private unaided schools under Section 12 of the Right of Children to Free and Compulsory Education Act, 2009 for the academic year 2025 - 2026",
+      "user_id": "U01",
+      "relevant_canonical_ids": [
+        "AP-ESE01-GOMS-34-2025"
+      ],
+      "distractor_canonical_ids": [],
+      "expected_l2_termination": true,
+      "category": "ESE01",
+      "family_root_id": "AP-ESE01-GOMS-34-2025"
+    },
+    {
+      "id": "HO-077",
+      "query": "Revision of Pay Scales - High Court Services - Approval of the Governor of Andhra Pradesh under Article 229 of the Constitution of India - Communicated",
+      "user_id": "U01",
+      "relevant_canonical_ids": [
+        "AP-FIN01-GOMS-121-2022"
+      ],
+      "distractor_canonical_ids": [],
+      "expected_l2_termination": true,
+      "category": "FIN01",
+      "family_root_id": "AP-FIN01-GOMS-121-2022"
+    },
+    {
+      "id": "HO-078",
+      "query": "The Andhra Pradesh Departmental Tests Rules, 1965 – Amendment to Rule 17",
+      "user_id": "U01",
+      "relevant_canonical_ids": [
+        "AP-GAD01-GOMS-101-2020"
+      ],
+      "distractor_canonical_ids": [],
+      "expected_l2_termination": true,
+      "category": "GAD01",
+      "family_root_id": "AP-GAD01-GOMS-101-2020"
+    },
+    {
+      "id": "HO-079",
+      "query": "School Education Department – Mana Badi; Naadu-Nedu - Administrative approval accorded to take up the basic infrastructure works with nine components for improving Infrastructure facilities in all the schools – Amendment",
+      "user_id": "U01",
+      "relevant_canonical_ids": [
+        "AP-ESE01-GOMS-7-2020"
+      ],
+      "distractor_canonical_ids": [],
+      "expected_l2_termination": true,
+      "category": "ESE01",
+      "family_root_id": "AP-ESE01-GOMS-7-2020"
+    },
+    {
+      "id": "HO-080",
+      "query": "Public Services – The Andhra Pradesh State Audit Service Rules – Amendment to Rules",
+      "user_id": "U01",
+      "relevant_canonical_ids": [
+        "AP-FIN01-GOMS-187-2017"
+      ],
+      "distractor_canonical_ids": [],
+      "expected_l2_termination": true,
+      "category": "FIN01",
+      "family_root_id": "AP-FIN01-GOMS-187-2017"
+    },
+    {
+      "id": "HO-081",
+      "query": "Rules - The Andhra Pradesh Secretariat Subordinate Service Rules, 1997 - Amendments - Notification",
+      "user_id": "U01",
+      "relevant_canonical_ids": [
+        "AP-GAD01-GOMS-90-2022",
+        "AP-GAZ-GAZETTE-EI-921-2022"
+      ],
+      "distractor_canonical_ids": [],
+      "expected_l2_termination": true,
+      "category": "GAD01",
+      "family_root_id": "AP-GAD01-GOMS-90-2022"
+    },
+    {
+      "id": "HO-082",
+      "query": "School Education – Norms for Reapportionment of Teaching Staff across various managements i.e Government, Zilla Parishad/Mandal Parishad Schools and Municipal Schools – Conversion and Creation of different posts – Amendment",
+      "user_id": "U01",
+      "relevant_canonical_ids": [
+        "AP-ESE01-GOMS-33-2025"
+      ],
+      "distractor_canonical_ids": [],
+      "expected_l2_termination": true,
+      "category": "ESE01",
+      "family_root_id": "AP-ESE01-GOMS-33-2025"
+    },
+    {
+      "id": "HO-083",
+      "query": "Pensions Sanction of revised Additional Quantum of Pension / Family Pension to those Pensioners / Family Pensioners on attaining the age of 70 years and above - Revised",
+      "user_id": "U01",
+      "relevant_canonical_ids": [
+        "AP-FIN01-GOMS-30-2022"
+      ],
+      "distractor_canonical_ids": [],
+      "expected_l2_termination": true,
+      "category": "FIN01",
+      "family_root_id": "AP-FIN01-GOMS-30-2022"
+    },
+    {
+      "id": "HO-084",
+      "query": "Public Services – Andhra Pradesh Civil Services Rules, 1991 – Amendment",
+      "user_id": "U01",
+      "relevant_canonical_ids": [
+        "AP-GAD01-GOMS-71-2023",
+        "AP-GAZ-GAZETTE-WI-518-2023"
+      ],
+      "distractor_canonical_ids": [],
+      "expected_l2_termination": true,
+      "category": "GAD01",
+      "family_root_id": "AP-GAD01-GOMS-71-2023"
+    },
+    {
+      "id": "HO-085",
+      "query": "School Education – Board of Intermediate Education - Amendments to the Andhra Pradesh Tutorial Institutions Rules, 1997, issued in the , Education Department, - Notification",
+      "user_id": "U01",
+      "relevant_canonical_ids": [
+        "AP-ESE01-GOMS-6-2022"
+      ],
+      "distractor_canonical_ids": [],
+      "expected_l2_termination": true,
+      "category": "ESE01",
+      "family_root_id": "AP-ESE01-GOMS-6-2022"
+    },
+    {
+      "id": "HO-086",
+      "query": "Public Services – Regularization of services of NMR / Daily Wage / Consolidated Pay / Part Time Employees – Amendment to the Act 2 of 1994- Counting of service for pension and any other purposes",
+      "user_id": "U01",
+      "relevant_canonical_ids": [
+        "AP-FIN01-GOMS-44-2024"
+      ],
+      "distractor_canonical_ids": [],
+      "expected_l2_termination": true,
+      "category": "FIN01",
+      "family_root_id": "AP-FIN01-GOMS-44-2024"
+    },
+    {
+      "id": "HO-087",
+      "query": "GAD - Cabinet- Transfer of the subject of “Andhra Pradesh Aviation Corporation Limited” currently with the Infrastructure & Investment Department to the General Administration Department",
+      "user_id": "U01",
+      "relevant_canonical_ids": [
+        "AP-GAD01-GOMS-86-2024"
+      ],
+      "distractor_canonical_ids": [],
+      "expected_l2_termination": true,
+      "category": "GAD01",
+      "family_root_id": "AP-GAD01-GOMS-86-2024"
+    },
+    {
+      "id": "HO-088",
+      "query": "School Education -Public Libraries - Amendment to the service Rules for Zilla Grandhalaya Samsthas in the State - Notification",
+      "user_id": "U01",
+      "relevant_canonical_ids": [
+        "AP-ESE01-GOMS-53-2023",
+        "AP-GAZ-GAZETTE-EI-352-2023"
+      ],
+      "distractor_canonical_ids": [],
+      "expected_l2_termination": true,
+      "category": "ESE01",
+      "family_root_id": "AP-ESE01-GOMS-53-2023"
+    },
+    {
+      "id": "HO-089",
+      "query": "Pensions-Revision of Funeral Charges- In case of death of Pensioners/Family Pensioners- Revised",
+      "user_id": "U01",
+      "relevant_canonical_ids": [
+        "AP-FIN01-GOMS-105-2022"
+      ],
+      "distractor_canonical_ids": [],
+      "expected_l2_termination": true,
+      "category": "FIN01",
+      "family_root_id": "AP-FIN01-GOMS-105-2022"
+    },
+    {
+      "id": "HO-090",
+      "query": "Public Service –Amendment to Rule of AP Secretariat Subordinate Service Rules, 1997",
+      "user_id": "U01",
+      "relevant_canonical_ids": [
+        "AP-GAD01-GOMS-118-2025",
+        "AP-GAZ-GAZETTE-WI-403-2025"
+      ],
+      "distractor_canonical_ids": [],
+      "expected_l2_termination": true,
+      "category": "GAD01",
+      "family_root_id": "AP-GAD01-GOMS-118-2025"
+    },
+    {
+      "id": "HO-091",
+      "query": "Andhra Pradesh School Educational Subordinate Service Rules for the posts of teachers in Mandal Prajaparishad and Zilla Prajaparishad Schools in Andhra Pradesh - Adhoc Rules",
+      "user_id": "U01",
+      "relevant_canonical_ids": [
+        "AP-ESE01-GOMS-12-2009"
+      ],
+      "distractor_canonical_ids": [],
+      "expected_l2_termination": true,
+      "category": "ESE01",
+      "family_root_id": "AP-ESE01-GOMS-12-2009"
+    },
+    {
+      "id": "HO-092",
+      "query": "Budget Estimates 2017-18 – Comprehensive Instructions for the preparation of Budget Estimates and submission on-line",
+      "user_id": "U01",
+      "relevant_canonical_ids": [
+        "AP-FIN01-GOMS-209-2016"
+      ],
+      "distractor_canonical_ids": [],
+      "expected_l2_termination": true,
+      "category": "FIN01",
+      "family_root_id": "AP-FIN01-GOMS-209-2016"
+    },
+    {
+      "id": "HO-093",
+      "query": "Public Services - Implementation of 11th PRC - Revised Pay Scales, 2022 Enhancement of Delhi Allowance / Special Compensatory Allowance to the staff working in the Andhra Pradesh Bhavan, New Delhi and Special Gratuity Allowance to drivers working at A.P.Bhavan",
+      "user_id": "U01",
+      "relevant_canonical_ids": [
+        "AP-GAD01-GOMS-145-2022"
+      ],
+      "distractor_canonical_ids": [],
+      "expected_l2_termination": true,
+      "category": "GAD01",
+      "family_root_id": "AP-GAD01-GOMS-145-2022"
+    },
+    {
+      "id": "HO-094",
+      "query": "SE-Ensuring of subject teachers in the high schools and required number of teachers in Foundational schools, Foundational School Plus – The Andhra Pradesh Teachers Guidelines, 2022",
+      "user_id": "U01",
+      "relevant_canonical_ids": [
+        "AP-ESE01-GOMS-187-2022"
+      ],
+      "distractor_canonical_ids": [],
+      "expected_l2_termination": true,
+      "category": "ESE01",
+      "family_root_id": "AP-ESE01-GOMS-187-2022"
+    },
+    {
+      "id": "HO-095",
+      "query": "ANIMAL HUSBANDRY DEPARTMENT – Creation and Up-gradation of posts duly surrender of Redundant Posts for Restructuring Animal Husbandry Department - Sanction",
+      "user_id": "U01",
+      "relevant_canonical_ids": [
+        "AP-FIN01-GOMS-126-2016"
+      ],
+      "distractor_canonical_ids": [],
+      "expected_l2_termination": true,
+      "category": "FIN01",
+      "family_root_id": "AP-FIN01-GOMS-126-2016"
+    },
+    {
+      "id": "HO-096",
+      "query": "Andhra Pradesh Legislative Council – Teachers’ Constituencies – Educational Institutions not lower in standard than that of a secondary school – Notification issued in , General Administration Department, read with , General Admn. Dept., under Section 27 of the Representation of the People Act, 1950 – Amendment",
+      "user_id": "U01",
+      "relevant_canonical_ids": [
+        "AP-GAD01-GOMS-14-2017"
+      ],
+      "distractor_canonical_ids": [],
+      "expected_l2_termination": true,
+      "category": "GAD01",
+      "family_root_id": "AP-GAD01-GOMS-14-2017"
+    },
+    {
+      "id": "HO-097",
+      "query": "School Education – The Andhra Pradesh Educational Institutions Rules, 1993-Amendment",
+      "user_id": "U01",
+      "relevant_canonical_ids": [
+        "AP-ESE01-GOMS-58-2023",
+        "AP-GAZ-GAZETTE-EI-379-2023"
+      ],
+      "distractor_canonical_ids": [],
+      "expected_l2_termination": true,
+      "category": "ESE01",
+      "family_root_id": "AP-ESE01-GOMS-58-2023"
+    },
+    {
+      "id": "HO-098",
+      "query": "PENSIONS – Dearness Relief to Pensioners with effect from – Revised",
+      "user_id": "U01",
+      "relevant_canonical_ids": [
+        "AP-FIN01-GOMS-154-2018"
+      ],
+      "distractor_canonical_ids": [],
+      "expected_l2_termination": true,
+      "category": "FIN01",
+      "family_root_id": "AP-FIN01-GOMS-154-2018"
+    },
+    {
+      "id": "HO-099",
+      "query": "General Administration Department - Implementation of 10% Reservation to the Economically Weaker Sections for initial appointments in the Posts and Services under the State Government",
+      "user_id": "U01",
+      "relevant_canonical_ids": [
+        "AP-GAD01-GOMS-66-2021"
+      ],
+      "distractor_canonical_ids": [],
+      "expected_l2_termination": true,
+      "category": "GAD01",
+      "family_root_id": "AP-GAD01-GOMS-66-2021"
+    },
+    {
+      "id": "HO-100",
+      "query": "School Education Department – Mandal Parishad Upper Primary School, C. Bandapalle, Santhipuram , Chittoor District – Permission for Up-gradation of existing School into High School by opening of Class IX from the academic year 2017-18 – Accorded",
+      "user_id": "U01",
+      "relevant_canonical_ids": [
+        "AP-ESE01-GOMS-20-2017"
+      ],
+      "distractor_canonical_ids": [],
+      "expected_l2_termination": true,
+      "category": "ESE01",
+      "family_root_id": "AP-ESE01-GOMS-20-2017"
+    }
+  ]
+}

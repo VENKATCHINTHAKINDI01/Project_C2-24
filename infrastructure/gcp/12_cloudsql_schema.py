@@ -85,6 +85,8 @@ def grants(api: str, ingest: str, me: str) -> list[str]:
     out += [f"GRANT SELECT, INSERT ON session_owners, session_turns TO {ident(api)}"]
     # draft recovery (ADR-0046): the officer's own workspace, the API's alone (saved, cleared)
     out += [f"GRANT SELECT, INSERT, UPDATE, DELETE ON draft_workspaces TO {ident(api)}"]
+    # chat history (ADR-0066): the officer's own conversations; kept, trimmed and deleted by the API
+    out += [f"GRANT SELECT, INSERT, UPDATE, DELETE ON chat_conversations, chat_turns TO {ident(api)}"]
     # model usage (ADR-0060 addendum): the API counts and logs optional model calls; the log is
     # append-only for it (no UPDATE / DELETE), the daily count is updated in place
     out += [

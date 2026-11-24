@@ -86,6 +86,17 @@ def test_every_response_is_marked_as_the_mock_sandbox(client: TestClient) -> Non
     assert r.json()["banner"] == BANNER
     # posts without login excluded; M01 = the mock monitoring officer (sandbox.yaml, ADR-0035)
     assert [p["user_id"] for p in r.json()["profiles"]] == [*USERS, "M01"]
+    # each officer's own search reach is shown at sign-in, nothing more (24 Nov 2026)
+    assert all(p["search_scopes"] for p in r.json()["profiles"])
+    assert set(r.json()["profiles"][0]) == {
+        "user_id",
+        "name",
+        "post",
+        "department",
+        "section",
+        "clearance",
+        "search_scopes",
+    }
     assert client.get("/healthz").headers["X-Mock-Sandbox"]
 
 

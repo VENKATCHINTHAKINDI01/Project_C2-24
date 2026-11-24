@@ -32,7 +32,7 @@ describe("officer settings (ADR-0041)", () => {
   it("the settings page shows every group and says access is not a setting", () => {
     const html = text(<SettingsPage api={createApi("U01")} prefs={DEFAULT_PREFERENCES} monitoring={false} onSaved={() => {}} />);
     for (const s of ["My profile", "Display", "Start and lists", "Assistant", "What is recorded",
-      "Text size", "Contrast", "Dates", "After signing in, open", "Assistant panel on a file",
+      "Text size", "Contrast", "Dates", "After signing in, open", "When a file opens",
       "Keyboard shortcuts", "Notices of new orders", "Restore defaults"]) expect(html).toContain(s);
     expect(html).toContain("They never change which files or records you can open.");
     expect(html).not.toContain(">Monitoring<"); // only a monitoring officer may start there

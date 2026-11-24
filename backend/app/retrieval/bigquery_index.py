@@ -20,7 +20,7 @@ from typing import Any, Protocol
 
 from app.auth.models import DocumentAccessTags, Scope
 from app.identifiers.canonical import InvalidCanonicalIdError, lookup_keys, parse_canonical_id
-from app.retrieval.request_memo import count_query
+from app.retrieval.request_memo import timed_query
 from app.retrieval.scoped import IndexedDocument, L1Criteria
 
 log = logging.getLogger(__name__)
@@ -76,7 +76,10 @@ class BigQueryRunner:
         self._timeout_s = timeout_s  # a slow query ends the request closed (ADR-0039)
 
     def run(self, sql: str, params: Sequence[Param]) -> list[Mapping[str, Any]]:
-        count_query("bigquery")
+        with timed_query("bigquery"):
+            return self._run(sql, params)
+
+    def _run(self, sql: str, params: Sequence[Param]) -> list[Mapping[str, Any]]:
         bq = self._bq
         bound = [
             bq.ArrayQueryParameter(n, t[6:-1], v)

@@ -18,6 +18,7 @@ from __future__ import annotations
 import itertools
 import re
 from collections.abc import Iterable, Sequence
+from concurrent.futures import ThreadPoolExecutor, wait
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict
@@ -28,6 +29,9 @@ from app.conflict.deterministic import ConflictFlag, ConflictType
 PROMPT_ID = "conflict_contradiction.v2"
 GO_LEVEL = 4  # G.O.(Ms) in data/ontology/hierarchy.yaml; lower instruments have higher numbers
 EXCERPT_CHARS = 6000  # per document sent to the model
+JUDGE_WORKERS = 3  # pairs asked side by side; few, so the draft's own model call keeps quota
+JUDGE_BUDGET_S = 60.0  # wait at most this long for all pairs; the rest count as failed (incomplete)
+
 HEAD_CHARS = 500  # title, number, date, subject
 WINDOW_CHARS = 400
 SCHEMA: dict[str, Any] = {
@@ -168,18 +172,55 @@ def settled_pairs(relations: Iterable[Any]) -> list[frozenset[str]]:
     ]
 
 
+def _ask_all(
+    llm: LLMClient, system: str, users: Sequence[str], workers: int, budget_s: float | None
+) -> list[dict[str, Any] | None]:
+    """One answer per pair, in pair order; None where the model failed or the budget ran out.
+    The pairs are asked side by side (each is independent); waiting stops after `budget_s`."""
+    if not users:
+        return []
+    pool = ThreadPoolExecutor(max_workers=max(1, min(workers, len(users))))
+    try:
+        calls = [
+            pool.submit(
+                llm.generate_json, prompt_id=PROMPT_ID, system=system, user=u, schema=SCHEMA
+            )
+            for u in users
+        ]
+        wait(calls, timeout=budget_s)
+        out: list[dict[str, Any] | None] = []
+        for c in calls:
+            if not c.done():
+                c.cancel()  # not answered in time: counted as failed (check incomplete)
+                out.append(None)
+            elif (exc := c.exception()) is not None:
+                if not isinstance(exc, LLMError):
+                    raise exc  # as before: an unexpected error fails the request closed
+                out.append(None)  # model unavailable: counted as failed (check incomplete)
+            else:
+                out.append(c.result())
+        return out
+    finally:
+        pool.shutdown(wait=False, cancel_futures=True)  # never wait on an abandoned call
+
+
 def contradiction_flags(
     docs: Sequence[Evidence],
     llm: LLMClient,
     linked: Iterable[frozenset[str]] = (),
     context: str = "",
+    *,
+    workers: int = JUDGE_WORKERS,
+    budget_s: float | None = JUDGE_BUDGET_S,
 ) -> JudgmentResult:
     """`context` is the officer's note: it steers which parts of a long order are excerpted.
-    It is never sent to the model."""
+    It is never sent to the model. Pairs are asked up to `workers` at a time; any pair still
+    unanswered after `budget_s` seconds counts as failed (the check is incomplete, nothing is
+    guessed) so a draft or a pre-send check is never held up for minutes (ADR-0039)."""
     system = load_prompt(PROMPT_ID)
     skip = set(linked)
     flags: list[ConflictFlag] = []
-    asked = failed = 0
+    pairs: list[tuple[Evidence, Evidence, str, str, str]] = []
     for a, b in itertools.combinations(docs, 2):
         if (
             a.level is None
@@ -195,11 +236,11 @@ def contradiction_flags(
             f"DOCUMENT A ({a.canonical_id})\n<<<\n{ea}\n>>>\n\n"
             f"DOCUMENT B ({b.canonical_id})\n<<<\n{eb}\n>>>"
         )
-        asked += 1
-        try:
-            ans = llm.generate_json(prompt_id=PROMPT_ID, system=system, user=user, schema=SCHEMA)
-        except LLMError:
-            failed += 1
+        pairs.append((a, b, ea, eb, user))
+    answers = _ask_all(llm, system, [p[4] for p in pairs], workers, budget_s)
+    asked, failed = len(pairs), sum(ans is None for ans in answers)
+    for (a, b, ea, eb, _), ans in zip(pairs, answers, strict=True):
+        if ans is None:
             continue
         if ans.get("verdict") != "contradiction":
             continue

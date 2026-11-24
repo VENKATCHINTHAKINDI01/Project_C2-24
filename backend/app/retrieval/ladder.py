@@ -30,6 +30,10 @@ from app.retrieval.confidence_policy import (
     L2ConfidencePolicy,
 )
 from app.retrieval.graph_expansion import NotCalibratedError, expand
+from app.retrieval.safeguards import (
+    verify_cross_candidate_graph,
+    verify_entity_attributes,
+)
 from app.retrieval.scoped import IndexedDocument, L1Criteria, Rung, ScopedRetriever, retrieve
 
 log = logging.getLogger(__name__)
@@ -139,6 +143,7 @@ class LadderConfig(_Frozen):
             threshold=r.l2_rerank_min_score,
             calibrated=r.l2_calibrated,
             metadata=r.l2_calibration_metadata,
+            margin=r.l2_min_margin,
         )
         return cls(
             l2_top_k=r.l2_top_k,
@@ -288,8 +293,51 @@ def run_ladder(
                 "L2 re-check removed %d in-scope hits user=%s", len(scored) - len(ok), req.user_id
             )
         ids = keep(s.doc for s in ok)
+
+        # 1. Canonical document deduplication: ensure runner-up scoring compares distinct documents,
+        # not multiple passages belonging to the top document.
+        canonical_map: dict[str, ScoredDocument] = {}
+        for s in ok:
+            cid = s.doc.canonical_id
+            if cid not in canonical_map or s.score > canonical_map[cid].score:
+                canonical_map[cid] = s
+        deduped_hits = sorted(canonical_map.values(), key=lambda s: (-s.score, s.doc.canonical_id))
+        deduped_scores = [s.score for s in deduped_hits]
+
         assert cfg.confidence_policy is not None
-        eval_res = cfg.confidence_policy.evaluate([s.score for s in ok])
+        eval_res = cfg.confidence_policy.evaluate(deduped_scores)
+
+        # Safeguards apply when policy is calibrated (ADR-0061 addendum)
+        if cfg.confidence_policy.is_calibrated:
+            # 2. Safeguard C: Exact entity / attribute verification gate (e.g. KI-106 B.P.Ed vs
+            # M.P.Ed)
+            if eval_res.can_exit and deduped_hits and req.text_query:
+                attr_ok, attr_note = verify_entity_attributes(
+                    req.text_query, deduped_hits[0].doc.subject
+                )
+                if not attr_ok:
+                    eval_res = eval_res.model_copy(
+                        update={
+                            "can_exit": False,
+                            "escalated_to_l3": True,
+                            "note": f"attribute mismatch: {attr_note}; escalating to next rung",
+                        }
+                    )
+
+            # 3. Safeguard B: Cross-candidate temporal relationship graph gate (AMENDS / SUPERSEDES)
+            if eval_res.can_exit and len(deduped_hits) >= 2 and graph is not None:
+                graph_ok, graph_note = verify_cross_candidate_graph(
+                    [h.doc.canonical_id for h in deduped_hits], graph, scope
+                )
+                if not graph_ok:
+                    eval_res = eval_res.model_copy(
+                        update={
+                            "can_exit": False,
+                            "escalated_to_l3": True,
+                            "note": f"temporal ambiguity: {graph_note}; escalating to next rung",
+                        }
+                    )
+
         trace.append(
             RungTrace(
                 rung=LadderRung.L2,

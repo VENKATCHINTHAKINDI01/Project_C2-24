@@ -34,10 +34,11 @@ from app.graph.repository import (
     GraphNode,
     GraphWalkResult,
     StepOrder,
+    split_edges,
     statutory_first,
 )
 from app.graph.sync import SyncPlan, check, plan
-from app.retrieval.request_memo import count_query
+from app.retrieval.request_memo import timed_query
 
 _NODE = (
     "SELECT canonical_id, department, section, classification, file_no, doc_id "
@@ -49,6 +50,7 @@ _EDGES = {
     "from": _EDGE + " WHERE source IN UNNEST(@ids) ORDER BY source, kind, target",
     "to": _EDGE + " WHERE target IN UNNEST(@ids) ORDER BY target, kind, source",
 }
+_EDGES_ANY = _EDGE + " WHERE source IN UNNEST(@ids) OR target IN UNNEST(@ids)"
 _IDS = "SELECT canonical_id FROM graph_nodes ORDER BY canonical_id"
 _COUNTS = "SELECT (SELECT COUNT(*) FROM graph_nodes), (SELECT COUNT(*) FROM graph_edges)"
 _TAGS = ("canonical_id", "department", "section", "classification", "file_no", "doc_id")
@@ -81,7 +83,10 @@ class CloudSpannerPort:
         self._db: Any = client.instance(instance).database(database)
 
     def query(self, sql: str, params: Mapping[str, Any] | None = None) -> list[tuple[Any, ...]]:
-        count_query("spanner")
+        with timed_query("spanner"):
+            return self._query(sql, params)
+
+    def _query(self, sql: str, params: Mapping[str, Any] | None = None) -> list[tuple[Any, ...]]:
         p = dict(params or {})
         types = {
             k: self._types.Array(self._types.STRING) if isinstance(v, list) else self._types.STRING
@@ -193,6 +198,25 @@ class SpannerGraphRepository:
 
     def edges(self) -> list[GraphEdge]:
         return self._edges("all")
+
+    def nodes_many(self, ids: Iterable[str]) -> dict[str, GraphNode]:
+        """Many nodes in one query per 500 IDs (request memo warm-up, 24 Nov 2026)."""
+        return self._nodes(ids)
+
+    def edges_many(
+        self, ids: Iterable[str]
+    ) -> tuple[dict[str, tuple[GraphEdge, ...]], dict[str, tuple[GraphEdge, ...]]]:
+        """Out- and in-edges of many nodes in one query per 500 IDs, each list ordered as
+        `edges_from` / `edges_to` order it."""
+        wanted = list(dict.fromkeys(ids))
+        rows: list[tuple[Any, ...]] = []
+        for i in range(0, len(wanted), _BATCH):
+            rows += self._db.query(_EDGES_ANY, {"ids": wanted[i : i + _BATCH]})
+        edges = [
+            GraphEdge(source=r[0], kind=EdgeKind(r[1]), target=r[2], confirmed=bool(r[3]))
+            for r in rows
+        ]
+        return split_edges(wanted, edges)
 
     def edges_to(self, cid: str) -> tuple[GraphEdge, ...]:
         return tuple(sorted(self._edges("to", [cid]), key=lambda e: (e.kind, e.source)))

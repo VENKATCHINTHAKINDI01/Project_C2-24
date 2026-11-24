@@ -63,16 +63,40 @@ class InMemoryScopedIndex:
 
     def __init__(self, docs: Iterable[IndexedDocument] = ()) -> None:
         self._docs = list(docs)
+        self._ids: dict[str, list[IndexedDocument]] | None = None
+        self._bases: dict[str, list[IndexedDocument]] | None = None
 
     def upsert(self, doc: IndexedDocument) -> None:
         """Insert or replace by canonical ID (ingestion; plan §7.4)."""
         self._docs = [d for d in self._docs if d.canonical_id != doc.canonical_id] + [doc]
+        self._ids = self._bases = None
 
     def remove(self, canonical_id: str) -> None:
         self._docs = [d for d in self._docs if d.canonical_id != canonical_id]
+        self._ids = self._bases = None
+
+    def _by(self) -> tuple[dict[str, list[IndexedDocument]], dict[str, list[IndexedDocument]]]:
+        """Records by canonical ID and by base ID, in store order; rebuilt after a change.
+        A lookup then scope-checks only its own candidates, not every record held (24 Nov 2026:
+        each L0 lookup used to check the whole store)."""
+        if self._ids is None or self._bases is None:
+            ids: dict[str, list[IndexedDocument]] = {}
+            bases: dict[str, list[IndexedDocument]] = {}
+            for d in self._docs:
+                ids.setdefault(d.canonical_id, []).append(d)
+                if (base := _base_id(d.canonical_id)) is not None:
+                    bases.setdefault(base, []).append(d)
+            self._ids, self._bases = ids, bases
+        return self._ids, self._bases
 
     def __len__(self) -> int:
         return len(self._docs)
+
+    def first(self, canonical_id: str) -> IndexedDocument | None:
+        """The first record held under exactly this ID, unscoped — for internal bookkeeping only
+        (e.g. a record's own access tags); never returned to an officer without a check."""
+        hits = self._by()[0].get(canonical_id)
+        return hits[0] if hits else None
 
     def _in_scope(self, scope: Scope) -> list[IndexedDocument]:
         return [d for d in self._docs if scope.admits(d.tags)]
@@ -82,13 +106,13 @@ class InMemoryScopedIndex:
             keys = lookup_keys(canonical_id)
         except InvalidCanonicalIdError:
             return []
-        pool = self._in_scope(scope)
+        ids, bases = self._by()
         for key in keys:  # exact ID first, then pre-ADR-0007 form
-            hits = [d for d in pool if d.canonical_id == key]
+            hits = [d for d in ids.get(key, ()) if scope.admits(d.tags)]
             if hits:
                 return hits
         if len(keys) == 1:  # printed without its date: every dated record with that base, in scope
-            return [d for d in pool if _base_id(d.canonical_id) == keys[0]]
+            return [d for d in bases.get(keys[0], ()) if scope.admits(d.tags)]
         return []
 
     def filter(self, criteria: L1Criteria, scope: Scope) -> list[IndexedDocument]:

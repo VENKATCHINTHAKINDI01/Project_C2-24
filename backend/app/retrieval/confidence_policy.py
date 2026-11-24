@@ -75,6 +75,25 @@ class CalibrationMetadata(_Frozen):
         le=1.0,
         description="Irrelevant queries that incorrectly terminated at L2",
     )
+    precision_ci_low: float | None = Field(
+        default=None,
+        ge=0.0,
+        le=1.0,
+        description="Lower bound of the 95% Wilson interval of the precision (24 Nov 2026)",
+    )
+    min_margin: float | None = Field(
+        default=None,
+        ge=0.0,
+        description="Score gap to the runner-up that was in force when measured",
+    )
+    safeguards: tuple[str, ...] = Field(
+        default=(), description="Exit safeguards in force when measured (see SAFEGUARDS)"
+    )
+
+
+# The gates the ladder applies before a calibrated L2 exit (ladder.py; safeguards.py). A
+# calibration counts only if it was measured with exactly these in force.
+SAFEGUARDS: tuple[str, ...] = ("canonical_dedup", "attribute_gate", "graph_gate")
 
 
 class L2EvaluationResult(_Frozen):
@@ -92,6 +111,7 @@ class L2ConfidencePolicy(_Frozen):
     """Immutable policy governing whether L2 hybrid search can terminate retrieval early."""
 
     threshold: float | None = None
+    margin: float | None = None
     state: ThresholdCalibrationState = ThresholdCalibrationState.NOT_CONFIGURED
     metadata: CalibrationMetadata | None = None
 
@@ -189,6 +209,22 @@ class L2ConfidencePolicy(_Frozen):
         if self.metadata is None:  # unreachable through create(); never trusted without evidence
             raise ValueError("a calibrated policy needs its calibration metadata")
         if max_score >= self.threshold:
+            if self.margin is not None and len(scores) >= 2:
+                runner_up = round(scores[1], 6)
+                delta = round(max_score - runner_up, 6)
+                if delta < self.margin:
+                    note = (
+                        f"ambiguous candidate scores (top={max_score:.4f}, runner_up={runner_up:.4f}, "  # noqa: E501
+                        f"delta={delta:.4f} < margin={self.margin:.4f}; escalating to next rung)"
+                    )
+                    return L2EvaluationResult(
+                        can_exit=False,
+                        max_score=max_score,
+                        state=ThresholdCalibrationState.CONFIGURED_CALIBRATED,
+                        threshold=self.threshold,
+                        note=note,
+                        escalated_to_l3=True,
+                    )
             note = (
                 f"passes calibrated threshold ({max_score:.4f} >= {self.threshold:.4f}, "
                 f"P={self.metadata.precision:.2f}, R={self.metadata.recall:.2f})"
@@ -222,11 +258,14 @@ class L2ConfidencePolicy(_Frozen):
         *,
         calibrated: bool = False,
         metadata: CalibrationMetadata | Mapping[str, Any] | None = None,
+        margin: float | None = None,
     ) -> L2ConfidencePolicy:
         """Factory enforcing state transitions and input validation."""
+        m_val = float(margin) if margin is not None else None
         if threshold is None:
             return cls(
                 threshold=None,
+                margin=m_val,
                 state=ThresholdCalibrationState.NOT_CONFIGURED,
                 metadata=None,
             )
@@ -236,6 +275,7 @@ class L2ConfidencePolicy(_Frozen):
         except (TypeError, ValueError):
             return cls(
                 threshold=None,
+                margin=m_val,
                 state=ThresholdCalibrationState.CONFIGURED_INVALID,
                 metadata=None,
             )
@@ -245,6 +285,7 @@ class L2ConfidencePolicy(_Frozen):
         if val <= 0.0:
             return cls(
                 threshold=val,
+                margin=m_val,
                 state=ThresholdCalibrationState.CONFIGURED_INVALID,
                 metadata=None,
             )
@@ -252,6 +293,7 @@ class L2ConfidencePolicy(_Frozen):
         if not calibrated:
             return cls(
                 threshold=val,
+                margin=m_val,
                 state=ThresholdCalibrationState.CONFIGURED_UNCALIBRATED,
                 metadata=None,
             )
@@ -274,18 +316,30 @@ class L2ConfidencePolicy(_Frozen):
         ):
             return cls(
                 threshold=val,
+                margin=m_val,
                 state=ThresholdCalibrationState.CONFIGURED_UNCALIBRATED,
                 metadata=None,
             )
-        if meta_obj.precision < meta_obj.target_min_precision:
+        # The exit must be measured under the conditions it will run with, and its precision
+        # must clear the target at the low end of its 95% interval, not just on average
+        # (agreed with the owner, 24 Nov 2026).
+        if (
+            meta_obj.precision < meta_obj.target_min_precision
+            or meta_obj.precision_ci_low is None
+            or meta_obj.precision_ci_low < meta_obj.target_min_precision
+            or meta_obj.min_margin != m_val
+            or set(meta_obj.safeguards) != set(SAFEGUARDS)
+        ):
             return cls(
                 threshold=val,
+                margin=m_val,
                 state=ThresholdCalibrationState.CONFIGURED_UNCALIBRATED,
                 metadata=None,
             )
 
         return cls(
             threshold=val,
+            margin=m_val,
             state=ThresholdCalibrationState.CONFIGURED_CALIBRATED,
             metadata=meta_obj,
         )

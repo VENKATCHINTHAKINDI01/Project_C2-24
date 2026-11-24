@@ -19,12 +19,13 @@ import uuid
 from collections.abc import Callable, Iterator, Sequence
 from typing import Annotated, Any, Literal, NoReturn
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request, Response
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.agents.answer import AskStatus, ask
 from app.agents.brief import approval_brief
+from app.agents.conversation import compose_answer, draft_inputs, route_intent, summarise_file
 from app.agents.dfa import ReadItem, draft_for_approval, governing_orders
 from app.agents.first_cut import first_cut_note
 from app.agents.intents import IntentSlots
@@ -92,6 +93,7 @@ from app.ingestion.metadata import (
     extract_metadata,
 )
 from app.ingestion.pipeline import ConfirmError, IngestStatus, review_text
+from app.memory.history import ALL, ChatHistory, HistTurn, InMemoryChatHistory, cited_ids, fit
 from app.memory.session import SessionError, SessionMemory
 from app.noting.chain import FileSoFar, file_so_far
 from app.noting.closing import closing_remarks
@@ -192,6 +194,34 @@ class ChatIn(_In):
     message: str = Field(min_length=2, max_length=500)
     session_id: str | None = Field(default=None, pattern=r"^[a-f0-9]{16,32}$")
     computer_no: str | None = Field(default=None, max_length=40)  # the file open in e-Office
+
+
+class ToolTurnIn(_In):
+    """A file-chat question answered by one of the file's own tools (ADR-0066)."""
+
+    conversation_id: str | None = Field(default=None, pattern=r"^[a-f0-9]{16,32}$")
+    computer_no: str = Field(pattern=r"^[A-Za-z0-9._-]{1,64}$")
+    asked: str = Field(min_length=1, max_length=500)
+    tool: str = Field(pattern=r"^[a-z_]{1,40}$")
+
+
+class AutofillIn(_In):
+    computer_no: str = Field(pattern=r"^\d{4,12}$")
+    format_id: str = Field(pattern=r"^[a-z][a-z0-9_]{1,40}$")
+    request: str = Field(default="Prepare the draft", max_length=300)
+
+
+class FileSummaryIn(_In):
+    computer_no: str = Field(pattern=r"^\d{4,12}$")
+    request: str = Field(default="Summarise this file", max_length=300)
+
+
+class IntentIn(_In):
+    """A message to route to one of the screen's tools (ADR-0067)."""
+
+    message: str = Field(min_length=2, max_length=500)
+    computer_no: str | None = Field(default=None, pattern=r"^[A-Za-z0-9._-]{1,64}$")
+    tools: list[str] = Field(default_factory=list, max_length=20)
 
 
 class ReferenceIn(_In):
@@ -385,12 +415,14 @@ def build_assist_router(
     wording_quota: ModelQuota | None = None,
     draft_formats: FormatCatalogue | None = None,
     workspaces: WorkspaceStore | None = None,
+    history: ChatHistory | None = None,
 ) -> APIRouter:
     r = APIRouter(prefix="/assist", tags=["assist"])
     saved_drafts: WorkspaceStore = (
         workspaces if workspaces is not None else InMemoryWorkspaceStore()
     )
     sessions: Memory = memory if memory is not None else SessionMemory()
+    chats: ChatHistory = history if history is not None else InMemoryChatHistory()
     tracked: QueryLog = query_log if query_log is not None else InMemoryQueryLog()
     feedback_log: ActionLog = actions if actions is not None else InMemoryActionLog()
 
@@ -534,7 +566,7 @@ def build_assist_router(
             draft = first_cut_payload(
                 o, run, body.computer_no, "assist.chat.first_cut", final.recalled
             )
-        return {
+        payload = {
             "session_id": sid,
             "turn": final.turn,
             "from_cache": final.cache_hit,
@@ -543,6 +575,29 @@ def build_assist_router(
             "first_cut": draft,
             **meta(run),
         }
+        if len(payload.get("statements") or []) >= 2:
+            # laid out as an assistant answers (ADR-0067): a direct first line and grouped
+            # points, over the CHECKED statements only; any failure shows them as they are
+            try:
+                payload["composed"] = compose_answer(run.llm, body.message, payload["statements"])
+            except Exception:  # noqa: BLE001 — presentation only; the checked answer stands
+                log.warning("compose failed; answer shown as checked", exc_info=True)
+                payload["composed"] = None
+        if final.outcome != "denied":  # the officer's own history (ADR-0066)
+            kept = fit(payload)
+            chats.add(
+                o.ctx.user_id,
+                sid,
+                body.computer_no or ALL,
+                HistTurn(
+                    at=dt.datetime.now(dt.UTC),
+                    asked=body.message,
+                    kind="chat",
+                    answer=kept,
+                    cited=cited_ids(kept or {}),
+                ),
+            )
+        return payload
 
     @r.post("/chat")
     def chat(body: ChatIn, o: Annotated[Officer, Depends(officer)]) -> dict[str, Any]:
@@ -906,11 +961,67 @@ def build_assist_router(
             **meta(run),
         }
 
+    @r.post("/file-summary")
+    def file_summary(
+        body: FileSummaryIn, o: Annotated[Officer, Depends(officer)]
+    ) -> dict[str, Any]:
+        """File so far, plus a written summary of the notes the officer may read (ADR-0067
+        addendum); `summary: null` when there is no model or nothing passed the gates."""
+        out = so_far_for(FileIn(computer_no=body.computer_no), o, "assist.file_summary")
+        run = rt(o, "assist.file_summary")
+        try:
+            out["summary"] = summarise_file(run.llm, body.request, out["notes"])
+        except Exception:  # noqa: BLE001 — the notes are still shown as they are
+            log.warning("file summary failed; notes shown as they are", exc_info=True)
+            out["summary"] = None
+        return out
+
+    @r.post("/draft/autofill")
+    def draft_autofill(body: AutofillIn, o: Annotated[Officer, Depends(officer)]) -> dict[str, Any]:
+        """The inputs of a draft in the chosen format, filled by the model from the notes the
+        officer may read (ADR-0067 addendum 4); each field gated against the notes it names. The
+        officer sees and edits everything; nothing is saved here. Counts as one model call against
+        the officer's daily wording limit."""
+        action = "assist.draft.autofill"
+        out = so_far_for(FileIn(computer_no=body.computer_no), o, action)
+        run = rt(o, action)
+        fmt = draft_formats.get(body.format_id) if draft_formats is not None else None
+        if fmt is None:
+            raise HTTPException(status_code=404, detail=NOT_AVAILABLE)
+        result: dict[str, Any] = {"request_id": o.request_id, "inputs": {}, "sources": {},
+                                  "reason": None}  # fmt: skip
+        if run.llm is None:
+            result["reason"] = "model not configured"
+            return result
+        if wording_quota is not None:
+            try:
+                if wording_quota.take(o.ctx.user_id) is None:
+                    result["reason"] = "daily limit reached"
+                    return result
+            except UsageUnavailableError:
+                result["reason"] = "usage count unavailable"
+                return result
+        try:
+            got = draft_inputs(run.llm, body.request, fmt.model_dump(mode="json"), out["notes"])
+        except Exception:  # noqa: BLE001 — the officer fills the inputs themselves
+            log.warning("draft autofill failed", exc_info=True)
+            got = None
+        if got:
+            result |= got
+        else:
+            result["reason"] = "nothing in the notes could be used"
+        audit.record(o.request_id, o.ctx.user_id, action, "ok",
+                     ids=(body.computer_no,), detail=f"fields={len(result['inputs'])}")  # fmt: skip
+        return result
+
     @r.post("/file-so-far")
     def so_far(body: FileIn, o: Annotated[Officer, Depends(officer)]) -> dict[str, Any]:
         """Touchpoint 8 — the note chain by post, the last direction, and what is missing."""
-        run = rt(o, "assist.file_so_far")
-        fctx = open_file(o, run, body.computer_no, "assist.file_so_far")
+        return so_far_for(body, o, "assist.file_so_far")
+
+    def so_far_for(body: FileIn, o: Officer, action: str) -> dict[str, Any]:
+        run = rt(o, action)
+        fctx = open_file(o, run, body.computer_no, action)
         store = run.store_for(o.ctx)
 
         def allowed(t: DocumentAccessTags) -> bool:
@@ -929,7 +1040,7 @@ def build_assist_router(
         audit.record(
             o.request_id,
             o.ctx.user_id,
-            "assist.file_so_far",
+            action,
             "ok" if fs.notes else "no_answer",
             ids=(body.computer_no, *fs.sources),
         )
@@ -2732,6 +2843,116 @@ def build_assist_router(
             if used is not None and wording_quota is not None
             else None,
         }
+
+    # ---- chat history (ADR-0066): the officer's own conversations, re-checked on every read ----
+
+    def history_place(o: Officer, run: AssistRuntime, place: str, action: str) -> str:
+        """A file's conversations only while the officer can still open the file."""
+        if place != ALL:
+            open_file(o, run, place, action)
+        return place
+
+    @r.get("/chat/history")
+    def list_history(
+        o: Annotated[Officer, Depends(officer)],
+        place: Annotated[str, Query(pattern=r"^[A-Za-z0-9._-]{1,64}$")] = ALL,
+    ) -> dict[str, Any]:
+        """The officer's conversations here (a file, or the general chat), newest first."""
+        action = "assist.chat.history"
+        history_place(o, rt(o, action), place, action)
+        return {
+            "request_id": o.request_id,
+            "conversations": [
+                {"conversation_id": c.conversation_id, "title": c.title,
+                 "updated_at": c.updated_at.isoformat()}
+                for c in chats.list(o.ctx.user_id, place)
+            ],
+        }  # fmt: skip
+
+    @r.post("/chat/history/clear")
+    def clear_history(o: Annotated[Officer, Depends(officer)]) -> dict[str, Any]:
+        """Settings › Clear chat history: every conversation of this officer is removed."""
+        action = "assist.chat.history.clear"
+        rt(o, action)
+        n = chats.clear(o.ctx.user_id)
+        audit.record(o.request_id, o.ctx.user_id, action, "ok", detail=f"{n} conversation(s)")
+        return {"request_id": o.request_id, "cleared": n}
+
+    @r.post("/intent")
+    def intent(body: IntentIn, o: Annotated[Officer, Depends(officer)]) -> dict[str, Any]:
+        """Which of the screen's tools the officer's message asks for, read by the model from a
+        closed list (ADR-0067); `tool: null` means "use your fixed rules". Never a query, never a
+        record: the tool itself is the same scoped endpoint as its button."""
+        action = "assist.intent"
+        run = rt(o, action)
+        if body.computer_no is not None:
+            open_file(o, run, body.computer_no, action)
+        tool = route_intent(
+            run.llm, body.message, on_file=body.computer_no is not None, allowed=body.tools
+        )
+        audit.record(o.request_id, o.ctx.user_id, action, "ok", detail=f"tool={tool or 'rules'}")
+        return {"request_id": o.request_id, "tool": tool, "by": "model" if tool else "rules"}
+
+    @r.get("/chat/history/{conversation_id}")
+    def get_history(
+        conversation_id: Annotated[str, Path(pattern=r"^[a-f0-9]{16,32}$")],
+        o: Annotated[Officer, Depends(officer)],
+    ) -> dict[str, Any]:
+        """One conversation to show and continue. Another officer's id, or one whose file the
+        officer can no longer open: the same 404 as an id that does not exist. A stored answer
+        citing a record the officer may no longer see is withheld (CLAUDE.md §4.6, §4.9)."""
+        action = "assist.chat.history.open"
+        run = rt(o, action)
+        conv = chats.get(o.ctx.user_id, conversation_id)
+        if conv is None:
+            audit.record(o.request_id, o.ctx.user_id, action, "not_available")
+            raise HTTPException(status_code=404, detail=NOT_AVAILABLE)
+        history_place(o, run, conv.place, action)
+        ctx = run.tool_context(o.ctx.user_id, run.store_for(o.ctx))
+        turns: list[dict[str, Any]] = []
+        for t in conv.turns:
+            ok = all(visible_document(ctx, cid) is not None for cid in t.cited)
+            turns.append(
+                {"at": t.at.isoformat(), "asked": t.asked, "kind": t.kind, "tool": t.tool,
+                 "answer": t.answer if ok else None, "withheld": not ok}
+            )  # fmt: skip
+        audit.record(o.request_id, o.ctx.user_id, action, "ok", ids=(conversation_id,))
+        return {
+            "request_id": o.request_id,
+            "conversation_id": conv.conversation_id,
+            "place": conv.place,
+            "title": conv.title,
+            "turns": turns,
+        }
+
+    @r.post("/chat/history/tool")
+    def add_tool_turn(body: ToolTurnIn, o: Annotated[Officer, Depends(officer)]) -> dict[str, Any]:
+        """A question the file's own records answered (movements, summary, …): only the question
+        and the tool are kept; the answer is read again whenever it is shown."""
+        action = "assist.chat.history.tool"
+        place = history_place(o, rt(o, action), body.computer_no, action)
+        sid = body.conversation_id or uuid.uuid4().hex
+        chats.add(
+            o.ctx.user_id,
+            sid,
+            place,
+            HistTurn(at=dt.datetime.now(dt.UTC), asked=body.asked, kind="tool", tool=body.tool),
+        )
+        return {"request_id": o.request_id, "conversation_id": sid}
+
+    @r.post("/chat/history/{conversation_id}/delete")
+    def delete_history(
+        conversation_id: Annotated[str, Path(pattern=r"^[a-f0-9]{16,32}$")],
+        o: Annotated[Officer, Depends(officer)],
+    ) -> dict[str, Any]:
+        """The officer removes one of their conversations (their click)."""
+        action = "assist.chat.history.delete"
+        rt(o, action)
+        gone = chats.delete(o.ctx.user_id, conversation_id)
+        audit.record(
+            o.request_id, o.ctx.user_id, action, "ok" if gone else "none", ids=(conversation_id,)
+        )
+        return {"request_id": o.request_id, "deleted": gone}
 
     # ---- draft recovery (ADR-0046): the workspace, kept by the server as the officer works ----
 

@@ -11,7 +11,7 @@ implements the same Protocol later (CLAUDE.md §2.3: not Neo4j).
 from __future__ import annotations
 
 from collections import deque
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Sequence
 from enum import StrEnum
 from typing import Protocol, runtime_checkable
 
@@ -274,3 +274,21 @@ class InMemoryGraphRepository:
 
     def edges_from(self, cid: str) -> tuple[GraphEdge, ...]:
         return tuple(sorted(self._out.get(cid, ()), key=lambda e: (e.kind, e.target)))
+
+
+def split_edges(
+    ids: Sequence[str], edges: Iterable[GraphEdge]
+) -> tuple[dict[str, tuple[GraphEdge, ...]], dict[str, tuple[GraphEdge, ...]]]:
+    """Edges read for many nodes → per node, out-edges by (kind, target), in-edges by
+    (kind, source): the order `edges_from` / `edges_to` give."""
+    out: dict[str, list[GraphEdge]] = {c: [] for c in ids}
+    into: dict[str, list[GraphEdge]] = {c: [] for c in ids}
+    for e in dict.fromkeys(edges):
+        if e.source in out:
+            out[e.source].append(e)
+        if e.target in into:
+            into[e.target].append(e)
+    return (
+        {c: tuple(sorted(v, key=lambda e: (e.kind, e.target))) for c, v in out.items()},
+        {c: tuple(sorted(v, key=lambda e: (e.kind, e.source))) for c, v in into.items()},
+    )

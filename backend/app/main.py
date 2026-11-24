@@ -10,6 +10,7 @@ import contextlib
 import datetime as dt
 import functools
 import logging
+import re
 import threading
 import time
 from collections.abc import AsyncIterator, Callable
@@ -54,6 +55,7 @@ from app.http_guard import HttpGuard, ReadGate
 from app.ingestion.detect import use_saved_scans
 from app.ingestion.document_store import document_store_from_settings
 from app.ingestion.ocr import OcrEngine, RecordedOcrFiles, ocr_from_settings, version_dir
+from app.memory.history import InMemoryChatHistory, PostgresChatHistory
 from app.memory.pg_session import PostgresSessionMemory
 from app.memory.session import SessionMemory
 from app.noting.draft_studio import load_formats
@@ -67,6 +69,7 @@ from app.retrieval.ladder import LadderConfig
 from app.retrieval.request_memo import RequestMemoMiddleware
 from app.tracking.model_usage import InMemoryModelUsage, ModelQuota, PostgresModelUsage
 from app.tracking.monitor import MonitorData, build_monitor, rows_from_bigquery
+from app.tracking.profiler import ProfileMiddleware
 from app.tracking.query_log import BigQueryQueryLog, InMemoryQueryLog, QueryLog
 from app.tracking.signals import Person, Refusal, build_alerts, load_signal_config
 from app.tracking.usage import Usage, summarise, summarise_bigquery
@@ -131,9 +134,23 @@ def action_log_from_settings(settings: Settings) -> ActionLog:
     return InMemoryActionLog()
 
 
+def app_logging() -> None:
+    """The app's own log lines (logger "app.*") at INFO on stderr, where Cloud Run keeps them.
+    Without this only WARNING and above came through, so the per-request "cloud queries" line
+    never reached Cloud Logging (24 Nov 2026). Other libraries keep their own levels. The app
+    logs IDs, counts and decisions only, never document text (CLAUDE.md §4.11)."""
+    app_log = logging.getLogger("app")
+    if not app_log.handlers:
+        handler = logging.StreamHandler()
+        handler.setFormatter(logging.Formatter("%(levelname)s %(name)s %(message)s"))
+        app_log.addHandler(handler)
+        app_log.setLevel(logging.INFO)
+
+
 def create_app(settings: Settings | None = None) -> FastAPI:
     """Build the app. Config is loaded eagerly so a bad config fails at startup, not mid-request."""
     settings = settings or get_settings()
+    app_logging()
     use_saved_scans(settings.pdf_scan_cache_dir)
     hierarchy = load_hierarchy(settings.ontology_dir / "hierarchy.yaml")
     classification = load_classification(settings.ontology_dir / "classification.yaml")
@@ -414,6 +431,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # optional model calls per officer per day, and their log (ADR-0060 addendum): in Cloud SQL
     # when state is in Postgres, so the limit holds across instances and restarts
     model_usage = PostgresModelUsage(pg) if pg is not None else InMemoryModelUsage()
+    # chat history (ADR-0066): the officer's own conversations, kept by the server
+    chat_history = PostgresChatHistory(pg) if pg is not None else InMemoryChatHistory()
+    app.state.chat_history = chat_history
     app.state.model_usage = model_usage
     app.include_router(
         build_assist_router(
@@ -436,11 +456,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             wording_quota=ModelQuota(model_usage, settings.draft_wording_per_day),
             draft_formats=load_formats(settings.draft_formats_path),  # validated at start
             workspaces=PostgresWorkspaceStore(pg) if pg is not None else InMemoryWorkspaceStore(),
+            history=chat_history,
         )
     )
     app.state.banner = BANNER
     # each request reads a cloud record once (within-request reuse only; never across requests)
     app.add_middleware(RequestMemoMiddleware)
+    if paths := frozenset(
+        p.strip() for p in re.split(r"[,;]", settings.profile_paths) if p.strip()
+    ):
+        app.add_middleware(ProfileMiddleware, paths=paths)  # around the memo and the route
     # outermost: body limit, request ID, no-store headers, and the neutral answer to any failure
     app.add_middleware(
         HttpGuard,

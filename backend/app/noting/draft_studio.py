@@ -27,6 +27,7 @@ DFA draft through the connector). C2-24 never approves, signs, numbers, issues o
 from __future__ import annotations
 
 import datetime as dt
+import logging
 import re
 from collections.abc import Callable, Iterable, Sequence
 from pathlib import Path
@@ -39,7 +40,13 @@ from app.agents.dfa import LeftOut, ReadItem, abstract_from_subject, follow_chai
 from app.agents.first_cut import CitedPoint, PrecedentDecision
 from app.agents.intents import ORDER_TYPES
 from app.agents.llm import LLMClient, LLMError, load_prompt
-from app.agents.tools import ToolContext, draft_matches, status_covered, visible_document
+from app.agents.tools import (
+    ToolContext,
+    draft_matches,
+    prefetch_documents,
+    status_covered,
+    visible_document,
+)
 from app.agents.tools import visible_facts as _visible_facts
 from app.conflict.deterministic import ConflictFlag
 from app.graph.repository import Direction, EdgeKind
@@ -48,6 +55,8 @@ from app.noting.file_facts import FileFacts, FileParagraph
 from app.retrieval.evidence import addressed_to_ai
 from app.retrieval.graph_expansion import expand
 from app.temporal.engine import Status, status_as_of
+
+log = logging.getLogger(__name__)
 
 WATERMARK = "DRAFT — prepared with C2-24 Assist. Not approved, signed, numbered or issued."
 NOTE_WATERMARK = "DRAFT NOTE — prepared with C2-24 Assist. A Yellow Note only when you save it."
@@ -587,10 +596,14 @@ def close_matches(
     read = set(read_ids)
     out: list[CloseMatch] = []
     down = {r.value for r in res.unavailable}
+    # cloud reads in batches (24 Nov 2026): the matches' relations, then the related records
+    warm = getattr(ctx.graph, "prefetch", None)
+    if warm is not None:
+        warm([d.canonical_id for d in docs])
+    hops: dict[tuple[str, Direction], Any] = {}
     for d in docs:
-        relations: list[Relation] = []
         for direction in (Direction.OUT, Direction.IN):
-            hop = expand(
+            hops[(d.canonical_id, direction)] = expand(
                 ctx.user_id,
                 [d.canonical_id],
                 graph=ctx.graph,
@@ -601,6 +614,11 @@ def close_matches(
                 policy=ctx.policy,
                 classification=ctx.classification,
             )
+    prefetch_documents(ctx, [h.canonical_id for hop in hops.values() for h in hop.hits])
+    for d in docs:
+        relations: list[Relation] = []
+        for direction in (Direction.OUT, Direction.IN):
+            hop = hops[(d.canonical_id, direction)]
             if hop.unavailable:
                 down.add("L3")  # relations not walked: the match's standing is still from facts
             for h in hop.hits:
@@ -718,7 +736,11 @@ def suggest_wording(
             prompt_id=PROMPT_ID, system=load_prompt(PROMPT_ID), user=user, schema=SCHEMA
         )
         given = [x for x in raw.get("lines") or [] if isinstance(x, dict)]
-    except (LLMError, TypeError, ValueError):
+    except (LLMError, TypeError, ValueError) as exc:  # the error's type only, never content
+        log.warning(
+            "suggested wording not written: %s",
+            exc if isinstance(exc, LLMError) else type(exc).__name__,
+        )
         return Suggested(lines=(), removed=0, engine=llm.name, reason="engine_down")
     used = str(getattr(llm, "last_used", None) or llm.name)
     primary = getattr(getattr(llm, "primary", None), "name", None)

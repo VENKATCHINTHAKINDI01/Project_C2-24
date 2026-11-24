@@ -41,6 +41,33 @@ const Group = ({ title, children }: { title: string; children: ReactNode }) => (
 
 /** The officer's settings (ADR-0041): how the screens look and how the assistant behaves for
  *  them. Post, section, clearance and search scope are shown but set only by the department. */
+/** Settings › Clear chat history (ADR-0066): every conversation the server keeps for this officer
+ *  is removed, after a second click to confirm (no browser dialog). Cannot be undone. */
+function ClearChats({ api }: { api: Api }) {
+  const [step, setStep] = useState<"idle" | "confirm" | "busy" | "done" | "error">("idle");
+  const [n, setN] = useState(0);
+  const clear = () => {
+    setStep("busy");
+    api.clearChats().then((r) => { setN(r.cleared); setStep("done"); }).catch(() => setStep("error"));
+  };
+  return (
+    <div className="field clear-chats">
+      <span className="field-label">Chat history</span>
+      <p className="muted small">Your conversations with the assistant are kept so you can continue them. Only you can see them.</p>
+      {step === "confirm" ? (
+        <div className="actions">
+          <button className="danger" onClick={clear}>Yes, delete all my chats</button>
+          <button onClick={() => setStep("idle")}>Keep them</button>
+        </div>
+      ) : (
+        <button onClick={() => setStep("confirm")} disabled={step === "busy"}>Clear chat history</button>
+      )}
+      {step === "done" && <p className="ok" role="status">{n} chat{n === 1 ? "" : "s"} deleted.</p>}
+      {step === "error" && <p className="error" role="status">The chat history could not be cleared. Try again.</p>}
+    </div>
+  );
+}
+
 export function SettingsPage({ api, prefs, monitoring, onSaved }: {
   api: Api; prefs: Preferences; monitoring: boolean; onSaved: (p: Preferences) => void;
 }) {
@@ -107,15 +134,16 @@ export function SettingsPage({ api, prefs, monitoring, onSaved }: {
       </Group>
 
       <Group title="Assistant">
-        <Choice label="Assistant panel on a file" help="Collapsed keeps the notes wide; open the panel when you need it."
+        <Choice label="When a file opens" help="The AI button stays at the bottom right; click it to chat about the file."
           name="assistant_panel" value={draft.assistant_panel} set={set}
-          options={[["open", "Open"], ["collapsed", "Collapsed"]]} />
+          options={[["collapsed", "Show the AI button only"], ["open", "Open the AI chat"]]} />
         <Toggle label="Show answers as they are checked" help="Each statement appears once its citation is verified. Off: the whole answer appears at once."
           checked={draft.stream_answers} onChange={(v) => set("stream_answers", v)} />
         <Toggle label="Keyboard shortcuts" help="On a file: Ctrl / ⌘ + K to ask, Ctrl / ⌘ + Enter to insert the latest first-cut note as a Yellow Note (a draft), J / K between flags, ? for the list. Everywhere: / to go to a file; ↑ ↓ or J K to move between rows of a register, Enter to open."
           checked={draft.shortcuts} onChange={(v) => set("shortcuts", v)} />
         <Toggle label="Notices of new orders" help="On the receipt inbox, show which of your open files cite an order that has just arrived."
           checked={draft.show_notices} onChange={(v) => set("show_notices", v)} />
+        <ClearChats api={api} />
       </Group>
 
       <Group title="What is recorded">

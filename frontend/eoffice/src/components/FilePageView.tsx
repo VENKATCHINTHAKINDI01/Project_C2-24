@@ -1,33 +1,10 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { fmtDateTime } from "../format";
 import type { Api } from "../api";
-import type { DfaRow, DraftRow, FilePage, FileRecords, Highlight, PresendReport, Standing } from "../types";
+import type { DfaRow, DraftRow, FilePage, FileRecords, Highlight, Standing } from "../types";
 import { usePrefs } from "../prefs";
-import {
-  Archive,
-  Award,
-  FileCheck,
-  FileSignature,
-  FileText,
-  Keyboard,
-  LayoutTemplate,
-  Library,
-  Link2,
-  Lock,
-  Mails,
-  NotebookPen,
-  Paperclip,
-  PenLine,
-  RotateCcw,
-  Route,
-  Send,
-  ShieldCheck,
-  Sparkles,
-  Trash2,
-  X,
-  type LucideIcon,
-} from "lucide-react";
-import { AssistPanel } from "./AssistPanel";
+import { Archive, FileText, Keyboard, Link2, Lock, Mails, NotebookPen, Paperclip, PenLine, Route, Send, Sparkles, type LucideIcon } from "lucide-react";
+import { fileTools } from "./FileChatTools";
 import { DockSlot, useDock } from "./AssistDock";
 import { ChatPanel } from "./ChatPanel";
 import { CitationLegend, DocumentViewer, HighlightedText } from "./Citations";
@@ -38,16 +15,17 @@ export function FilePageView({ api, computerNo, open, draft }: {
 }) {
   const [page, setPage] = useState<FilePage | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [tab, setTab] = useState<"notes" | "toc" | "movements" | "records">("notes");
-  const [records, setRecords] = useState<FileRecords | null>(null);
+  // Records left the file tabs (mentor review, 24 Nov 2026): the AI button answers "records on this file"
+  const [tab, setTab] = useState<"notes" | "toc" | "movements">("notes");
   const [attaching, setAttaching] = useState<string | null>(null);
-  const [report, setReport] = useState<PresendReport | null>(null);
   const [marks, setMarks] = useState<Record<string, Highlight[]>>({});
   const [files, setFiles] = useState<Map<string, string>>(new Map()); // file no. → comp. no.
   const [viewing, setViewing] = useState<string | null>(null);
   const [help, setHelp] = useState(false);
   const prefs = usePrefs();
-  const dock = useDock(["ask", "check", "draft"], "For this file and the records you may see");
+  // one chat for the file (24 Nov 2026): every Check and Draft tool is asked in it, by chip or in words
+  const dock = useDock(["ask"], "About this file: its notes, movements, records, checks and drafts");
+  const askTool = (id: string) => { dock?.show("ask"); window.dispatchEvent(new CustomEvent("c2:file-tool", { detail: id })); };
 
   // J / K: next / previous pre-send flag; ?: the shortcuts (ADR-0034). Never while typing.
   useEffect(() => {
@@ -70,14 +48,12 @@ export function FilePageView({ api, computerNo, open, draft }: {
 
   const load = useCallback(() => {
     api.file(computerNo).then(setPage).catch((e: Error) => setError(e.message));
-    // what of this file is in institutional memory; a help, not the page
-    api.fileRecords(computerNo).then(setRecords).catch(() => setRecords(null));
   }, [api, computerNo]);
   const attach = (file: File | undefined) => {
     if (!file) return;
     setAttaching(`Attaching ${file.name}…`);
     api.attach(computerNo, file)
-      .then(() => { setAttaching(null); setTab("records"); load(); })
+      .then(() => { setAttaching(`${file.name} attached. Ask AI "Records on this file" to see where it stands.`); load(); })
       .catch((e: Error) => setAttaching(`Not attached: ${e.message}`));
   };
   useEffect(load, [load]);
@@ -106,16 +82,17 @@ export function FilePageView({ api, computerNo, open, draft }: {
       onOpenFile={(no) => { const c = files.get(no); if (c && open) open(c); }} fileNos={open ? fileNos : new Set()} />
   );
   // Send = the pre-send check (nothing is sent); its result opens in the assistant's Check tab
-  const send = () => {
-    dock?.show("check");
-    void api.presend(computerNo).then(setReport).catch((e: Error) => setError(e.message));
-  };
+  const send = () => askTool("presend");
+
 
   const notesCount = page.notes.length + page.drafts.length + (page.awaiting_approval ?? []).length + (page.submitted ?? []).length;
   const TABS: [typeof tab, string, LucideIcon, number | null][] = [
     ["notes", "Notes", NotebookPen, notesCount], ["toc", "Correspondence", Mails, page.correspondence.length],
-    ["movements", "Movements", Route, page.movements.length], ["records", "Records", Library, records ? records.records.length : null],
+    ["movements", "Movements", Route, page.movements.length],
   ];
+  // the file's chat: every tool of the Check and Draft tabs, by chip or in the officer's words
+  const tools = fileTools({ api, computerNo, onInserted: load, onOpenDoc: setViewing,
+    records: (r) => <RecordsTab records={r} attachments={page.attachments ?? []} view={setViewing} /> });
   const closed = f.state === "closed";
 
   return (
@@ -191,7 +168,7 @@ export function FilePageView({ api, computerNo, open, draft }: {
                 <p className="muted">Start the noting with a draft, or ask the assistant for a first-cut note.</p>
                 <div className="actions">
                   {draft && <button className="primary" onClick={draft}><PenLine size={16} aria-hidden="true" />Draft</button>}
-                  <button onClick={() => dock?.show("draft")}><Sparkles size={16} aria-hidden="true" />First-cut note</button>
+                  <button onClick={() => askTool("first_cut")}><Sparkles size={16} aria-hidden="true" />First-cut note</button>
                 </div>
               </div>
             )}
@@ -228,53 +205,23 @@ export function FilePageView({ api, computerNo, open, draft }: {
             </table></div>
           </section>
         )}
-        {tab === "records" && (
-          <section className="corr"><RecordsTab records={records} attachments={page.attachments ?? []} view={setViewing} /></section>
-        )}
       </div>
       <DockSlot tab="ask">
-        <ChatPanel api={api} computerNo={computerNo} onInserted={load} onOpenDoc={setViewing} titled={false}
+        <ChatPanel api={api} computerNo={computerNo} onInserted={load} onOpenDoc={setViewing} titled={false} tools={tools}
+          caveat={`About File No. ${f.file_no} and the orders and precedents it relates to. Each line shows its source. Drafts only.`}
           suggestions={suggestionsFor(marks, page?.file.subject ?? "")} />
-      </DockSlot>
-      <DockSlot tab="check">
-        <AssistPanel part="check" api={api} computerNo={computerNo} report={report} onReport={setReport} onInserted={load} onOpenDoc={setViewing} />
-      </DockSlot>
-      <DockSlot tab="draft">
-        {draft && (
-          <button className="studio-link" onClick={draft}>
-            <LayoutTemplate size={18} aria-hidden="true" />
-            <span><strong>Open the draft workspace</strong><span className="muted small">Notes, orders and letters in a chosen format</span></span>
-          </button>
-        )}
-        <AssistPanel part="draft" api={api} computerNo={computerNo} report={report} onReport={setReport} onInserted={load} onOpenDoc={setViewing} />
       </DockSlot>
       {viewing && <DocumentViewer api={api} canonicalId={viewing} onClose={() => setViewing(null)} />}
       {help && (
-        <div className="modal-backdrop" role="dialog" aria-label="Keyboard shortcuts" onClick={() => setHelp(false)}>
-          <div className="modal-box shortcuts-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <div className="modal-icon-seal"><Keyboard size={22} /></div>
-              <div>
-                <h3>e-Office Keyboard Shortcuts</h3>
-                <p className="muted small">Quick navigation and statutory assistance shortcuts</p>
-              </div>
-              <button type="button" className="icon-btn modal-close" onClick={() => setHelp(false)} aria-label="Close shortcuts">
-                <X size={18} />
-              </button>
-            </div>
-            <div className="modal-body">
-              <dl className="shortcuts-list">
-                <div className="shortcut-row"><dt><kbd>Ctrl</kbd> / <kbd>⌘</kbd> + <kbd>K</kbd></dt><dd>Ask C2-24 Assistant</dd></div>
-                <div className="shortcut-row"><dt><kbd>Ctrl</kbd> / <kbd>⌘</kbd> + <kbd>Enter</kbd></dt><dd>Insert first-cut note as Yellow Note</dd></div>
-                <div className="shortcut-row"><dt><kbd>J</kbd> / <kbd>K</kbd></dt><dd>Next / previous pre-send flag</dd></div>
-                <div className="shortcut-row"><dt><kbd>/</kbd></dt><dd>Go to file</dd></div>
-                <div className="shortcut-row"><dt><kbd>?</kbd></dt><dd>Show or hide this shortcut list</dd></div>
-              </dl>
-            </div>
-            <div className="modal-actions">
-              <button type="button" className="primary" onClick={() => setHelp(false)}>Got it</button>
-            </div>
-          </div>
+        <div className="shortcuts" role="dialog" aria-label="Keyboard shortcuts" onClick={() => setHelp(false)}>
+          <h4>Keyboard shortcuts</h4>
+          <dl>
+            <dt>Ctrl / ⌘ + K</dt><dd>Ask C2-24</dd>
+            <dt>Ctrl / ⌘ + Enter</dt><dd>Insert the latest first-cut note as a Yellow Note (a draft)</dd>
+            <dt>J / K</dt><dd>Next / previous pre-send flag</dd>
+            <dt>/</dt><dd>Go to file</dd>
+            <dt>?</dt><dd>Show or hide this list</dd>
+          </dl>
         </div>
       )}
     </div>
@@ -337,7 +284,6 @@ function ApprovalCard({ api, computerNo, d, onChanged }: { api: Api; computerNo:
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [returning, setReturning] = useState(false);
-  const [confirming, setConfirming] = useState(false);
   const [remarks, setRemarks] = useState("");
   const act = (fn: () => Promise<unknown>) => {
     setBusy(true); setError(null);
@@ -348,72 +294,33 @@ function ApprovalCard({ api, computerNo, d, onChanged }: { api: Api; computerNo:
       <h4>For your approval <span className="muted">put up by {d.author_post ?? "an officer"}</span></h4>
       <pre className="draft-text">{d.text}</pre>
       {returning ? (
-        <div className="return-box">
-          <p className="return-label">Return draft with review remarks / requested changes:</p>
+        <div className="return-box" style={{ marginTop: "1rem", padding: "0.75rem", background: "var(--bg-subtle, #f8f9fa)", borderRadius: "6px", border: "1px solid var(--border, #dee2e6)" }}>
+          <p style={{ margin: "0 0 0.5rem 0", fontWeight: 600 }}>Return draft with review remarks / requested changes:</p>
           <textarea
             aria-label="Review remarks"
             placeholder="Specify what should be changed (e.g. 'Revise paragraph 3: reduce sanction ceiling to Rs 50 lakhs as per G.O.Ms. 88')..."
             value={remarks}
             rows={3}
+            style={{ width: "100%", boxSizing: "border-box", marginBottom: "0.5rem" }}
             onChange={(e) => setRemarks(e.target.value)}
           />
           <div className="actions">
             <button
-              className="primary btn-confirm-return"
+              className="primary"
               disabled={busy}
               onClick={() => act(() => api.returnDraft(computerNo, d.draft_id, remarks))}
             >
-              <RotateCcw size={16} /> Confirm return
+              Confirm return
             </button>
             <button disabled={busy} onClick={() => setReturning(false)}>Cancel</button>
           </div>
         </div>
       ) : (
         <div className="actions">
-          <button className="primary btn-approve-issue" disabled={busy}
+          <button className="primary" disabled={busy}
             title="Your approval and signature (simulated). The order is numbered, dated and issued, and enters the records."
-            onClick={() => setConfirming(true)}>
-            <Award size={16} /> Approve, sign and issue
-          </button>
-          <button className="btn-return" disabled={busy} onClick={() => setReturning(true)}>
-            <RotateCcw size={16} /> Return for changes
-          </button>
-        </div>
-      )}
-      {confirming && (
-        <div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="modal-approve-title">
-          <div className="modal-box" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <div className="modal-icon-seal"><Award size={26} /></div>
-              <div>
-                <h3 id="modal-approve-title">Approve, Sign and Issue Order</h3>
-                <p className="muted small">Executive Digital Signature (DSC) & Official Gazette Publication</p>
-              </div>
-            </div>
-            <div className="modal-body">
-              <p>You are about to approve and issue draft <strong>{d.draft_id}</strong> on e-File No. <strong>{computerNo}</strong> put up by <strong>{d.author_post ?? "Section Officer"}</strong>.</p>
-              <div className="modal-notice">
-                <ShieldCheck size={20} className="notice-icon" />
-                <div>
-                  <strong>Statutory Finality:</strong>
-                  <p>This action simulates executive signing. The order will be numbered, dated, and entered into the institutional memory repository as a permanent binding precedent.</p>
-                </div>
-              </div>
-            </div>
-            <div className="modal-actions">
-              <button
-                className="primary btn-sign-confirm"
-                disabled={busy}
-                onClick={() => {
-                  setConfirming(false);
-                  act(() => api.approveAndIssue(computerNo, d.draft_id));
-                }}
-              >
-                <FileCheck size={16} /> Confirm & Issue G.O.
-              </button>
-              <button type="button" disabled={busy} onClick={() => setConfirming(false)}>Cancel</button>
-            </div>
-          </div>
+            onClick={() => act(() => api.approveAndIssue(computerNo, d.draft_id))}>Approve, sign and issue</button>
+          <button disabled={busy} onClick={() => setReturning(true)}>Return for changes</button>
         </div>
       )}
       {error && <p className="error">{error}</p>}
@@ -490,13 +397,12 @@ function DraftCard({ api, computerNo, d, view, onChanged }: {
           )}
           <div className="actions" style={{ marginTop: "0.25rem" }}>
             <button
-              className="primary btn-ai-revise"
+              className="primary"
               disabled={busy || revising}
               onClick={handleAiRevise}
               title="Use C2-24 to revise draft based on senior reviewer's instructions"
             >
-              <Sparkles size={16} />
-              {revising ? "Revising with AI…" : "Revise draft with AI"}
+              {revising ? "Revising with AI…" : "✨ Revise draft with AI"}
             </button>
           </div>
         </div>
@@ -510,22 +416,16 @@ function DraftCard({ api, computerNo, d, view, onChanged }: {
           ? <button disabled={busy || !text.trim()} onClick={() => act(() => api.saveDraft(computerNo, d.draft_id, text))}>Save</button>
           : <button disabled={busy} onClick={() => setEditing(true)}>Edit</button>}
         {d.kind === "dfa_draft" && (
-          <button className="primary btn-submit-approval" disabled={busy || editing}
+          <button className="primary" disabled={busy || editing}
             title="Put the draft up to the approving officer. You can no longer edit it unless it is returned."
-            onClick={() => act(() => api.submitDraft(computerNo, d.draft_id))}>
-            <Send size={16} /> Put up for approval
-          </button>
+            onClick={() => act(() => api.submitDraft(computerNo, d.draft_id))}>Put up for approval</button>
         )}
         {d.kind === "yellow_note" && (
-          <button className="primary btn-confirm-green" disabled={busy || editing}
+          <button className="primary" disabled={busy || editing}
             title="Your confirmation (simulated signature). The AI watermark is removed; the note becomes the file's next Green Note."
-            onClick={() => act(() => api.confirmDraft(computerNo, d.draft_id))}>
-            <FileSignature size={16} /> Confirm → Green
-          </button>
+            onClick={() => act(() => api.confirmDraft(computerNo, d.draft_id))}>Confirm → Green</button>
         )}
-        <button className="btn-discard" disabled={busy} onClick={() => act(() => api.discardDraft(computerNo, d.draft_id))}>
-          <Trash2 size={16} /> Discard
-        </button>
+        <button disabled={busy} onClick={() => act(() => api.discardDraft(computerNo, d.draft_id))}>Discard</button>
       </div>
       {error && <p className="error">{error}</p>}
     </article>

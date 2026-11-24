@@ -1,0 +1,1 @@
+{"prompt": "answer_compose.v1", "model": "gemini-3.5-flash", "response": {"lead": "Under the current orders, the proposal in the file can only be sanctioned by the Government.", "lead_uses": [1, 3], "sections": [{"heading": "Proposal details", "items": [1]}, {"heading": "Current guidelines", "items": [3, 4]}, {"heading": "Previous guidelines", "items": [2, 5]}]}}

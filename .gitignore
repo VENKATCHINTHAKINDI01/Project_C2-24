@@ -77,3 +77,19 @@ evaluation/reports/
 
 # RAGAS judge cache (evaluation/ragas_score.py): reruns are free; never committed
 evaluation/.ragas_cache/
+
+# Agent and personal scratch (never committed)
+scratch/
+.claude/settings.local.json
+
+# Frontend tooling output
+.vite/
+test-results/
+playwright-report/
+
+# Notebooks
+.ipynb_checkpoints/
+
+# Corpus archives and unpacked corpora live outside the repository (ADR-0006)
+*.zip
+c2-24-corpus*/

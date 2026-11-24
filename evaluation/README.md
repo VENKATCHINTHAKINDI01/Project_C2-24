@@ -20,13 +20,18 @@ evaluation/
 │   ├── opposites.py                # Fail-closed opposite scenario validator
 │   └── sandbox_flow.py             # HTTP-level touchpoint flow tests
 ├── data/                           # Evaluation-specific fixtures and datasets
-│   ├── l2_validation_dataset.json  # L2 hybrid search calibration ground truth
+│   ├── l2_validation_dataset.json  # format example only (not a calibration set)
+│   ├── l2_validation_known_item.json  # L2 calibration set (150 known-item queries, public orders)
+│   ├── l2_holdout_dataset.json     # family-disjoint L2 holdout (100 queries)
+│   ├── l2_calibration.json         # last measured calibration (not active until adopted)
+│   ├── l2_*_predictions_*.json     # per-query scores and gate results of a calibrate_l2.py --write run
 │   └── semantic_cache_pairs.json   # Semantic cache reworded pairs
 ├── reports/                        # Immutable, dated Markdown and JSON run reports
 ├── benchmark_suite.py              # Automated latency, recall, QPS & fan-out benchmark suite
 ├── run_eval.py                     # Main CLI entrypoint for regression evaluation (`make eval`)
 ├── ask_golden.py                   # Golden question evaluation against live or recorded Gemini
-├── calibrate_l2.py                 # Threshold calibration script for Rung L2 hybrid search
+├── build_l2_validation.py          # L2 calibration set (+ no-answer questions) and its family-disjoint holdout
+├── calibrate_l2.py                 # measures the L2 early exit as the ladder runs it; --holdout checks it
 ├── cloud_ladder_check.py           # Verification script comparing Cloud SQL, Spanner, and BigQuery
 ├── leakage_v2.py                   # Comprehensive permission leakage matrix across all roles
 ├── noting_live.py                  # Live noted draft verification against synthetic precedents
@@ -60,12 +65,14 @@ evaluation/
 | :--- | :--- | :--- |
 | `leakage_v2.py` | `uv run python evaluation/leakage_v2.py --jobs 4` | Evaluates multi-officer access matrices across direct reference, keyword, vector, graph, summary, and count paths. |
 | `presend_v2.py` | `uv run python evaluation/presend_v2.py` | Evaluates the 7 conflict types (A–G) during pre-send file dispatch. |
+| `conversation_check.py` | `cd backend && uv run python ../evaluation/conversation_check.py [--live]` | ADR-0067: model intent routing (accuracy vs the fixed rules, off-list answers = 0) and the chat answer layout over every golden question (forbidden records = 0, each checked statement shown once). Exit 1 on any critical failure. `--live` is billed. |
 
 ### 4. Cloud Infrastructure & Calibration
 | Script | Command | Purpose |
 | :--- | :--- | :--- |
 | `cloud_ladder_check.py` | `uv run python evaluation/cloud_ladder_check.py` | Verifies that Cloud BigQuery and Cloud SQL/Spanner produce identical candidate sets to the in-memory reference stack. |
-| `calibrate_l2.py` | `uv run python evaluation/calibrate_l2.py` | Tunes the cosine similarity threshold for L2 hybrid search against known-item validation data. |
+| `build_l2_validation.py` | `python3 evaluation/build_l2_validation.py --zip <corpus.zip> --filter-bq --out …` · options: `--no-answer K` (questions whose answer is not in the index), `--exclude-families-of <dataset>` (keep clear of another set's order families), `--holdout-of <calibration json>` (the holdout) | Builds the known-item calibration set from public order subjects, or its family-disjoint holdout. |
+| `calibrate_l2.py` | `cd backend && uv run python ../evaluation/calibrate_l2.py --backend local\|cloud --margin 0.03 [--write]` · `--holdout <dataset>` checks the saved calibration | Measures the L2 early exit exactly as the ladder runs it (one hit per order, score gap, attribute and graph gates); a threshold qualifies only if the 95% lower bound of its precision clears the target. `--backend cloud` is billed and needs the owner's explicit approval; it refuses invented IDs and never writes a calibration from fewer than 100 queries. |
 | `semantic_cache_calibrate.py` | `uv run python evaluation/semantic_cache_calibrate.py` | Calibrates similarity thresholds for scoped answer cache hits. |
 
 ---

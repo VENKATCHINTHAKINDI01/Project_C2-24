@@ -109,6 +109,13 @@ class CompositeGraph:
     def node(self, cid: str) -> GraphNode | None:
         return next((n for p in self._parts if (n := p.node(cid)) is not None), None)
 
+    def prefetch(self, ids: Iterable[str]) -> None:
+        """Warm the stores that can read in batches (cloud, per request); results unchanged."""
+        wanted = list(dict.fromkeys(ids))
+        for p in self._parts:
+            if wanted and (warm := getattr(p, "prefetch", None)) is not None:
+                warm(wanted)
+
     def _steps(self, cid: str, direction: Direction) -> list[tuple[GraphEdge, str]]:
         """Out-edges by (kind, target), then in-edges by (kind, source), as the reference;
         an edge held in two stores counts once."""
@@ -169,9 +176,11 @@ class CompositeGraph:
             n = self.node(cid)
             return n is not None and scope.admits(n.tags)
 
+        self.prefetch(seeds)
         start = [s for s in dict.fromkeys(seeds) if visible(s)]
         seen = set(start)
         queue: deque[tuple[str, tuple[str, ...]]] = deque((s, (s,)) for s in start)
+        warm: set[str] = set(start)
         hits: list[GraphHit] = []
         truncated = False
         truncation_reason: str | None = None
@@ -181,6 +190,10 @@ class CompositeGraph:
             cid, path = queue.popleft()
             if len(path) - 1 >= max_hops:
                 continue
+            if cid not in warm:  # the next breadth-first level, read in one go
+                level = [c for c, p in queue if len(p) - 1 < max_hops and c not in warm]
+                self.prefetch([cid, *level])
+                warm.update([cid, *level])
             for edge, nxt in order(self._steps(cid, direction)):
                 if edge.kind not in kinds or (not edge.confirmed and not include_unconfirmed):
                     continue

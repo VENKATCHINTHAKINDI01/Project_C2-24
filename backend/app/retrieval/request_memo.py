@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import contextlib
 import logging
+import time
 from collections.abc import Iterable, Iterator
 from contextvars import ContextVar
 from typing import Any
@@ -32,6 +33,7 @@ from app.retrieval.scoped import IndexedDocument, L1Criteria, ScopedRetriever
 
 log = logging.getLogger(__name__)
 QUERIES = ("queries",)  # the memo key under which the request's store queries are counted
+SECONDS = ("seconds",)  # … and the wall time they took
 
 _MEMO: ContextVar[dict[tuple[Any, ...], Any] | None] = ContextVar("c2_request_memo", default=None)
 
@@ -57,6 +59,22 @@ def count_query(store: str) -> None:
     if memo is not None:
         counts: dict[str, int] = memo.setdefault(QUERIES, {})
         counts[store] = counts.get(store, 0) + 1
+
+
+@contextlib.contextmanager
+def timed_query(store: str) -> Iterator[None]:
+    """Count one remote call and add its wall time to this request's totals (logged per
+    request as "<store>": calls and "<store>_s": seconds), so a slow request shows where it
+    waited (24 Nov 2026)."""
+    count_query(store)
+    started = time.monotonic()
+    try:
+        yield
+    finally:
+        memo = _memo()
+        if memo is not None:
+            spent: dict[str, float] = memo.setdefault(SECONDS, {})
+            spent[store] = spent.get(store, 0.0) + time.monotonic() - started
 
 
 def queries() -> dict[str, int]:
@@ -96,10 +114,11 @@ class MemoScopedIndex:
         if not todo:
             return
         many = getattr(self.inner, "exact_many", None)
-        found = many(todo, scope) if many is not None else {}
-        for c in todo:
-            if c in found:
-                memo[("exact", c, scope.signature, scope.user_id)] = found[c]
+        if many is None:
+            return
+        found = many(todo, scope)
+        for c in todo:  # a record not found is remembered too: never re-read one by one
+            memo[("exact", c, scope.signature, scope.user_id)] = found.get(c, [])
 
 
 class MemoGraph:
@@ -129,6 +148,34 @@ class MemoGraph:
         edges: tuple[GraphEdge, ...] = self._get("to", cid, self.inner.edges_to)
         return edges
 
+    def prefetch(self, ids: Iterable[str]) -> None:
+        """Read the nodes and edges of many orders, and the nodes at the other end of those
+        edges, in a few batched queries (stores with `nodes_many` / `edges_many`). Only warms
+        the memo: what a walk returns is unchanged (24 Nov 2026: one draft made dozens of
+        one-ID round trips to the graph store)."""
+        memo = _memo()
+        nodes_many = getattr(self.inner, "nodes_many", None)
+        edges_many = getattr(self.inner, "edges_many", None)
+        if memo is None or nodes_many is None or edges_many is None:
+            return
+        me = id(self.inner)
+        wanted = list(dict.fromkeys(ids))
+        todo = [c for c in wanted if ("from", c, me) not in memo or ("to", c, me) not in memo]
+        if todo:
+            out, into = edges_many(todo)
+            for c in todo:
+                memo[("from", c, me)] = out.get(c, ())
+                memo[("to", c, me)] = into.get(c, ())
+        ends = set(wanted)
+        for c in wanted:
+            ends.update(e.target for e in memo[("from", c, me)])
+            ends.update(e.source for e in memo[("to", c, me)])
+        missing = sorted(c for c in ends if ("node", c, me) not in memo)
+        if missing:
+            got = nodes_many(missing)
+            for c in missing:
+                memo[("node", c, me)] = got.get(c)
+
 
 class RequestMemoMiddleware:
     """ASGI: one fresh memo per HTTP request, dropped when the response is sent."""
@@ -140,12 +187,19 @@ class RequestMemoMiddleware:
         if scope.get("type") != "http":
             await self.app(scope, receive, send)
             return
+        started = time.monotonic()
         with request_memo() as memo:
             try:
                 await self.app(scope, receive, send)
             finally:
-                if sent := memo.get(QUERIES):  # IDs and counts only: never a query's values
-                    log.info("cloud queries for %s: %s", scope.get("path", "?"), sent)
+                if sent := memo.get(QUERIES):  # counts and seconds only: never a query's values
+                    spent = {f"{k}_s": round(v, 1) for k, v in memo.get(SECONDS, {}).items()}
+                    total = {"total_s": round(time.monotonic() - started, 1)}
+                    log.info(
+                        "cloud queries for %s: %s",
+                        scope.get("path", "?"),
+                        {**sent, **spent, **total},
+                    )
 
 
 def memo_text(canonical_id: str, scope: Scope, read: Any) -> str:

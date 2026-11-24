@@ -1,378 +1,358 @@
 # C2-24 — Institutional Memory & Conflict Detection for Departmental Files
 
-[![Project](https://img.shields.io/badge/TechBharat%20AI%20CoE-Fellowship%20Cohort%20%232-0052cc.svg)](https://techbharat.ai)
-[![Region](https://img.shields.io/badge/GCP%20Region-asia--south1%20(Mumbai)-success.svg)](#data-residency--sovereign-security-framework)
-[![Python](https://img.shields.io/badge/Python-3.11%2B-blue.svg)](https://www.python.org/)
-[![FastAPI](https://img.shields.io/badge/Framework-FastAPI%20%2B%20LangGraph-009688.svg)](https://fastapi.tiangolo.com)
-[![Retrieval](https://img.shields.io/badge/Retrieval-L0--L3%20Ladder%20(ADR--0063)-orange.svg)](#4-rung-permission-aware-retrieval-ladder)
-[![Security](https://img.shields.io/badge/Zero--Leakage-100%25%20Verified%20(0%2F86%2C373%20v2)-brightgreen.svg)](#empirical-performance--benchmarks)
+![Python](https://img.shields.io/badge/python-3.11%2B-blue)
+![Backend](https://img.shields.io/badge/backend-FastAPI%20%2B%20LangGraph-009688)
+![Frontend](https://img.shields.io/badge/frontend-React%2018%20%2B%20TypeScript-61dafb)
+![Region](https://img.shields.io/badge/GCP-asia--south1-4285f4)
+![Leakage](https://img.shields.io/badge/unauthorised%20disclosures-0-brightgreen)
+![Status](https://img.shields.io/badge/status-proof%20of%20concept-orange)
 
-**C2-24** is a proof-of-concept institutional memory and conflict detection assistant for the Government of Andhra Pradesh (Departmental e-Office), built and evaluated in a mock e-Office sandbox with synthetic e-files and public Government Orders. It eliminates institutional amnesia across decades of Secretariat records, validates the legal status of historical Government Orders (G.O.s), flags statutory and temporal contradictions before official files are dispatched, and drafts verifiable, fully-cited administrative notes.
+A permission-aware AI assistant for government e-Office files. While an officer works on a file,
+it finds the orders and earlier decisions that apply, says whether each is still in force, flags
+possible conflicts before the file is sent, answers questions about the file in plain language,
+and prepares cited notes and drafts for approval that the officer edits and saves.
 
-> **Operational Context & Governance Disclaimer:**
-> - **Evaluation Environment:** The system operates in a containerized mock e-Office sandbox demonstrating all 20 Secretariat file lifecycle touchpoints without requiring live NIC e-Office network connections.
-> - **Corpus:** Evaluated against public Government Orders (Finance, GAD, Revenue, MA&UD) and synthetic e-files. Real departmental records are governed by strict state authorization policies.
-> - **AI Boundary:** Language models **never** act as security gates, never generate free-form SQL/graph queries, and never execute executive sign-offs. Consequential administrative decisions remain exclusively with human officers.
+Built for problem statement **C2-24** of the TechBharat AI CoE Fellowship (Cohort #2, Government
+of Andhra Pradesh).
 
----
-
-## Table of Contents
-
-- [Core Capabilities & Value Proposition](#core-capabilities--value-proposition)
-- [System Architecture](#system-architecture)
-- [4-Rung Permission-Aware Retrieval Ladder](#4-rung-permission-aware-retrieval-ladder)
-  - [Graph-Guided Hybrid Evidence Retrieval (ADR-0063)](#graph-guided-hybrid-evidence-retrieval-adr-0063)
-- [Data Residency & Sovereign Security Framework](#data-residency--sovereign-security-framework)
-- [Enterprise Technology Stack](#enterprise-technology-stack)
-- [Repository & Module Structure](#repository--module-structure)
-- [Empirical Performance & Benchmarks](#empirical-performance--benchmarks)
-- [Getting Started & Operational Guide](#getting-started--operational-guide)
-  - [Prerequisites](#prerequisites)
-  - [Local Development Setup](#local-development-setup)
-  - [Multi-Container Docker Compose Stack](#multi-container-docker-compose-stack)
-  - [Automated Container Smoke Verification](#automated-container-smoke-verification)
-  - [Live Cloud Run Access](#live-cloud-run-access)
-- [Code Quality & Continuous Verification](#code-quality--continuous-verification)
-- [Architectural Decision Records (ADRs)](#architectural-decision-records-adrs)
+> **Status and scope**
+> - **Proof of concept.** It runs inside a **mock e-Office sandbox** ("Mock e-Office sandbox — not
+>   NIC e-Office · synthetic data"). There is no connection to NIC e-Office.
+> - **Data.** Public Government Orders and synthetic e-files only; no real departmental records.
+>   The hierarchy, roles and access policy are mock values `[To confirm]` with the department.
+> - **AI boundary.** The model is never the security boundary, never writes SQL, graph or search
+>   queries, and never signs, approves, sends or closes anything. Officers make every decision;
+>   signatures in the sandbox are simulated clicks (no DSC, eSign, Parichay or Aadhaar).
 
 ---
 
-## Core Capabilities & Value Proposition
+## Contents
 
-| Pillar | Capability | Operational Impact | Reference |
-| :--- | :--- | :--- | :--- |
-| **Institutional Memory** | Scoped precedent search over multi-decade orders, circulars, and executive proceedings. | Section officers discover binding precedents in milliseconds, preventing inadvertent policy reversals. | [Plan §3](IMPLEMENTATION_PLAN.md), [ADR-0026](docs/decisions/0026-l2-on-bigquery-in-region.md) |
-| **Temporal Reasoning** | Deterministic point-in-time ("as-of") validity resolution across amendment and supersession trees. | Answers queries like *"What was the dearness relief rate on 15-08-2022?"* using exact legal status on that calendar date. | [Plan §5](IMPLEMENTATION_PLAN.md), [ADR-0024](docs/decisions/0024-first-cited-answer.md) |
-| **Conflict Detection** | Multi-layer analysis across **7 statutory conflict types (A–G)**: direct contradiction, implicit amendment, scope expansion, procedural mismatch, financial eligibility divergence, retrospective clash, and jurisdictional overlap. | Catches contradictions before a draft leaves the section, avoiding judicial scrutiny and audit objections. | [Plan §6](IMPLEMENTATION_PLAN.md), [ADR-0010](docs/decisions/0010-approval-authority-rules-for-conflict-type-c.md), [ADR-0022](docs/decisions/0022-gemini-conflict-eval.md) |
-| **First-Cut Noting** | First-cut Yellow Note / DFA drafts with verbatim evidence grounding. | Every factual sentence carries an authorised citation; time saved is not yet measured with officers. | [Plan §11.5](IMPLEMENTATION_PLAN.md), [ADR-0030](docs/decisions/0030-noting-agent-text.md), [ADR-0062](docs/decisions/0062-senior-review-and-ai-draft-revision.md) |
-| **Full Lifecycle Integration** | Native integration across **all 20 Secretariat file touchpoints**: receipt diarisation, reference matching, review remarks, handover briefs, and draft revisions. | Fits directly into existing Secretariat workflows without disrupting standard operating procedures. | [Plan §11.5](IMPLEMENTATION_PLAN.md), [ADR-0037](docs/decisions/0037-touchpoint-scenarios.md) |
-| **Human-in-the-Loop** | OCR confidence gating, relation confirmation, draft editing, and senior review remarks. | AI suggests and flags; only human officers confirm, sign, and issue official Government Orders. | [Plan §12](IMPLEMENTATION_PLAN.md), [ADR-0018](docs/decisions/0018-ocr-confidence-gate.md), [ADR-0031](docs/decisions/0031-hitl-feedback-loop.md) |
+- [What it does](#what-it-does)
+- [How an officer uses it](#how-an-officer-uses-it)
+- [Architecture](#architecture)
+- [Retrieval ladder](#retrieval-ladder)
+- [The assistant and the model](#the-assistant-and-the-model)
+- [Security model](#security-model)
+- [Technology stack](#technology-stack)
+- [Repository layout](#repository-layout)
+- [Getting started](#getting-started)
+- [Testing and evaluation](#testing-and-evaluation)
+- [Results](#results)
+- [Deployment](#deployment)
+- [Documentation](#documentation)
+- [Known limitations](#known-limitations)
+- [Contributing](#contributing)
+- [License](#license)
 
 ---
 
-## System Architecture
+## What it does
 
-The system is architected as a modular monolith running in Google Cloud's sovereign India region (`asia-south1` / Mumbai):
+| Area | What it does |
+|---|---|
+| Institutional memory | Scoped search over orders, circulars and earlier file decisions; every answer line is cited to a record the officer may open. |
+| Temporal reasoning | Deterministic in-force / superseded status and as-of-date answers from the supersession and amendment chain, never a model guess. |
+| Conflict detection | Seven advisory types: **A** superseded reference · **B** direct contradiction · **C** wrong authority or procedure · **D** precedent inconsistency (review only) · **E** missing authority · **F** temporal mismatch · **G** hierarchy conflict. Deterministic where facts exist; the model only for grounded judgment. |
+| File assistant | One chat per file: summary, next action, movements, records, approval brief, changes since the decision, pre-send check, related files, first-cut note, draft for approval, closing remarks, references to earlier notes and order status — by button or in plain words. |
+| Noting and drafting | First-cut Yellow Notes and drafts for approval in the chosen e-Office format (note, G.O.Ms., G.O.Rt., memo, circular, letter); facts from the file with citations; anything unverified is flagged. Saved only on the officer's click. |
+| e-Office touchpoints | All 20 touchpoints of plan §11.5 in the sandbox: receipt diarisation, pre-send check, reference matching, handover brief, return with remarks, draft revision and more. |
+| Human review | OCR confidence gate and review screen, relation confirmation, feedback captured as evaluation data. |
+| Chat history | Each officer's conversations are kept by the server, continue where they stopped, and can be deleted one by one or all at once in Settings. |
+
+---
+
+## How an officer uses it
+
+1. **Sign in** (sandbox): choose a mock officer. Post, section, clearance and search scope decide
+   what they can see.
+2. **Open a file.** The page shows the notes, correspondence and movements. A floating **AI
+   button** (bottom right) opens the file's chat.
+3. **Ask in plain words** — "summarise this file", "what is my next action", "has this been
+   decided before?", "prepare a draft note for approval". The assistant works out which tool is
+   meant, answers with sources, and offers drafts the officer can edit and save.
+4. **Send** runs the pre-send check in the chat; nothing is ever sent by the assistant.
+5. **Ask AI** in the top bar is the general chat over every file and record the officer may open.
+
+---
+
+## Architecture
+
+A modular monolith (one FastAPI service) behind a React UI, on Google Cloud in `asia-south1`.
 
 ```mermaid
 flowchart TD
-    subgraph ClientLayer ["Client & Ingress Layer"]
-        User["Secretariat Officer"] --> Frontend["React 18 Mock e-Office UI\n(Vite + Tailwind)"]
-        Frontend --> IAP["Google Identity-Aware Proxy (IAP)\n(ES256 Signed JWT Assertion)"]
-        IAP --> API["FastAPI Modular Monolith (c2-api)\n(Cloud Run / asia-south1)"]
-    end
-
-    subgraph SecurityGate ["Deterministic Authorization Gate (Fail-Closed)"]
-        API --> Auth["compute_scope(officer)\n(Role, Section, Handling Codes, Clearance)"]
-        Auth --> ScopeCheck["Scope Injected into SQL & Memory Filters\n(Zero Unauthorized Disclosure)"]
-    end
-
-    subgraph OrchestrationLayer ["Agentic Orchestration (LangGraph)"]
-        ScopeCheck --> Orchestrator["LangGraph Single-State Orchestrator\n(Intent Routing & Deterministic Slot Filling)"]
-        Orchestrator --> RetrievalLadder["4-Rung Retrieval Ladder (L0 -> L3)"]
-    end
-
-    subgraph DataServices ["Sovereign Data Stores (asia-south1)"]
-        RetrievalLadder --> BQ["Google BigQuery\n- L0/L1 Canonical Metadata\n- L2 Vector Embeddings (768-dim)\n- Audit & Query Logs"]
-        RetrievalLadder --> CloudSQL["Google Cloud SQL (PostgreSQL 16)\n- LangGraph Checkpoints / Session Memory\n- L3 Graph Adjacency & Traversal Store\n- HITL Review Queues"]
-        RetrievalLadder --> VertexAI["Google Vertex AI\n- Text Embeddings (gemini-embedding-001)\n- Gemini 1.5 Pro/Flash (Strict Evidence Grounding)"]
-    end
-
-    subgraph VerificationGate ["Verification & Human Governance"]
-        RetrievalLadder --> Verifier["Citation & Factuality Verifier\n(Verbatim String & Evidence Package Check)"]
-        Verifier --> Output["Verified Response / First-Cut Note Draft"]
-        Output --> OfficerSignOff["Human Officer Approval\n(Yellow Note -> Green Note Simulated Signature)"]
-    end
+    Officer["Officer"] --> UI["Mock e-Office UI<br/>React 18 + TypeScript (Cloud Run)"]
+    UI --> API["c2-api — FastAPI modular monolith (Cloud Run)"]
+    API --> Scope["compute_scope(officer)<br/>RBAC + ABAC, fail closed"]
+    Scope --> Intent["Intent: one tool from a closed list<br/>Gemini, fixed rules as fallback"]
+    Intent --> Tools["File tools<br/>same scoped endpoints as the buttons"]
+    Intent --> Orch["LangGraph orchestrator<br/>one typed AgentState, fixed query templates"]
+    Orch --> Ladder["Retrieval ladder L0 → L3<br/>scope in every query"]
+    Ladder --> BQ["BigQuery<br/>L0/L1 metadata · L2 vector + keyword · audit"]
+    Ladder --> Graph["Spanner Graph<br/>L3 relations (Cloud SQL as reference store)"]
+    Orch --> Recheck["can_access re-check → evidence package"]
+    Recheck --> Gemini["Vertex AI Gemini<br/>wording from the evidence package only"]
+    Gemini --> Verify["Citation verifier<br/>unsupported lines withheld"]
+    Verify --> Layout["Answer layout over checked statements<br/>gated; unchanged answer as fallback"]
+    Layout --> UI
+    API --> SQL["Cloud SQL (PostgreSQL)<br/>app state, access tuples, sessions, chat history, usage ledger"]
 ```
 
----
-
-## 4-Rung Permission-Aware Retrieval Ladder
-
-To prevent hallucinations, enforce data security, and avoid token exhaustion, retrieval ascends through four disciplined, deterministic rungs. A request only climbs to a higher rung when lower rungs lack sufficient grounding:
-
-```
-RUNG L0: Exact Canonical Reference
-  │      Lookup by canonical ID (e.g., G.O.Ms.No.67, Fin. Dept.) via parameterized O(1) index.
-  ▼
-RUNG L1: Structured Filter Search
-  │      Deterministic SQL filter over department, date ranges, and document status.
-  ▼
-RUNG L2: Scoped Hybrid Semantic Search (BigQuery Vector + BM25)
-  │      Scope-filtered vector + keyword search inside BigQuery. Its early-exit threshold is NOT
-  │      calibrated yet (ADR-0061 addendum): until a measured calibration is approved, L2 never
-  │      ends the ladder alone on the cloud and the walk continues to L3.
-  ▼
-RUNG L3: Graph-Guided Hybrid Evidence Retrieval (Spanner Graph / Cloud SQL)
-         Bounded, scope-constrained walk; binding relations first when a limit cuts it (ADR-0063).
-```
-
-### Graph-Guided Hybrid Evidence Retrieval (ADR-0063)
-
-Foundational statutory orders (e.g., *Andhra Pradesh Revised Pension Rules, 1980*) possess hundreds of connected amendments and judicial citations. Standard breadth-first traversal causes graph fan-out explosion, token starvation, and silent context truncation. 
-
-ADR-0063 (with its 24 Nov addendum) bounds Rung L3. What runs today:
-
-1. **Bounded traversal**: at most `l3_max_nodes: 50` nodes and `l3_max_edges: 100` in-scope steps per walk (`runtime.yaml`). Only steps to records the officer may see are counted, so a limit never reveals hidden records.
-2. **Binding relations first when cut**: a walk runs in the store's normal order; only if a limit cuts it is it walked again with `SUPERSEDES`, `REPEALS`, `AMENDS`, `CLARIFIES` and `CONFLICTS_WITH` before citations and references, so a cut drops a citation before an amendment.
-3. **No silent truncation**: a cut walk adds a notice to the answer ("Not every related order was looked up …").
-
-Planned, not yet in the answer path: an intent-based relation selector, hybrid search restricted to the graph's candidate IDs, and the evidence consolidator (`select_relationships_by_intent`, `ScopedChunkMatch`, `consolidate_evidence` exist as tested helpers).
+The sandbox reaches the core only through the `EOfficeConnector` interface
+(`backend/app/connectors/`); core modules never import the mock.
 
 ---
 
-## Data Residency & Sovereign Security Framework
+## Retrieval ladder
 
-The system adheres strictly to the Government of Andhra Pradesh data sovereignty requirements:
+Every rung runs inside the officer's scope; the ladder stops as soon as authorised evidence is
+sufficient. The model never generates retrieval queries and never chooses a rung.
 
-- **Strict Data Residency (asia-south1)**:
-  - All compute (Cloud Run), storage (Cloud SQL, Cloud Storage), analytics (BigQuery), and inference (Vertex AI Gemini & Embeddings) execute exclusively within **`asia-south1` (Mumbai)**.
-  - Multi-region or global endpoints (such as Vertex AI Search in US/EU) were explicitly rejected ([ADR-0017](docs/decisions/0017-region-and-gemini-model.md), [ADR-0026](docs/decisions/0026-l2-on-bigquery-in-region.md)).
-- **Dual-Gate Fail-Closed Authorization**:
-  - The officer's clearance scope (`compute_scope(officer)`) is compiled into a deterministic boolean predicate containing allowed departments, sections, classification ceilings, and handling codes.
-  - **Gate 1 (Storage Layer):** Injected directly into BigQuery SQL `WHERE` clauses and graph traversals. Unauthorized rows are never read from disk.
-  - **Gate 2 (Memory Layer):** Every retrieved chunk is re-evaluated against the security scope in application memory before reaching the prompt buffer.
-  - **Zero Leakage (measured):** 0 unauthorized disclosures in 86,373 checks (seed v2: 21 officers × 203 files, every assistant path incl. drafting; `evaluation/reports/2026-11-19-leakage-v2-drafting-0060.md`) and in 1,142 checks on seed v1.
-- **Verbatim Citation Verifier**:
-  - Every factual claim and numerical figure produced by the LLM is validated by a deterministic verifier. Unsupported statements are automatically withheld before presentation to the officer.
+| Rung | Store | What it does |
+|---|---|---|
+| **L0** exact reference | BigQuery | Canonical ID lookup (e.g. a G.O. number) through a fixed template. |
+| **L1** structured filter | BigQuery | Parameterised metadata filter (department, type, dates, status). |
+| **L2** hybrid search | BigQuery + Vertex AI embeddings | Vector + keyword search over passages, capped top-K, one fixed template. |
+| **L3** graph expansion | Spanner Graph | Scope-constrained walk from L0–L2 hits for supersession, amendment and related orders. Always last. |
 
----
-
-## Enterprise Technology Stack
-
-| Layer | Component | Technologies | Architectural Responsibility |
-| :--- | :--- | :--- | :--- |
-| **Backend Core** | Modular Monolith | Python 3.11+, FastAPI, Pydantic v2, uv | Unified, high-throughput asynchronous REST API and business logic. |
-| **Agentic Workflow** | State Orchestrator | LangGraph, LangChain Core | Single typed `AgentState` managing multi-turn dialogue, intent classification, and noting. |
-| **Vector DB / Search** | Regional Hybrid Search | Google BigQuery Vector Search (`asia-south1`) | In-database cosine similarity (`ML.DISTANCE`) combined with BM25 keyword scoring over 768-dim embeddings. |
-| **Embeddings & AI** | Foundation Models | Vertex AI in asia-south1 (`gemini-embedding-001`, `gemini-3.5-flash`) | Regional text embeddings and strictly-grounded legal drafting / conflict detection. |
-| **Graph Store** | Knowledge Graph | Cloud Spanner Graph (Cloud SQL as the reference store) | Directed graph of confirmed relations (`SUPERSEDES`, `AMENDS`, `CLARIFIES`, `REPEALS`, `CITES`, `REFERENCES`). |
-| **Document Processing** | Ingestion & OCR | Google Document AI, PyPDF | Multi-format parsing (PDF text, scans, DOCX, XLSX) with confidence-gated human review queues. |
-| **Frontend UI** | Mock e-Office Sandbox | React 18, TypeScript, Vite, plain CSS | High-fidelity reproduction of Secretariat file screens, Green Notes, and Assistant side panel. |
-| **Infrastructure** | Containerized Deployment | Docker, Docker Compose, Cloud Run, Cloud Build | Serverless, immutable container deployments with automated secret injection and IAP authentication. |
+- **L2 early exit is off.** L2 may end the ladder only under a calibration measured the way the
+  exit runs, whose precision clears the target at the low end of its 95% interval. The first cloud
+  measurement (150 questions) did not, so every L2 result continues to L3.
+- **Bounded graph walks.** `l3_max_nodes` and `l3_max_edges` in `backend/config/runtime.yaml`;
+  only steps to records the officer may see count, so a limit never reveals hidden records. A cut
+  walk is re-walked over binding relations and is reported to the officer, never silent.
 
 ---
 
-## Repository & Module Structure
+## The assistant and the model
+
+Gemini on Vertex AI is used in four bounded places; each has a deterministic fallback.
+
+| Step | What the model sees | What it may do | Gate / fallback |
+|---|---|---|---|
+| Intent | The officer's message | Pick one tool from the list the screen offers, or the scoped search | Anything off the list, an error or a slow reply → fixed phrase rules |
+| Cited answer | The evidence package (authorised passages only) | Write statements, each with an exact quote | Citation verifier: unsupported statements are withheld |
+| Answer layout | The statements that already passed the check | A direct first line and grouped points | Every statement shown once; no number, date or reference not in the statements it names; otherwise the answer as checked |
+| File summary / next action | The notes of the open file the officer may read | Lead and points, each naming its notes | Same per-sentence gate; otherwise the notes as written |
+
+Drafting wording (notes, orders) uses the same evidence-only rule and a daily per-officer limit.
+Prompts are versioned files in `backend/prompts/`.
+
+---
+
+## Security model
+
+| Control | How |
+|---|---|
+| Scope before retrieval | `compute_scope(officer)` (role, post, section, clearance, search scope, movement trail, classification) is pushed into every rung, including graph walks and counts. |
+| Re-check | `can_access(officer, document)` re-checks every candidate before the evidence package is built. |
+| Fail closed | Any identity, scope or re-check failure gives a neutral denial; never an unscoped fallback. |
+| No existence leaks | Inaccessible records are "not available", exactly like records that do not exist; counts and summaries cover the authorised set only. |
+| Cache | Answers keyed by query + scope signature; the per-request memo never crosses requests or scopes; unverifiable scope bypasses the cache. |
+| Untrusted documents | Retrieved text is data; prompt injection cannot call tools or widen access. |
+| Citations | Never chosen by the model; claims are checked against the evidence package and unsupported lines are withheld. |
+| Model in the chat | Intent picks from a closed list (never a query or template); layout and summaries are gated against what the officer may already see. |
+| Chat history | Per officer only; file access and every cited record are re-checked on every read; a file tool's answer is never stored, only re-read; deletable. Not a log. |
+| Logging | IDs, outcomes and timings only; never document text or the officer's question unless explicitly configured. |
+| Data residency | Compute, storage, search and model calls in `asia-south1`. |
+| Identity and access | IAP-signed identity on Cloud Run; a mock sign-in header only in sandbox mode. Cloud Run access settings are owned by the platform administrators; deploy scripts never change them on an existing service. |
+
+The leakage suites assert **zero unauthorised disclosure** across direct, exact-ID, keyword,
+vector, graph, cache, memory, count, summary, comparison, existence, citation and drafting paths.
+See also [SECURITY.md](SECURITY.md).
+
+---
+
+## Technology stack
+
+| Layer | Technology |
+|---|---|
+| Backend | Python 3.11+, FastAPI, Pydantic v2, LangGraph, `uv` |
+| Models | Vertex AI `gemini-3.5-flash` (intent, wording, grounded judgment), `gemini-embedding-001` (768-dim) |
+| Search and metadata | BigQuery (asia-south1): L0/L1 metadata, L2 vector + keyword, audit and query logs |
+| Graph | Spanner Graph behind the `GraphRepository` interface (PostgreSQL and in-memory implementations for tests and the sandbox) |
+| Application state | Cloud SQL for PostgreSQL 16: sessions, chat history, access tuples, checkpoints, model-usage ledger, draft workspaces |
+| Documents and OCR | Cloud Storage, Document AI (pinned OCR processor for Telugu / English) |
+| Frontend | React 18, TypeScript, Vite, plain CSS, `lucide-react` icons, Vitest |
+| Hosting | Cloud Run (API and UI), Cloud Run Jobs, IAP, Secret Manager; Docker Compose locally |
+
+---
+
+## Repository layout
 
 ```
 .
-├── backend/                        # FastAPI modular monolith
-│   ├── app/
-│   │   ├── agents/                 # LangGraph orchestrator, runtime, routes, and prompt management
-│   │   ├── audit/                  # Append-only audit logger and BigQuery audit streaming
-│   │   ├── auth/                   # Identity verification (IAP ES256 & sandbox sign-in), rate limiting
-│   │   ├── conflict/               # Deterministic statutory conflict engine (Types A through G)
-│   │   ├── connectors/             # EOfficeConnector interface and guarded implementations
-│   │   ├── eoffice_mock/           # In-memory mock e-Office sandbox provider and adapter
-│   │   ├── graph/                  # Spanner Graph & PostgreSQL repository, bounded BFS walks
-│   │   ├── hitl/                   # Human-in-the-loop review queues, OCR gating, action logging
-│   │   ├── ingestion/              # Document AI OCR integration, canonical ID extraction, chunking
-│   │   ├── noting/                 # Green/Yellow note drafting studio, statutory reference engine
-│   │   ├── retrieval/              # L0-L3 ladder, BigQuery hybrid search, Graph-Guided expansion
-│   │   └── temporal/               # Point-in-time ("as-of") legal validity engine
-│   ├── config/                     # Runtime, sandbox profiles, and ontology configuration files
-│   └── tests/                      # 1,800+ unit, integration, and security regression tests
+├── backend/
+│   ├── app/                 # agents, audit, auth, cache, citation, conflict, connectors,
+│   │                        # eoffice_mock, graph, hitl, identifiers, ingestion, memory, noting,
+│   │                        # precedent, retrieval, temporal, tracking, updates
+│   ├── config/              # runtime.yaml (ladder, thresholds), draft formats, sandbox profiles
+│   ├── prompts/             # versioned prompt files (intent, answers, summaries, drafts)
+│   └── tests/               # pytest suites (unit, security, integration)
 ├── frontend/
-│   ├── eoffice/                    # React 18 + TypeScript mock e-Office web application
-│   └── server/                     # Lightweight Node.js static server & authenticated API proxy
+│   ├── eoffice/             # mock e-Office screens (React + TypeScript)
+│   └── server/              # static server and API proxy for Cloud Run
 ├── data/
-│   ├── ontology/                   # Departmental hierarchies, classification ontology, access rules
-│   ├── schemas/                    # Cloud SQL (PostgreSQL) and BigQuery DDL definitions
-│   └── synthetic/                  # Mock corpus v1 & v2 (public orders, e-files, ground-truth labels)
-├── evaluation/                     # Automated benchmarking harness, evaluation suites, and reports
+│   ├── ontology/            # document types, relations, hierarchy (working assumption)
+│   ├── schemas/             # PostgreSQL migrations (0001–0006) and BigQuery / Spanner DDL
+│   └── synthetic/           # mock corpus and e-files; ground truth for evaluation only
+├── data_collection/         # public-corpus collection tools (the corpus lives outside the repo)
+├── evaluation/              # harness, datasets and checks (see evaluation/README.md)
 ├── infrastructure/
-│   ├── gcp/                        # Idempotent Cloud Run, BigQuery, and IAM deployment scripts
-│   └── local/                      # Local Docker Compose environment and smoke verification test
-├── docs/
-│   ├── decisions/                  # 63 Architectural Decision Records (ADR-0001 to ADR-0063)
-│   └── images/                     # System architecture and workflow diagrams
-├── CLAUDE.md                       # Core engineering and operational contract
-├── IMPLEMENTATION_PLAN.md          # Master architecture and implementation roadmap
-└── PROGRESS.md                     # Detailed milestone ledger and tracking log
+│   ├── gcp/                 # numbered GCP setup and deploy scripts, OPERATIONS.md
+│   └── local/               # Docker Compose stack and smoke test
+├── IMPLEMENTATION_PLAN.md   # the design (Final / v5, with dated amendments)
+├── SECURITY.md              # security policy
+└── Makefile                 # setup, run, check, eval, frontend targets
 ```
 
----
-
-## Empirical Performance & Benchmarks
-
-The entire retrieval, reasoning, and latency pipeline is continuously evaluated via `evaluation/benchmark_suite.py` against the 24 Golden Secretariat Benchmark Questions:
-
-### 1. Information Retrieval Performance (N=24 Golden Set)
-
-| Metric | Target / Pass Bar | Measured Score | Operational Significance |
-| :--- | :--- | :--- | :--- |
-| **Recall@5** | $\ge 0.700$ | **0.732** (73.2%) | Over 73% of relevant statutory precedents appear within the top 5 candidates. |
-| **Recall@10** | $\ge 0.750$ | **0.781** (78.1%) | Nearly 80% of binding historical orders are captured within the top 10 candidates. |
-| **Precision@5** | $\ge 0.250$ | **0.305** (30.5%) | High density of relevant citations with minimal extraneous noise for the LLM context. |
-| **MRR (Mean Reciprocal Rank)** | $\ge 0.800$ | **0.886** | Primary governing precedent appears at rank **1.12** on average. |
-| **NDCG@10** | $\ge 0.700$ | **0.746** (74.6%) | Highly authoritative orders rank ahead of tangential citations. |
-| **Ladder-Level Accuracy** | $\ge 0.700$ | **0.737** (73.7%) | 73.7% of requests terminate on their optimal minimal ladder rung without unnecessary traversal. |
-| **Unauthorized Disclosures** | **0 (Zero)** | **0 / 1,142 (v1) · 0 / 86,373 (v2)** | **Zero data leakage** across all role clearance levels, sections, and handling codes. |
-
-### 2. RAG Quality & Groundedness (ADR-0050; RAGAS 19 Nov 2026, 17 scored questions, synthetic data, judge = same model family)
-
-| Metric | Score | Definition & Verification Method |
-| :--- | :--- | :--- |
-| **Citation Correctness** | **1.000 (100.0%)** | All model statements, quotes, and numbers match verbatim against cited source spans. |
-| **Citation Completeness** | **0.699 (69.9%)** | Share of expected ground-truth records successfully retrieved and cited. |
-| **Faithfulness / Response groundedness (RAGAS)** | **1.000 / 1.000** | RAGAS scores after the 18 Nov fixes (`evaluation/reports/2026-11-19-ragas-after-fixes.md`; before: 0.923 / 0.938). |
-| **Answer Relevancy (RAGAS)** | **0.762** | Semantic alignment between the officer's administrative inquiry and the drafted reply. |
-| **Context Recall** | **0.877 (87.7%)** | Share of essential legal records successfully delivered to the model evidence buffer. |
-
-### 3. Latency & Concurrency
-
-- **Per-Rung Execution Latency (in-memory sandbox engine only — not the cloud stores)**:
-  - **L0 Exact Reference:** `0.06 ms` (p50: 0.05 ms, p95: 0.08 ms)
-  - **L1 Structured Filter:** `0.05 ms` (p50: 0.05 ms, p95: 0.06 ms)
-  - **L2 Hybrid Search:** `0.08 ms` (p50: 0.08 ms, p95: 0.11 ms)
-  - **L3 Graph Expansion:** `0.16 ms` (p50: 0.15 ms, p95: 0.17 ms)
-  - *Cloud latency is not measured here. On 19 Nov a draft on the cloud stores took 352 s (≈ 400 BigQuery queries); the per-request query memo (ADR-0060 addendum 2) is the fix, still to be measured on the cloud.*
-- **Throughput & Concurrency**:
-  - In-memory engine, 160 requests on 8 workers: 5,889.8 QPS, mean 0.31 ms (a ceiling for the Python code alone, not a service throughput figure).
-
-### 4. High-Degree Graph Fan-Out Stress Test (*AP Revised Pension Rules, 1980*)
-
-Synthetic graph (250 generated links around one order, `evaluation/benchmark_suite.py`) — not a real corpus measurement:
-
-| Architecture | Nodes Explored | Latency | Silent Truncation? | Statutory Hierarchy Recall |
-| :--- | :--- | :--- | :--- | :--- |
-| **Unconstrained Traversal** | 250 nodes | 5.00 ms | **Yes (Context Overflow)** | Unranked |
-| **Bounded walk (ADR-0063)** | **50 nodes (bounded)** | **1.17 ms** | **No (notice in the answer, ADR-0063 addendum)** | Binding relations walked first when a limit cuts the walk |
+Application code under `backend/app/` never reads the ground truth in
+`data/synthetic/…/ground_truth/`.
 
 ---
 
-## Getting Started & Operational Guide
+## Getting started
 
 ### Prerequisites
 
-- **Python 3.11+** with [`uv`](https://docs.astral.sh/uv/) package manager
-- **Node.js 20+** and `npm`
-- **Docker** and **Docker Compose** (for containerized workflows)
-- **Google Cloud SDK (`gcloud`)** (for staging/production deployment)
+- Python 3.11+ and [`uv`](https://docs.astral.sh/uv/)
+- Node.js 20+ and npm
+- Docker with Compose (optional, for the full local stack)
+- Google Cloud SDK (only for cloud runs and deployment)
 
-### Local Development Setup
+### Run the sandbox locally (no cloud access needed)
 
 ```bash
-# 1. Clone repository and setup environment
-git clone https://github.com/TechBharat-AI/C2-24.git
-cd C2-24
-cp .env.example .env
+cp .env.example .env            # placeholders only; never commit real values
+make setup                      # backend dependencies
+make run                        # API on http://localhost:8080 (OpenAPI at /docs)
 
-# 2. Install backend dependencies and run API server
-make setup
-make run
-# Backend starts at http://localhost:8080 (docs at /docs, readiness probe at /readyz)
-
-# 3. In a separate terminal, start mock e-Office frontend
-make fe-install
-make fe-dev
-# Frontend UI starts at http://localhost:5173
+# in a second terminal
+make fe-install                 # pinned npm dependencies
+make fe-dev                     # UI on http://localhost:5173
 ```
 
-Open `http://localhost:5173` in your browser and select any mock profile (e.g., *K. Sravani, Assistant Section Officer* or *B. Narendra Babu, Section Officer*) to sign in.
+Set `C2_SANDBOX=true` in `.env` for the mock sign-in, and `C2_LLM_PROVIDER=recorded` to replay
+recorded model output instead of calling Vertex AI. Without a model the assistant still answers:
+file tools and cited statements work, and the model steps fall back as described above.
+
+### Full local stack
+
+```bash
+docker compose -f infrastructure/local/compose.yaml up --build   # PostgreSQL, migrations, API, UI
+bash infrastructure/local/smoke.sh                                # end-to-end checks
+```
+
+With PostgreSQL state, migrations in `data/schemas/postgres/` (including `0006_chat_history`) are
+applied at start; on Cloud SQL, apply them and the grants in `infrastructure/gcp/12_cloudsql_schema.py`.
 
 ---
 
-### Multi-Container Docker Compose Stack
-
-Run the complete production-mirror stack locally (PostgreSQL 16, schema migrations, backend API, and frontend UI):
+## Testing and evaluation
 
 ```bash
-# Build and run all container services
-docker compose -f infrastructure/local/compose.yaml up --build
+make check       # ruff, strict mypy, pytest (real-Postgres tests run when C2_TEST_PG_DSN is set)
+make fe-check    # TypeScript, Vitest, production build
+make eval        # evaluation harness → evaluation/reports/ (exits 1 on any disclosure)
+
+# chat intent and answer layout; add --live to call Gemini (billed)
+cd backend && env -u VIRTUAL_ENV uv run python ../evaluation/conversation_check.py
 ```
 
-Access points:
-- **Mock e-Office Web Suite:** `http://localhost:8080`
-- **Backend API:** Internal container network only (mirrors Cloud Run security topology)
+Other suites — cross-officer leakage matrix, conflict detection, cited answers on the golden set,
+RAGAS groundedness, cloud-store parity, L2 calibration — are listed in
+[evaluation/README.md](evaluation/README.md). Scripts that call cloud services are billed and are
+run only with the owner's approval. Before a release that changes prompts, the model's role,
+retrieval or access, the full regression runs with Gemini and is compared with the baseline.
 
 ---
 
-### Automated Container Smoke Verification
+## Results
 
-Verify the entire containerized deployment using the 9-point integration smoke suite:
+Synthetic e-files and public orders; measured on the dates shown. Reports are kept by the team
+(`evaluation/reports/`, not in this repository).
 
-```bash
-bash infrastructure/local/smoke.sh
-```
+| Measure | Result | Date |
+|---|---|---|
+| Unauthorised disclosures, cross-officer matrix (seed v2, 21 officers, every assistant path incl. drafting) | **0 / 90,636** checks | 24 Nov 2026 |
+| Unauthorised disclosures, regression harness | **0 / 1,190** checks | 24 Nov 2026 |
+| Retrieval, golden set (27 questions, in-memory stores) | Recall@5 0.723 · Recall@10 0.765 · Precision@5 0.282 · MRR 0.833 · NDCG@10 0.719 · ladder-level accuracy 0.727 | 24 Nov 2026 |
+| Conflict detection A / C / E / F | Precision 1.000 · recall 1.000 · clean-control false flags 0 | 24 Nov 2026 |
+| e-Office touchpoint scenarios | 24 / 24 · opposite scenarios 20 / 20 | 24 Nov 2026 |
+| RAG quality (RAGAS, 17 questions; judge from the same model family) | Faithfulness 1.000 · groundedness 1.000 · answer relevancy 0.762 · context recall 0.877 · citation correctness 1.000 | 19 Nov 2026 |
+| Chat checks (gates; recorded model) | 0 off-list intents · 0 forbidden records · 0 statements lost or duplicated | 24 Nov 2026 |
 
-**Checks executed:**
-1. Database migration application (`c2` schema up to date)
-2. Web screen accessibility (`/` returns 200 OK)
-3. Sandbox profile retrieval (`/sandbox/profiles` functional)
-4. Unauthenticated refusal (401 Not Signed In without user headers)
-5. Authorized query execution (Section Officer `U01` query completes with citations)
-6. State persistence across container restarts (PostgreSQL multi-turn continuity)
-7. Audit event capture (verification of query logging)
-8. Root filesystem security (containers run with read-only root filesystems)
-9. Non-root execution validation
+Precision@5 is lower than the 24-question figure (0.295) only because three harder questions were
+added; on the same 24 questions it is 0.305.
 
 ---
 
-### Live Cloud Run Access
+## Deployment
 
-The live staging services are deployed in `asia-south1`:
-- **Backend Service:** `c2-api` (`https://c2-api-820308448289.asia-south1.run.app`)
-- **Frontend Service:** `c2-frontend` (`https://c2-frontend-820308448289.asia-south1.run.app`)
+Cloud resources live in project `use-case-24-project`, region `asia-south1`; services `c2-api` and
+`c2-frontend` on Cloud Run. Scripts in `infrastructure/gcp/` are numbered and dry-run by default
+(`APPLY=1` executes).
 
-#### Option A: Local Proxy (Bypasses IAP for Developer Inspection)
 ```bash
+# API (from infrastructure/gcp): build, then deploy with the agreed settings
+APPLY=1 bash 20_api_service.sh
+# screens: build and deploy only; existing access settings are kept
+PART=dev APPLY=1 bash 23_frontend_service.sh
+# inspect the API without the browser (needs Cloud Run access)
 gcloud run services proxy c2-api --project use-case-24-project --region asia-south1 --port 8080
+curl http://localhost:8080/readyz
 ```
-- Interactive OpenAPI Docs: `http://localhost:8080/docs`
-- Health probe: `curl http://localhost:8080/readyz`
 
-#### Option B: Authenticated Terminal Query
-```bash
-TOKEN=$(gcloud auth print-identity-token)
-
-curl -s -H "Authorization: Bearer $TOKEN" \
-     -H "X-Sandbox-User: V01" \
-     -X POST https://c2-api-820308448289.asia-south1.run.app/assist/ask \
-     -H "Content-Type: application/json" \
-     -d '{"question": "What are the latest dearness relief revisions under the pension rules?"}' | jq .
-```
+- A redeploy changes image, environment and size only. Who can reach a service (authentication,
+  IAP, ingress, IAM) is set by the platform administrators; any change is agreed with them first
+  and then run with `SECURITY_CHANGE=approved` (see `infrastructure/gcp/OPERATIONS.md`).
+- Billed operations (deploys, cloud evaluation runs, calibration) are run by the project owner.
 
 ---
 
-## Code Quality & Continuous Verification
+## Documentation
 
-Every change must satisfy strict linting, typing, security, and regression bars:
+| Document | Purpose |
+|---|---|
+| [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) | The design; § numbers are referenced in code and docs; dated amendments inline |
+| [SECURITY.md](SECURITY.md) | Security policy |
+| [evaluation/README.md](evaluation/README.md) | Evaluation suites, commands and pass criteria |
+| [infrastructure/gcp/OPERATIONS.md](infrastructure/gcp/OPERATIONS.md) | Recurring checks, backups, smoke checks, access-settings rule |
+| [frontend/README.md](frontend/README.md) | Screens and local frontend work |
 
-```bash
-# Backend linting, strict mypy type checking, and unit test suite (1,800+ tests)
-make check
-
-# Frontend type checking, Vitest unit suite, and production build validation
-make fe-check
-
-# Run complete evaluation benchmark suite (exits 1 on any unauthorized disclosure)
-make eval
-
-# Execute high-degree simulation and RAG quality benchmarks
-uv run python evaluation/benchmark_suite.py
-```
+Team records are kept on the team's machines and are not in this repository: the progress log and
+task ledger, architecture decision records (ADR-0001 onwards, cited by number in code comments),
+learnings, the agent contract, design PDFs and run reports.
 
 ---
 
-## Architectural Decision Records (ADRs)
+## Known limitations
 
-Key architectural selections are documented as immutable decision records in [`docs/decisions/`](docs/decisions/):
-
-- **[ADR-0009](docs/decisions/0009-authz-spike-and-eoffice-connector-contract.md)** — Mock e-Office integration boundary and connector interface.
-- **[ADR-0010](docs/decisions/0010-approval-authority-rules-for-conflict-type-c.md)** — Deterministic classification of statutory conflict types A–G.
-- **[ADR-0017](docs/decisions/0017-region-and-gemini-model.md)** — Sovereign data residency in `asia-south1` and Document AI configuration.
-- **[ADR-0024](docs/decisions/0024-first-cited-answer.md)** — Deterministic point-in-time ("as-of") validity resolution.
-- **[ADR-0026](docs/decisions/0026-l2-on-bigquery-in-region.md)** — In-region BigQuery Vector Search replacing global Vertex AI Search.
-- **[ADR-0030](docs/decisions/0030-noting-agent-text.md)** — First-cut noting engine with strict evidence citing and review markers.
-- **[ADR-0039](docs/decisions/0039-production-hardening.md)** — Dual-identity handling (IAP ES256 assertion vs mock sandbox header).
-- **[ADR-0050](docs/decisions/0050-rag-quality-scoring.md)** — RAGAS groundedness and factual completeness evaluation framework.
-- **[ADR-0062](docs/decisions/0062-senior-review-and-ai-draft-revision.md)** — Two-officer workflow with return remarks and AI-assisted draft revision.
-- **[ADR-0063](docs/decisions/0063-graph-guided-hybrid-evidence-retrieval.md)** — Graph-Guided Hybrid Evidence Retrieval & non-silent fan-out bounds.
+- Synthetic and public data only; department hierarchy, numbering and access rules are unconfirmed.
+- No live e-Office integration; the connector is exercised only by the mock.
+- L2 early exit is off until a calibration meets its bar.
+- Retrieval metrics are from the in-memory sandbox stores, not the cloud stores.
+- The RAGAS judge is from the same model family as the generator, and RAGAS has not yet been re-run
+  since the model began laying out answers and writing file summaries.
+- The live model's intent accuracy is measured by `conversation_check.py --live`; the fixed rules
+  alone route 32 of 39 test phrasings correctly.
+- Chat history and per-officer daily model limits are in memory unless PostgreSQL state is
+  configured, so they reset when the service restarts.
 
 ---
 
-## License & Governance
+## Contributing
 
-Built under the **TechBharat AI Centre of Excellence Fellowship** for the **Government of Andhra Pradesh**. All rights reserved. Code and synthetic evaluation artifacts are designated for fellowship evaluation and governmental institutional memory research.
+- Read the engineering contract first (build order, security rules, definition of done).
+- One logical change per commit, message `<area>: <what> (plan §x.y)`; commit only when
+  `make check`, `make fe-check` and the leakage suite pass.
+- Record decisions as ADRs and update the progress log at the end of every task.
+- Never commit secrets, real departmental data, or edits to golden answers.
+
+---
+
+## License
+
+Built under the TechBharat AI CoE Fellowship for the Government of Andhra Pradesh. All rights
+reserved; for fellowship evaluation only.

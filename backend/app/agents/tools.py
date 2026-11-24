@@ -373,6 +373,12 @@ def _two_ids(args: dict[str, Any]) -> tuple[str, str]:
 # ---- public, scoped helpers for other assist modules (same checks as the tools above) ----------
 
 
+def prefetch_documents(ctx: ToolContext, canonical_ids: Sequence[str]) -> None:
+    """Read many records in one batched query ahead of their one-by-one re-checks (cloud);
+    `visible_document` still checks each one."""
+    _prefetch(ctx, list(dict.fromkeys(canonical_ids)))
+
+
 def visible_document(ctx: ToolContext, canonical_id: str) -> IndexedDocument | None:
     """The record, only if this officer may see it (L0 within scope + re-check)."""
     return _visible(ctx, canonical_id)

@@ -49,7 +49,7 @@ def test_zero_disclosures_on_every_path(report: dict[str, Any]) -> None:
 
 
 def test_every_golden_question_and_conflict_type_is_reported(report: dict[str, Any]) -> None:
-    assert len(report["retrieval"]["questions"]) == 24
+    assert len(report["retrieval"]["questions"]) == 27  # Q25–Q27 (24 Nov): graph-guided traps
     assert set(report["conflict"]["per_type"]) == set("ABCDEFG")
     for t in "BDG":  # not built yet: reported as such, never silently dropped
         assert not report["conflict"]["per_type"][t]["implemented"]

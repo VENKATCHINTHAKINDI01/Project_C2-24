@@ -1,0 +1,1 @@
+{"prompt": "answer_compose.v1", "model": "gemini-3.5-flash", "response": {"lead": "Yes, spouse-ground transfer requests have been decided before, with one being approved and another not considered due to a pending enquiry.", "lead_uses": [1, 2], "sections": [{"heading": "Previous transfer decisions", "items": [1, 2]}]}}

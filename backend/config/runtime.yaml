@@ -13,6 +13,7 @@ retrieval:
   l3_max_edges: 100                 # operational starting limit for edge traversal fan-out
   # ADR-0061 addendum (24 Nov 2026): the 20 Nov "calibration" used hard-coded scores, not a
   # retriever, so it is withdrawn. evaluation/calibrate_l2.py --backend cloud writes a measured one.
+  l2_min_margin: null               # score gap to the runner-up; must equal the calibration's min_margin
   l2_calibrated: false
   l2_calibration_metadata: null
 

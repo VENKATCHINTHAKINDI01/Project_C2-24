@@ -27,7 +27,10 @@
     "Q21": {"intent": "current_rule", "slots": {"terms": ["station", "period"]}},
     "Q22": {"intent": "precedent_lookup", "slots": {"text": "@question"}},
     "Q23": {"intent": "precedent_lookup", "slots": {"text": "@question"}},
-    "Q24": {"intent": "current_rule", "slots": {"terms": ["transfer"]}}
+    "Q24": {"intent": "current_rule", "slots": {"terms": ["transfer"]}},
+    "Q25": {"intent": "current_rule", "slots": {"terms": ["station", "tenure"]}},
+    "Q26": {"intent": "current_rule", "slots": {"terms": ["administrative", "sanction"]}},
+    "Q27": {"intent": "current_rule", "slots": {"terms": ["emergency", "work"]}}
   },
   "touchpoints": {
     "TP15-a": {"intent": "precedent_lookup", "slots": {"text": "that 2023 drain case"}},

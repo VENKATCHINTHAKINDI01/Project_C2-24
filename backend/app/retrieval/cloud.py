@@ -67,6 +67,7 @@ def cloud_rungs_from_settings(settings: Settings, redis: Any = None) -> CloudRun
         threshold=settings.l2_cloud_min_score,
         calibrated=settings.l2_cloud_calibrated,
         metadata=settings.l2_cloud_calibration_metadata,
+        margin=settings.l2_cloud_min_margin,
     )
     return CloudRungs(
         index=BigQueryScopedIndex(runner, f"{project}.{settings.bq_dataset}.documents"),

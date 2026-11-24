@@ -104,6 +104,9 @@ def build_sandbox_router(
                     "department": p.department,
                     "section": p.section,
                     "clearance": p.clearance,
+                    # how far the officer's e-Office search reaches (own section, the
+                    # sections under them, the whole department)
+                    "search_scopes": sorted(p.search_scopes),
                 }
                 for p in adapter.profiles()
             ],

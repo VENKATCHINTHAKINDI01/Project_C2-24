@@ -11,7 +11,7 @@ import { ReceiptInbox, ReceiptView } from "./components/Receipts";
 import { SearchPage } from "./components/SearchPage";
 import { SettingsPage } from "./components/Settings";
 import { AskAi } from "./components/AskAi";
-import { AssistDock } from "./components/AssistDock";
+import { AssistDock, type AiMode } from "./components/AssistDock";
 import { DraftStudio } from "./components/DraftStudio";
 import { SignIn } from "./components/SignIn";
 import { SideNav, TopBar, type View } from "./components/TopBar";
@@ -83,14 +83,10 @@ export function App() {
     applyPreferences(next);
     api.savePreferences(next).catch(() => { /* kept for this sign-in; Settings shows the saved value */ });
   };
-  // The assistant panel (right, every screen): open by default where a file or receipt fills it
-  // (Settings › assistant panel), collapsed elsewhere until the officer opens it.
-  const contextual = view.kind === "file" || view.kind === "receipt";
-  const [dockOpen, setDockOpen] = useState(true);
-  const [askOpen, setAskOpen] = useState(false);
-  useEffect(() => setDockOpen(prefs.assistant_panel === "open"), [prefs.assistant_panel]);
-  const asking = contextual ? dockOpen : askOpen;
-  const setAsking = useCallback((o: boolean) => (contextual ? setDockOpen : setAskOpen)(o), [contextual]);
+  // The assistant (ADR-0064 addendum 1): on a file or receipt, a floating AI button opens a chat
+  // about that file; Ask AI in the top bar opens the general chat over every file the officer may
+  // open. One panel at a time; neither takes a column of the page.
+  const [aiMode, setAiMode] = useState<AiMode>(null);
   // the menu: full, or icons only (kept for this sign-in)
   const [navMini, setNavMini] = useState(false);
   const openFile = (c: string) => go({ kind: "file", computerNo: c });
@@ -131,12 +127,12 @@ export function App() {
         }} />
       ) : (
         <>
-          <TopBar me={me} signOut={() => { setMe(null); setRecentNos([]); setAskOpen(false); go(HOME, true); }}
+          <TopBar me={me} signOut={() => { setMe(null); setRecentNos([]); setAiMode(null); go(HOME, true); }}
             files={files} open={openFile} dark={dark} toggleTheme={toggleTheme}
-            ask={() => setAsking(!asking)} asking={asking} toggleNav={() => setNavMini((m) => !m)} />
-          <div className={`shell${navMini ? " nav-mini" : ""}${asking ? " dock-open" : " dock-closed"}`}>
+            ask={() => setAiMode(aiMode === "general" ? null : "general")} asking={aiMode === "general"} toggleNav={() => setNavMini((m) => !m)} />
+          <div className={`shell${navMini ? " nav-mini" : ""}`}>
             <SideNav view={view} go={go} monitoring={monitoring} counts={counts} recent={recent} />
-            <AssistDock key={me.user_id} open={asking} setOpen={setAsking}
+            <AssistDock key={me.user_id} mode={aiMode} setMode={setAiMode} autoOpen={prefs.assistant_panel === "open"}
               general={<AskAi api={api} open />}>
             <div className="main">
               {view.kind === "monitor" && monitoring && <MonitorPad api={api} />}

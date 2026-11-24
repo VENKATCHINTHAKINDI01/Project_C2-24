@@ -353,7 +353,8 @@ describe("OCR review screen (plan §4.2)", () => {
     const html = text(<ChatReply asked="Is that order still in force?" reply={turn} />);
     expect(html).toContain("From the order records: ");
     expect(html).toContain("Counted from the file records you may see: ");
-    expect(html).toContain("From the links between records: ");
+    // one row per record under "Sources": a record cited twice (entity + link) is listed once
+    expect(html).toContain("Sources (4)");
     expect(html).toContain("From the records that name them: ");
     expect(html).toContain("Low confidence: check before relying on it");
     // the weakest reason comes first
@@ -415,5 +416,47 @@ describe("FAQ analytics on the monitoring pad (ADR-0059)", () => {
       variants: 3, reasked: 1, intent: "precedent_lookup" }]} />);
     expect(html).toContain("3<!-- --> wordings");
     expect(html).toContain("re-asked <!-- -->1<!-- -->×");
+  });
+});
+
+describe("assistant-style answers (ADR-0067)", () => {
+  it("a composed answer leads with the direct line and shows every checked statement under its heading", () => {
+    const c = (id: string) => ({ evidence_id: "EV", canonical_id: id, doc_type: "G.O.", status: "in force", page: 1 });
+    const turn = {
+      session_id: "a".repeat(32), turn: 1, from_cache: false, used_earlier_turn: false, request_id: "r1",
+      status: "answered", removed: 0, message: null, documents: [], notices: [], as_of: "2026-11-24", first_cut: null,
+      review_needed: [],
+      statements: [
+        { text: "G.O.Ms.No.31 is in force.", quote: null, source: "evidence", citations: [c("AP-FIN01-GOMS-31-2025")] },
+        { text: "G.O.Ms.No.88 was superseded.", quote: null, source: "evidence", citations: [c("AP-FIN01-GOMS-88-2022")] },
+      ],
+      composed: { lead: "G.O.Ms.No.31 now governs transfers.", lead_uses: [1],
+        sections: [{ heading: "Current position", items: [1] }, { heading: "Earlier orders", items: [2] }] },
+    } as unknown as ChatTurn;
+    const html = text(<ChatReply asked="which order applies?" reply={turn} />);
+    expect(html).toContain("G.O.Ms.No.31 now governs transfers.");
+    expect(html.indexOf("Current position")).toBeLessThan(html.indexOf("Earlier orders"));
+    expect(html).toContain("G.O.Ms.No.88 was superseded.");
+    expect(html).toContain("Sources (2)");
+  });
+});
+
+describe("file summary in the chat (ADR-0067 addendum)", () => {
+  it("shows the written summary with its notes, the notes in full folded under it", async () => {
+    const { fileTools } = await import("./components/FileChatTools");
+    const s = {
+      request_id: "r", computer_no: "1", file_no: "USD01-31/4/2025-VIG", chain: [], last_direction: 3, gaps: [],
+      gap_message: null, pending_documents: 1, pending_message: "1 more document(s) wait for text review.",
+      notes: [{ note_no: 1, paragraphs: null, post: "Section Officer (Vigilance)", signed_at: "2025-04-09T10:00:00", text: "A complaint has been received.", source: "AP-X" }],
+      summary: { lead: "A complaint was received and an enquiry approved.", lead_notes: [1, 3],
+        points: [{ text: "A complaint has been received.", notes: [1] }] },
+    };
+    const api = { fileSummary: async () => s } as unknown as Parameters<typeof fileTools>[0]["api"];
+    const tool = fileTools({ api, computerNo: "1", onInserted: () => undefined, onOpenDoc: () => undefined, records: () => null })
+      .find((t) => t.id === "summary");
+    const html = text(<>{await tool?.run("Summarise this file")}</>);
+    expect(html).toContain("A complaint was received and an enquiry approved.");
+    expect(html).toContain("#3");
+    expect(html).toContain("The notes in full (1)");
   });
 });
