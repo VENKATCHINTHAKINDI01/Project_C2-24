@@ -3,7 +3,30 @@ import { fmtDateTime } from "../format";
 import type { Api } from "../api";
 import type { DfaRow, DraftRow, FilePage, FileRecords, Highlight, PresendReport, Standing } from "../types";
 import { usePrefs } from "../prefs";
-import { Archive, FileText, Keyboard, LayoutTemplate, Library, Link2, Lock, Mails, NotebookPen, Paperclip, PenLine, Route, Send, Sparkles, type LucideIcon } from "lucide-react";
+import {
+  Archive,
+  Award,
+  FileCheck,
+  FileSignature,
+  FileText,
+  Keyboard,
+  LayoutTemplate,
+  Library,
+  Link2,
+  Lock,
+  Mails,
+  NotebookPen,
+  Paperclip,
+  PenLine,
+  RotateCcw,
+  Route,
+  Send,
+  ShieldCheck,
+  Sparkles,
+  Trash2,
+  X,
+  type LucideIcon,
+} from "lucide-react";
 import { AssistPanel } from "./AssistPanel";
 import { DockSlot, useDock } from "./AssistDock";
 import { ChatPanel } from "./ChatPanel";
@@ -227,15 +250,31 @@ export function FilePageView({ api, computerNo, open, draft }: {
       </DockSlot>
       {viewing && <DocumentViewer api={api} canonicalId={viewing} onClose={() => setViewing(null)} />}
       {help && (
-        <div className="shortcuts" role="dialog" aria-label="Keyboard shortcuts" onClick={() => setHelp(false)}>
-          <h4>Keyboard shortcuts</h4>
-          <dl>
-            <dt>Ctrl / ⌘ + K</dt><dd>Ask C2-24</dd>
-            <dt>Ctrl / ⌘ + Enter</dt><dd>Insert the latest first-cut note as a Yellow Note (a draft)</dd>
-            <dt>J / K</dt><dd>Next / previous pre-send flag</dd>
-            <dt>/</dt><dd>Go to file</dd>
-            <dt>?</dt><dd>Show or hide this list</dd>
-          </dl>
+        <div className="modal-backdrop" role="dialog" aria-label="Keyboard shortcuts" onClick={() => setHelp(false)}>
+          <div className="modal-box shortcuts-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <div className="modal-icon-seal"><Keyboard size={22} /></div>
+              <div>
+                <h3>e-Office Keyboard Shortcuts</h3>
+                <p className="muted small">Quick navigation and statutory assistance shortcuts</p>
+              </div>
+              <button type="button" className="icon-btn modal-close" onClick={() => setHelp(false)} aria-label="Close shortcuts">
+                <X size={18} />
+              </button>
+            </div>
+            <div className="modal-body">
+              <dl className="shortcuts-list">
+                <div className="shortcut-row"><dt><kbd>Ctrl</kbd> / <kbd>⌘</kbd> + <kbd>K</kbd></dt><dd>Ask C2-24 Assistant</dd></div>
+                <div className="shortcut-row"><dt><kbd>Ctrl</kbd> / <kbd>⌘</kbd> + <kbd>Enter</kbd></dt><dd>Insert first-cut note as Yellow Note</dd></div>
+                <div className="shortcut-row"><dt><kbd>J</kbd> / <kbd>K</kbd></dt><dd>Next / previous pre-send flag</dd></div>
+                <div className="shortcut-row"><dt><kbd>/</kbd></dt><dd>Go to file</dd></div>
+                <div className="shortcut-row"><dt><kbd>?</kbd></dt><dd>Show or hide this shortcut list</dd></div>
+              </dl>
+            </div>
+            <div className="modal-actions">
+              <button type="button" className="primary" onClick={() => setHelp(false)}>Got it</button>
+            </div>
+          </div>
         </div>
       )}
     </div>
@@ -298,6 +337,7 @@ function ApprovalCard({ api, computerNo, d, onChanged }: { api: Api; computerNo:
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [returning, setReturning] = useState(false);
+  const [confirming, setConfirming] = useState(false);
   const [remarks, setRemarks] = useState("");
   const act = (fn: () => Promise<unknown>) => {
     setBusy(true); setError(null);
@@ -308,33 +348,72 @@ function ApprovalCard({ api, computerNo, d, onChanged }: { api: Api; computerNo:
       <h4>For your approval <span className="muted">put up by {d.author_post ?? "an officer"}</span></h4>
       <pre className="draft-text">{d.text}</pre>
       {returning ? (
-        <div className="return-box" style={{ marginTop: "1rem", padding: "0.75rem", background: "var(--bg-subtle, #f8f9fa)", borderRadius: "6px", border: "1px solid var(--border, #dee2e6)" }}>
-          <p style={{ margin: "0 0 0.5rem 0", fontWeight: 600 }}>Return draft with review remarks / requested changes:</p>
+        <div className="return-box">
+          <p className="return-label">Return draft with review remarks / requested changes:</p>
           <textarea
             aria-label="Review remarks"
             placeholder="Specify what should be changed (e.g. 'Revise paragraph 3: reduce sanction ceiling to Rs 50 lakhs as per G.O.Ms. 88')..."
             value={remarks}
             rows={3}
-            style={{ width: "100%", boxSizing: "border-box", marginBottom: "0.5rem" }}
             onChange={(e) => setRemarks(e.target.value)}
           />
           <div className="actions">
             <button
-              className="primary"
+              className="primary btn-confirm-return"
               disabled={busy}
               onClick={() => act(() => api.returnDraft(computerNo, d.draft_id, remarks))}
             >
-              Confirm return
+              <RotateCcw size={16} /> Confirm return
             </button>
             <button disabled={busy} onClick={() => setReturning(false)}>Cancel</button>
           </div>
         </div>
       ) : (
         <div className="actions">
-          <button className="primary" disabled={busy}
+          <button className="primary btn-approve-issue" disabled={busy}
             title="Your approval and signature (simulated). The order is numbered, dated and issued, and enters the records."
-            onClick={() => act(() => api.approveAndIssue(computerNo, d.draft_id))}>Approve, sign and issue</button>
-          <button disabled={busy} onClick={() => setReturning(true)}>Return for changes</button>
+            onClick={() => setConfirming(true)}>
+            <Award size={16} /> Approve, sign and issue
+          </button>
+          <button className="btn-return" disabled={busy} onClick={() => setReturning(true)}>
+            <RotateCcw size={16} /> Return for changes
+          </button>
+        </div>
+      )}
+      {confirming && (
+        <div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="modal-approve-title">
+          <div className="modal-box" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <div className="modal-icon-seal"><Award size={26} /></div>
+              <div>
+                <h3 id="modal-approve-title">Approve, Sign and Issue Order</h3>
+                <p className="muted small">Executive Digital Signature (DSC) & Official Gazette Publication</p>
+              </div>
+            </div>
+            <div className="modal-body">
+              <p>You are about to approve and issue draft <strong>{d.draft_id}</strong> on e-File No. <strong>{computerNo}</strong> put up by <strong>{d.author_post ?? "Section Officer"}</strong>.</p>
+              <div className="modal-notice">
+                <ShieldCheck size={20} className="notice-icon" />
+                <div>
+                  <strong>Statutory Finality:</strong>
+                  <p>This action simulates executive signing. The order will be numbered, dated, and entered into the institutional memory repository as a permanent binding precedent.</p>
+                </div>
+              </div>
+            </div>
+            <div className="modal-actions">
+              <button
+                className="primary btn-sign-confirm"
+                disabled={busy}
+                onClick={() => {
+                  setConfirming(false);
+                  act(() => api.approveAndIssue(computerNo, d.draft_id));
+                }}
+              >
+                <FileCheck size={16} /> Confirm & Issue G.O.
+              </button>
+              <button type="button" disabled={busy} onClick={() => setConfirming(false)}>Cancel</button>
+            </div>
+          </div>
         </div>
       )}
       {error && <p className="error">{error}</p>}
@@ -411,12 +490,13 @@ function DraftCard({ api, computerNo, d, view, onChanged }: {
           )}
           <div className="actions" style={{ marginTop: "0.25rem" }}>
             <button
-              className="primary"
+              className="primary btn-ai-revise"
               disabled={busy || revising}
               onClick={handleAiRevise}
               title="Use C2-24 to revise draft based on senior reviewer's instructions"
             >
-              {revising ? "Revising with AI…" : "✨ Revise draft with AI"}
+              <Sparkles size={16} />
+              {revising ? "Revising with AI…" : "Revise draft with AI"}
             </button>
           </div>
         </div>
@@ -430,16 +510,22 @@ function DraftCard({ api, computerNo, d, view, onChanged }: {
           ? <button disabled={busy || !text.trim()} onClick={() => act(() => api.saveDraft(computerNo, d.draft_id, text))}>Save</button>
           : <button disabled={busy} onClick={() => setEditing(true)}>Edit</button>}
         {d.kind === "dfa_draft" && (
-          <button className="primary" disabled={busy || editing}
+          <button className="primary btn-submit-approval" disabled={busy || editing}
             title="Put the draft up to the approving officer. You can no longer edit it unless it is returned."
-            onClick={() => act(() => api.submitDraft(computerNo, d.draft_id))}>Put up for approval</button>
+            onClick={() => act(() => api.submitDraft(computerNo, d.draft_id))}>
+            <Send size={16} /> Put up for approval
+          </button>
         )}
         {d.kind === "yellow_note" && (
-          <button className="primary" disabled={busy || editing}
+          <button className="primary btn-confirm-green" disabled={busy || editing}
             title="Your confirmation (simulated signature). The AI watermark is removed; the note becomes the file's next Green Note."
-            onClick={() => act(() => api.confirmDraft(computerNo, d.draft_id))}>Confirm → Green</button>
+            onClick={() => act(() => api.confirmDraft(computerNo, d.draft_id))}>
+            <FileSignature size={16} /> Confirm → Green
+          </button>
         )}
-        <button disabled={busy} onClick={() => act(() => api.discardDraft(computerNo, d.draft_id))}>Discard</button>
+        <button className="btn-discard" disabled={busy} onClick={() => act(() => api.discardDraft(computerNo, d.draft_id))}>
+          <Trash2 size={16} /> Discard
+        </button>
       </div>
       {error && <p className="error">{error}</p>}
     </article>
