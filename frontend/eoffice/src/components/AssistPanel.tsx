@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { BookOpenText, ClipboardList, FileSignature, FolderCheck, GitCompareArrows, Link2, NotebookPen, Route, ShieldCheck } from "lucide-react";
 import { fmtDate } from "../format";
 import type { Api } from "../api";
 import { FLAG_NAMES, outcomeLabel, yellowNoteFrom } from "../presend";
@@ -9,8 +10,10 @@ import type {
 } from "../types";
 
 /** C2-24 Assist for the open file (plan §11.5 touchpoints 10, 11). Drafts only. */
-export function AssistPanel({ api, computerNo, report, onReport, onInserted, onOpenDoc }: {
+export function AssistPanel({ api, computerNo, report, onReport, onInserted, onOpenDoc, part = "all" }: {
   api: Api; computerNo: string; report: PresendReport | null;
+  /** which tools: all of them, or one tab of the assistant panel (Check / Draft) */
+  part?: "all" | "check" | "draft";
   onReport: (r: PresendReport) => void; onInserted: () => void;
   onOpenDoc?: (canonicalId: string) => void; // ADR-0014: open a cited order's stored file
 }) {
@@ -37,6 +40,12 @@ export function AssistPanel({ api, computerNo, report, onReport, onInserted, onO
   const [dfaMade, setDfaMade] = useState<string | null>(null);
 
   const [working, setWorking] = useState<string | null>(null);
+  const checks = part !== "draft";
+  // a pre-send report started elsewhere (the toolbar's Send) comes into view in the Check tab
+  useEffect(() => {
+    if (report && part === "check") requestAnimationFrame(() => document.querySelector(".assist.part-check .presend")?.scrollIntoView({ block: "start", behavior: "smooth" }));
+  }, [report, part]);
+  const drafts = part !== "check";
   // runs one tool: says what is being prepared, then brings its result into view
   const run = async <T,>(f: () => Promise<T>, then: (x: T) => void, label?: string, show?: string) => {
     setBusy(true); setError(null); setWorking(label ?? null);
@@ -55,37 +64,37 @@ export function AssistPanel({ api, computerNo, report, onReport, onInserted, onO
   };
 
   return (
-    <aside className="assist">
-      <h3>C2-24 assistant <span className="h3-sub">for this file</span></h3>
-      {working && <p className="busyline" role="status">{working}</p>}
+    <aside className={`assist part-${part}`}>
+      {part === "all" && <h3>C2-24 assistant <span className="h3-sub">for this file</span></h3>}
+      {working && <p className="busyline" role="status"><span className="dot" />{working}</p>}
       <div className="toolgroups">
-        <div className="toolgroup">
+        {checks && <div className="toolgroup">
           <h4>Understand the file</h4>
-          <div className="chips">
-            <button disabled={busy} onClick={() => void run(() => api.fileSoFar(computerNo), setSoFar, "Reading the notes…", ".sofar")}>File so far</button>
-            <button disabled={busy} onClick={() => void run(() => api.movements(computerNo), setMoves, "Reading the movements…", ".moves")}>Movement summary</button>
-            <button disabled={busy} onClick={() => void run(() => api.brief(computerNo), setBrief, "Preparing the approval brief…", ".brief")}>Approval brief</button>
-            <button disabled={busy} onClick={() => void run(() => api.sinceDecision(computerNo), setSince, "Checking the orders it relied on…", ".since")}>Changes since the decision</button>
+          <div className="tools">
+            <button disabled={busy} onClick={() => void run(() => api.fileSoFar(computerNo), setSoFar, "Reading the notes…", ".sofar")}><BookOpenText size={16} aria-hidden="true" /><span>File so far</span></button>
+            <button disabled={busy} onClick={() => void run(() => api.movements(computerNo), setMoves, "Reading the movements…", ".moves")}><Route size={16} aria-hidden="true" /><span>Movement summary</span></button>
+            <button disabled={busy} onClick={() => void run(() => api.brief(computerNo), setBrief, "Preparing the approval brief…", ".brief")}><ClipboardList size={16} aria-hidden="true" /><span>Approval brief</span></button>
+            <button disabled={busy} onClick={() => void run(() => api.sinceDecision(computerNo), setSince, "Checking the orders it relied on…", ".since")}><GitCompareArrows size={16} aria-hidden="true" /><span>Changes since the decision</span></button>
           </div>
-        </div>
-        <div className="toolgroup">
+        </div>}
+        {checks && <div className="toolgroup">
           <h4>Check before sending</h4>
-          <div className="chips">
-            <button disabled={busy} onClick={() => void run(() => api.presend(computerNo), onReport, "Running the pre-send check…", ".presend")}>Pre-send check</button>
-            <button disabled={busy} onClick={() => void run(() => api.linkSuggestions(computerNo), setLinks, "Finding related files…", ".links")}>Related files</button>
+          <div className="tools">
+            <button disabled={busy} onClick={() => void run(() => api.presend(computerNo), onReport, "Running the pre-send check…", ".presend")}><ShieldCheck size={16} aria-hidden="true" /><span>Pre-send check</span></button>
+            <button disabled={busy} onClick={() => void run(() => api.linkSuggestions(computerNo), setLinks, "Finding related files…", ".links")}><Link2 size={16} aria-hidden="true" /><span>Related files</span></button>
           </div>
-        </div>
-        <div className="toolgroup">
+        </div>}
+        {drafts && <div className="toolgroup">
           <h4>Draft</h4>
-          <div className="chips">
-            <button disabled={busy} onClick={() => void run(() => api.firstCut(computerNo), (c) => { setCut(c); setCutBody(c.body); setCutMade(null); }, "Writing a first-cut note…", ".dfa")}>First-cut note</button>
-            <button disabled={busy} onClick={() => void run(() => api.dfa(computerNo), (d) => { setDfa(d); setDfaBody(d.body); setDfaMade(null); }, "Preparing the draft…", ".dfa")}>Draft for approval</button>
-            <button disabled={busy} onClick={() => void run(() => api.closingRemarks(computerNo), setClosing, "Preparing closing remarks…", ".closing")}>Closing remarks</button>
+          <div className="tools">
+            <button disabled={busy} onClick={() => void run(() => api.firstCut(computerNo), (c) => { setCut(c); setCutBody(c.body); setCutMade(null); }, "Writing a first-cut note…", ".dfa")}><NotebookPen size={16} aria-hidden="true" /><span>First-cut note</span></button>
+            <button disabled={busy} onClick={() => void run(() => api.dfa(computerNo), (d) => { setDfa(d); setDfaBody(d.body); setDfaMade(null); }, "Preparing the draft…", ".dfa")}><FileSignature size={16} aria-hidden="true" /><span>Draft for approval</span></button>
+            <button disabled={busy} onClick={() => void run(() => api.closingRemarks(computerNo), setClosing, "Preparing closing remarks…", ".closing")}><FolderCheck size={16} aria-hidden="true" /><span>Closing remarks</span></button>
           </div>
-        </div>
+        </div>}
       </div>
 
-      <form className="refbox" onSubmit={(e) => { e.preventDefault(); if (refText.trim()) void run(() => api.reference(refText), setRef); }}>
+      {checks && <><form className="refbox" onSubmit={(e) => { e.preventDefault(); if (refText.trim()) void run(() => api.reference(refText), setRef); }}>
         <label htmlFor="ref">Local reference — is this order still current?</label>
         <div className="row">
           <input id="ref" value={refText} maxLength={300} placeholder="e.g. G.O.Ms.No.88/2022" onChange={(e) => setRefText(e.target.value)} />
@@ -112,11 +121,11 @@ export function AssistPanel({ api, computerNo, report, onReport, onInserted, onO
             })
           }
         />
-      )}
+      )}</>}
 
       {error && <p className="error">{error}</p>}
-      {brief && <BriefCard b={brief} />}
-      {cut && (
+      {checks && brief && <BriefCard b={brief} />}
+      {drafts && cut && (
         <FirstCutCard
           c={cut}
           body={cutBody}
@@ -130,7 +139,7 @@ export function AssistPanel({ api, computerNo, report, onReport, onInserted, onO
           }
         />
       )}
-      {dfa && (
+      {drafts && dfa && (
         <DfaCard
           d={dfa}
           body={dfaBody}
@@ -144,11 +153,11 @@ export function AssistPanel({ api, computerNo, report, onReport, onInserted, onO
           }
         />
       )}
-      {soFar && <SoFarCard s={soFar} />}
-      {moves && <MovementsCard m={moves} />}
-      {since && <SinceCard s={since} onOpenDoc={onOpenDoc} />}
-      {closing && <ClosingCard c={closing} api={api} onClosed={onInserted} />}
-      {links && (
+      {checks && soFar && <SoFarCard s={soFar} />}
+      {checks && moves && <MovementsCard m={moves} />}
+      {checks && since && <SinceCard s={since} onOpenDoc={onOpenDoc} />}
+      {drafts && closing && <ClosingCard c={closing} api={api} onClosed={onInserted} />}
+      {checks && links && (
         <LinkCard
           s={links}
           linked={linked}
@@ -161,7 +170,7 @@ export function AssistPanel({ api, computerNo, report, onReport, onInserted, onO
         />
       )}
 
-      {report && (
+      {checks && report && (
         <section className="presend">
           <h4 className={report.outcome === "conflicts_found" ? "warn" : ""}>{outcomeLabel(report)}</h4>
           {report.message && <p className="card">{report.message}</p>}

@@ -315,7 +315,7 @@ describe("OCR review screen (plan §4.2)", () => {
   });
   it("is reachable from the menu", () => {
     const html = text(<SideNav view={{ kind: "review" }} go={() => {}} monitoring={false} />);
-    expect(html).toMatch(/<button class="on">OCR review<\/button>/);
+    expect(html).toMatch(/<button class="on"[^>]*>(?:(?!<\/button>).)*>OCR review<\/span>/);
   });
 
   it("a conversation turn shows each statement's source, review section, withheld count and notices", () => {

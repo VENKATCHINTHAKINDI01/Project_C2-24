@@ -96,7 +96,8 @@ from app.memory.session import SessionError, SessionMemory
 from app.noting.chain import FileSoFar, file_so_far
 from app.noting.closing import closing_remarks
 from app.noting.draft_context import draft_context
-from app.noting.draft_revision import suggest_revision
+from app.noting.draft_revision import PROMPT_ID as REVISE_PROMPT
+from app.noting.draft_revision import DraftRevisionResult, suggest_revision
 from app.noting.draft_studio import PROMPT_ID as ORDER_PROMPT
 from app.noting.draft_studio import (
     DraftInputs,
@@ -2661,16 +2662,56 @@ def build_assist_router(
     def draft_revise(
         body: DraftReviseIn, o: Annotated[Officer, Depends(officer)]
     ) -> dict[str, Any]:
-        """Revise draft text based on higher officer's review remarks (plan §11.5; ADR-0060)."""
+        """Revise draft text on a higher officer's review remarks (plan §11.5; ADR-0062). Same
+        cost controls as suggested wording (ADR-0060): the officer's daily count, taken on the
+        server before the model is asked, and a usage-log row; the revision is withheld if it
+        adds a figure or reference no source holds (ADR-0062 addendum)."""
         action = "assist.draft.revise"
         run = rt(o, action)
         fc = open_file(o, run, body.computer_no, action)
-        rev = suggest_revision(
-            current_text=body.current_text,
-            review_remarks=body.review_remarks,
-            subject=fc.subject,
-            llm=run.llm,
-        )
+        used: int | None = None
+        rev: DraftRevisionResult | None = None
+        if run.llm is not None and wording_quota is not None:
+            try:
+                used = wording_quota.take(o.ctx.user_id)
+                if used is None:
+                    rev = DraftRevisionResult(
+                        revised_text=body.current_text.strip(),
+                        changes_summary="Today's AI wording requests are used up; revise by hand.",
+                        reason="daily_limit",
+                    )
+            except UsageUnavailableError:
+                rev = DraftRevisionResult(
+                    revised_text=body.current_text.strip(),
+                    changes_summary="AI revision is unavailable just now; revise by hand.",
+                    reason="usage_unavailable",
+                )
+        if rev is None:
+            rev = suggest_revision(
+                current_text=body.current_text,
+                review_remarks=body.review_remarks,
+                subject=fc.subject,
+                llm=run.llm,
+            )
+        if wording_quota is not None and run.llm is not None:
+            try:
+                wording_quota.log(
+                    UsageEntry(
+                        at=dt.datetime.now(dt.UTC),
+                        request_id=o.request_id,
+                        user_id=o.ctx.user_id,
+                        action="draft.revise",
+                        outcome=rev.reason or "ok",
+                        engine=rev.engine,
+                        prompt_id=REVISE_PROMPT if rev.engine else None,
+                        target=body.computer_no,
+                        kept=0 if rev.reason else 1,
+                        removed=len(rev.unsupported),
+                        used_today=used or 0,
+                    )
+                )
+            except Exception as exc:  # counted already; the log row is not essential
+                log.warning("model usage log not written: %s", type(exc).__name__)
         audit.record(
             o.request_id,
             o.ctx.user_id,
@@ -2687,6 +2728,9 @@ def build_assist_router(
             "engine": rev.engine,
             "fallback": rev.fallback,
             "reason": rev.reason,
+            "usage": {"used": used, "limit": wording_quota.per_day}
+            if used is not None and wording_quota is not None
+            else None,
         }
 
     # ---- draft recovery (ADR-0046): the workspace, kept by the server as the officer works ----

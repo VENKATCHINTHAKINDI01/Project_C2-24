@@ -37,6 +37,7 @@ from tests.unit.mock_access import CLASSES, POLICY, new_store
 def dummy_meta() -> CalibrationMetadata:
     return CalibrationMetadata(
         calibrated_at="2026-11-20T08:00:00Z",
+        retriever="bigquery-hybrid@asia-south1",
         dataset_version="v1.0",
         sample_size=20,
         precision=0.92,
@@ -158,7 +159,9 @@ def test_ladder_behavior_uncalibrated_vs_calibrated(dummy_meta: CalibrationMetad
         l2_min_score=0.1,
         l3_max_hops=1,
         confidence_policy=L2ConfidencePolicy.create(
-            threshold=0.1, calibrated=True, metadata=dummy_meta
+            threshold=0.1,
+            calibrated=True,
+            metadata=dummy_meta.model_copy(update={"optimal_threshold": 0.1}),
         ),
     )
     res_cal = run_ladder(
@@ -226,7 +229,9 @@ def test_calibration_dataset_sweep() -> None:
 
     # Calibrate across candidates
     candidates = [0.40, 0.60, 0.75, 0.90]
-    cal_res = calibrate_threshold(predictions, candidates, min_precision=0.85)
+    cal_res = calibrate_threshold(
+        predictions, candidates, min_precision=0.85, retriever="test predictions"
+    )
     assert cal_res.optimal_threshold in candidates
     assert cal_res.metadata.precision >= 0.85
     assert cal_res.metadata.optimal_threshold == cal_res.optimal_threshold
@@ -318,3 +323,84 @@ def test_monitoring_metrics_calculation() -> None:
     assert metrics.termination_rate == round(1 / 3, 4)
     assert metrics.uncalibrated_escalations == 1
     assert metrics.below_threshold_escalations == 1
+
+
+# ---- calibrated needs evidence (ADR-0061 addendum, 24 Nov 2026) -------------------------------
+
+
+def test_calibrated_without_evidence_is_uncalibrated(dummy_meta: CalibrationMetadata) -> None:
+    """No metadata is ever filled in; evidence that does not match is not evidence."""
+    unc = ThresholdCalibrationState.CONFIGURED_UNCALIBRATED
+    assert L2ConfidencePolicy.create(threshold=0.75, calibrated=True).state is unc
+    assert L2ConfidencePolicy.create(0.5, calibrated=True, metadata=dummy_meta).state is unc
+    for fake in ("simulated scores", "synthetic-v1", "keyword stand-in", "hard-coded map"):
+        meta = dummy_meta.model_copy(update={"retriever": fake})
+        assert L2ConfidencePolicy.create(0.75, calibrated=True, metadata=meta).state is unc
+    weak = dummy_meta.model_copy(update={"precision": 0.80})  # below its own target
+    assert L2ConfidencePolicy.create(0.75, calibrated=True, metadata=weak).state is unc
+    assert L2ConfidencePolicy.create(0.75, calibrated=True, metadata={"x": 1}).state is unc
+    with pytest.raises(ValueError):
+        CalibrationMetadata.model_validate({**dummy_meta.model_dump(), "retriever": ""})
+
+
+def test_a_direct_ladder_config_is_a_labelled_stand_in_never_calibrated() -> None:
+    cfg = LadderConfig(l2_top_k=5, l2_min_score=1.0, l3_max_hops=1)
+    p = cfg.confidence_policy
+    assert p is not None and p.state is ThresholdCalibrationState.SANDBOX_STAND_IN
+    assert not p.is_calibrated and p.metadata is None and p.can_terminate
+    res = p.evaluate([1.4])
+    assert res.can_exit and "stand-in" in res.note and "not a calibration" in res.note
+    assert not p.evaluate([0.6]).can_exit
+
+
+def test_the_shipped_runtime_config_is_not_calibrated() -> None:
+    """runtime.yaml is uncalibrated until a measured calibration replaces it (no fake evidence)."""
+    from app.config import load_runtime_config
+    from app.retrieval.graph_expansion import NotCalibratedError
+
+    rt = load_runtime_config(REPO_ROOT / "backend" / "config" / "runtime.yaml")
+    assert rt.retrieval.l2_rerank_min_score is None and not rt.retrieval.l2_calibrated
+    assert rt.retrieval.l2_calibration_metadata is None
+    with pytest.raises(NotCalibratedError):
+        LadderConfig.from_runtime(rt)
+
+
+def test_a_dataset_naming_records_that_do_not_exist_is_refused() -> None:
+    import sys
+
+    sys.path.insert(0, str(REPO_ROOT))
+    from evaluation.calibrate_l2 import missing_ids
+
+    ds = ValidationDataset.load(REPO_ROOT / "evaluation" / "data" / "l2_validation_dataset.json")
+    known = {"AP-FIN01-GOMS-45-2023", "AP-FIN01-GOMS-31-2025"}
+    gone = missing_ids(ds, lambda uid, cid: cid in known)
+    assert gone and all(c.split(": ")[1] not in known for c in gone)
+    assert not missing_ids(ds, lambda uid, cid: True)
+
+
+def test_known_item_set_is_built_from_the_corpus_itself() -> None:
+    import sys
+
+    sys.path.insert(0, str(REPO_ROOT))
+    from evaluation.build_l2_validation import build, query_of
+
+    assert query_of("Transfers – Ban relaxed – Orders – G.O.Ms.No.31, Dt.12-05-2025 [Read]") == (
+        "Transfers – Ban relaxed"
+    )
+    metas = [
+        {"canonical_id": f"AP-FIN01-GOMS-{i}-2024", "department_code": "FIN01",
+         "classification": "UNCLASSIFIED",
+         "subject": f"Revision of pay scales for category {i} employees in the department"}
+        for i in range(1, 6)
+    ] + [
+        {"canonical_id": "AP-GAZ-GAZETTE-WI-1-2024", "department_code": "GAZ",
+         "classification": "UNCLASSIFIED", "subject": "Gazette copy of the revision of pay scales",
+         "republishes_id": "AP-FIN01-GOMS-1-2024"},
+        {"canonical_id": "AP-GAD01-GOMS-9-2024", "department_code": "GAD01",
+         "classification": "RESTRICTED", "subject": "A restricted order is never a query item"},
+    ]  # fmt: skip
+    ds = build(metas, n=10, user="V14", seed=7)
+    ids = [q["relevant_canonical_ids"] for q in ds["queries"]]
+    assert len(ids) == 5 and all(i[0].startswith("AP-FIN01-GOMS-") for i in ids)
+    assert ["AP-FIN01-GOMS-1-2024", "AP-GAZ-GAZETTE-WI-1-2024"] in ids  # its Gazette copy counts
+    assert build(metas, n=10, user="V14", seed=7) == ds  # reproducible

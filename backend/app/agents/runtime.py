@@ -54,6 +54,7 @@ from app.noting.references import ReferenceConfig
 from app.retrieval.cloud import CloudRungs
 from app.retrieval.composite import CompositeGraph, CompositeHybrid, CompositeScopedIndex
 from app.retrieval.ladder import HybridRetriever, InMemoryKeywordIndex, LadderConfig
+from app.retrieval.request_memo import MemoGraph, MemoScopedIndex, memo_text
 from app.retrieval.scoped import IndexedDocument, ScopedRetriever
 from app.temporal.windows import ActionWindow
 
@@ -378,8 +379,9 @@ class AssistRuntime:
         l2: HybridRetriever = self.l2
         graph: WalkableGraph = self.stores.graph
         if self.cloud is not None:  # e-Office papers in memory + public corpus in the cloud
-            index = CompositeScopedIndex((self.stores.index, self.cloud.index))
-            graph = CompositeGraph((self.stores.graph, self.cloud.graph))
+            # cloud reads are kept for the rest of this request only (request_memo)
+            index = CompositeScopedIndex((self.stores.index, MemoScopedIndex(self.cloud.index)))
+            graph = CompositeGraph((self.stores.graph, MemoGraph(self.cloud.graph)))
             if self.cloud.l2 is not None:
                 l2 = CompositeHybrid(
                     ((self.l2, self.cfg.l2_min_score), (self.cloud.l2, self.cloud.l2_min_score)),
@@ -411,7 +413,7 @@ class AssistRuntime:
             scope = scope_for(user_id, store, self.policy, self.classification)
         except ScopeError:
             return self.texts  # fail closed: nothing beyond what memory re-checks per record
-        return _FallbackTexts(self.texts, lambda cid: passages.text(cid, scope))
+        return _FallbackTexts(self.texts, lambda cid: memo_text(cid, scope, passages.text))
 
     def stored_source(
         self, canonical_id: str, user_id: str, store: InMemoryAuthzStore

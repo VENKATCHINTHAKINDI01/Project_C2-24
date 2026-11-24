@@ -1,3 +1,4 @@
+import { ChevronRight, Landmark } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import type { Api } from "../api";
 import type { Profile } from "../types";
@@ -21,6 +22,10 @@ export function SignIn({ api, onSignIn }: { api: Api; onSignIn: (p: Profile) => 
   }, [profiles]);
   return (
     <main className="signin">
+      <div className="signin-brand">
+        <span className="brand-mark" aria-hidden="true"><Landmark size={22} /></span>
+        <span><strong>eFile</strong> sandbox<span className="muted"> · C2-24 assistant</span></span>
+      </div>
       <h1>Sign in to the eFile sandbox</h1>
       <p className="lede">
         Choose a mock officer. Their post, section and clearance decide which files and records they
@@ -35,11 +40,13 @@ export function SignIn({ api, onSignIn }: { api: Api; onSignIn: (p: Profile) => 
             {ps.map((p) => (
               <li key={p.user_id}>
                 <button onClick={() => onSignIn(p)}>
+                  <span className="p-avatar" aria-hidden="true">{p.name.split(" — ")[0].replace(/\(.*?\)/g, "").split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join("").toUpperCase()}</span>
                   <span className="p-name">{p.name.split(" — ")[0]}</span>
                   <span className="p-post">{p.post}</span>
                   <span className="p-meta">
                     {p.section ? `Section ${p.section}, ` : ""}{CLEARANCE[p.clearance ?? ""] ?? p.clearance ?? ""} clearance
                   </span>
+                  <ChevronRight className="p-go" size={18} aria-hidden="true" />
                 </button>
               </li>
             ))}

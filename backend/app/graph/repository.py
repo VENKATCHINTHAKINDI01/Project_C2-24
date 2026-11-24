@@ -11,7 +11,7 @@ implements the same Protocol later (CLAUDE.md §2.3: not Neo4j).
 from __future__ import annotations
 
 from collections import deque
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from enum import StrEnum
 from typing import Protocol, runtime_checkable
 
@@ -58,6 +58,20 @@ class GraphHit(_Frozen):
     hops: int = Field(ge=1)
     via: EdgeKind
     path: tuple[str, ...]  # seed → … → this node; every element is inside the scope
+
+
+# Walk order when a limit may cut the walk (ADR-0063 addendum): steps along legally binding
+# relations come before citations and references, so a limit drops a citation before it drops an
+# amendment or a supersession. A stable sort: within each group the store's own order is kept, so
+# every store walks in the same order.
+STATUTORY = frozenset({"SUPERSEDES", "REPEALS", "AMENDS", "CLARIFIES", "CONFLICTS_WITH"})
+
+
+StepOrder = Callable[[Iterable[tuple[GraphEdge, str]]], list[tuple[GraphEdge, str]]]
+
+
+def statutory_first(steps: Iterable[tuple[GraphEdge, str]]) -> list[tuple[GraphEdge, str]]:
+    return sorted(steps, key=lambda st: 0 if st[0].kind.value in STATUTORY else 1)
 
 
 class GraphWalkResult(list[GraphHit]):
@@ -180,6 +194,31 @@ class InMemoryGraphRepository:
         max_nodes: int | None = None,
         max_edges: int | None = None,
     ) -> GraphWalkResult:
+        """The store's own order first; only when a limit cuts the walk is it walked again with
+        legally binding relations first (ADR-0063 addendum), so an uncut walk is unchanged."""
+        start = tuple(seeds)
+        first = self._walk(start, scope, kinds=kinds, direction=direction, max_hops=max_hops,
+                           include_unconfirmed=include_unconfirmed, max_nodes=max_nodes,
+                           max_edges=max_edges)  # fmt: skip
+        if not getattr(first, "truncated", False):
+            return first
+        return self._walk(start, scope, kinds=kinds, direction=direction, max_hops=max_hops,
+                          include_unconfirmed=include_unconfirmed, max_nodes=max_nodes,
+                          max_edges=max_edges, order=statutory_first)  # fmt: skip
+
+    def _walk(
+        self,
+        seeds: Iterable[str],
+        scope: Scope,
+        *,
+        kinds: frozenset[EdgeKind],
+        direction: Direction,
+        max_hops: int,
+        include_unconfirmed: bool = False,
+        max_nodes: int | None = None,
+        max_edges: int | None = None,
+        order: StepOrder = list,
+    ) -> GraphWalkResult:
         if max_hops < 1:
             raise ValueError("max_hops must be >= 1")
         start = [s for s in dict.fromkeys(seeds) if self._visible(s, scope)]
@@ -194,16 +233,18 @@ class InMemoryGraphRepository:
             cid, path = queue.popleft()
             if len(path) - 1 >= max_hops:
                 continue
-            for edge, nxt in self._steps(cid, direction):
+            for edge, nxt in order(self._steps(cid, direction)):
                 if edge.kind not in kinds or (not edge.confirmed and not include_unconfirmed):
                     continue
-                edges_traversed += 1
+                if not self._visible(nxt, scope):
+                    continue  # out of scope: never visited, returned or counted
+                edges_traversed += 1  # in scope only: no hidden-record signal
                 if max_edges is not None and edges_traversed > max_edges:
                     truncated = True
                     truncation_reason = f"max_edges_exceeded ({max_edges})"
                     break
-                if nxt in seen or not self._visible(nxt, scope):
-                    continue  # never visit, return or pass through a node outside the scope
+                if nxt in seen:
+                    continue
                 if max_nodes is not None and len(hits) >= max_nodes:
                     truncated = True
                     truncation_reason = f"max_nodes_exceeded ({max_nodes})"

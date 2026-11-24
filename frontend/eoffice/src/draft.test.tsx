@@ -3,7 +3,6 @@ import { describe, expect, it } from "vitest";
 import type { Api } from "./api";
 import { DraftStudio, FromTheRecords, insertAfterBody, relationText } from "./components/DraftStudio";
 import type { PreparedDraft } from "./types";
-import { FormatsPage } from "./components/FormatsPage";
 import { SideNav, TopBar } from "./components/TopBar";
 import { AskAi } from "./components/AskAi";
 import { RecordStatus } from "./components/Citations";
@@ -28,27 +27,28 @@ describe("draft workspace (ADR-0044)", () => {
     expect(insertAfterBody(filled, "More.").split("\n")).toEqual(["ORDER:", "1. Done.", "More.", "(BY ORDER AND IN THE NAME OF THE GOVERNOR OF ANDHRA PRADESH)"]);
   });
 
-  it("Draft formats is in the menu and a draft has its own address (Back / Forward)", () => {
-    expect(text(<SideNav view={{ kind: "formats" }} go={() => {}} monitoring={false} />)).toMatch(/<button class="on">Draft formats<\/button>/);
+  it("New draft and the draft formats are one menu item; a draft has its own address (Back / Forward)", () => {
+    const nav = text(<SideNav view={{ kind: "formats" }} go={() => {}} monitoring={false} />);
+    expect(nav).toMatch(/<button class="on"[^>]*>(?:(?!<\/button>).)*>New draft<\/span>/);
+    expect(nav).not.toContain("Draft formats");
     expect(fromHash(toHash({ kind: "draft", computerNo: "1771342", format: "memo" }))).toEqual({ kind: "draft", computerNo: "1771342", format: "memo" });
   });
 
   it("a new draft needs no file: New draft is in the menu and the library offers no file picker", () => {
-    expect(text(<SideNav view={{ kind: "newdraft" }} go={() => {}} monitoring={false} />)).toMatch(/<button class="on">New draft<\/button>/);
+    expect(text(<SideNav view={{ kind: "newdraft" }} go={() => {}} monitoring={false} />)).toMatch(/<button class="on"[^>]*>(?:(?!<\/button>).)*>New draft<\/span>/);
     expect(fromHash("#/newdraft/go_ms")).toEqual({ kind: "newdraft", format: "go_ms" });
     const api = { draftFormats: () => new Promise(() => {}) } as unknown as Api;
-    const lib = text(<FormatsPage api={api} go={() => {}} />);
-    expect(lib).toContain("New draft");
-    expect(lib).not.toMatch(/<select|Choose a file/);
     const studio = text(<DraftStudio api={api} back={() => {}} onSaved={() => {}} />);
     expect(studio).toContain("<h1>New draft</h1>");
     expect(studio).toContain("no file is needed yet");
+    expect(studio).toContain("1. Choose a format");
+    expect(studio).not.toMatch(/<select|Choose a file/);
   });
 
   it("Ask AI is in the top bar on every screen, and says where its answers come from", () => {
     const me = { user_id: "U01", name: "Officer A", post: "Section Officer (Estt.I)" };
     const bar = text(<TopBar me={me} signOut={() => {}} ask={() => {}} />);
-    expect(bar).toMatch(/<button class="ask-ai"[^>]*>Ask AI<\/button>/);
+    expect(bar).toMatch(/<button class="ask-ai"[^>]*>(?:(?!<\/button>).)*<span>Ask AI<\/span><\/button>/);
     expect(text(<TopBar me={me} signOut={() => {}} />)).not.toContain("Ask AI");
     const api = { chat: () => new Promise(() => {}) } as unknown as Api;
     const panel = text(<AskAi api={api} open onClose={() => {}} computerNo="1771342" fileNo="USD01-12/31/2022-ESTT.I" />);

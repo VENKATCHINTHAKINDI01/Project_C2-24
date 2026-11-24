@@ -40,7 +40,7 @@ describe("officer settings (ADR-0041)", () => {
 
   it("Settings is a working menu item; Dispatch and Draft register stay off", () => {
     const html = text(<SideNav view={{ kind: "settings" }} go={() => {}} monitoring={false} />);
-    expect(html).toMatch(/<button class="on">Settings<\/button>/);
-    expect(html).toMatch(/<button disabled=""[^>]*>Dispatch<\/button>/);
+    expect(html).toMatch(/<button class="on"[^>]*>(?:(?!<\/button>).)*>Settings<\/span>/);
+    expect(html).toMatch(/<button disabled=""[^>]*>(?:(?!<\/button>).)*>Dispatch<\/span>/);
   });
 });

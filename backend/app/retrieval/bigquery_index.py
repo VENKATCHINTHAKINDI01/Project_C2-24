@@ -20,6 +20,7 @@ from typing import Any, Protocol
 
 from app.auth.models import DocumentAccessTags, Scope
 from app.identifiers.canonical import InvalidCanonicalIdError, lookup_keys, parse_canonical_id
+from app.retrieval.request_memo import count_query
 from app.retrieval.scoped import IndexedDocument, L1Criteria
 
 log = logging.getLogger(__name__)
@@ -53,6 +54,8 @@ FILTER_SQL = (
     "WHERE STRPOS(LOWER(subject), t) = 0)"
 )
 
+BATCH = 200  # IDs per batched exact lookup
+
 Param = tuple[str, str, Any]  # (name, BigQuery type or "ARRAY<type>", value)
 
 
@@ -73,6 +76,7 @@ class BigQueryRunner:
         self._timeout_s = timeout_s  # a slow query ends the request closed (ADR-0039)
 
     def run(self, sql: str, params: Sequence[Param]) -> list[Mapping[str, Any]]:
+        count_query("bigquery")
         bq = self._bq
         bound = [
             bq.ArrayQueryParameter(n, t[6:-1], v)
@@ -159,6 +163,56 @@ class BigQueryScopedIndex:
             if hits:
                 return hits
         return sorted(pool, key=lambda d: d.canonical_id) if len(keys) == 1 else []
+
+    def exact_many(
+        self, canonical_ids: Iterable[str], scope: Scope
+    ) -> dict[str, list[IndexedDocument]]:
+        """`exact` for many IDs in one query per `BATCH` IDs (same template, same scope, same
+        answer for each ID as `exact`): what a request that checks dozens of records sends
+        instead of one query per record."""
+        keys_of: dict[str, tuple[str, ...]] = {}
+        out: dict[str, list[IndexedDocument]] = {}
+        for cid in dict.fromkeys(canonical_ids):
+            try:
+                keys_of[cid] = lookup_keys(cid)
+            except InvalidCanonicalIdError:
+                out[cid] = []
+        todo = list(keys_of)
+        for i in range(0, len(todo), BATCH):
+            part = todo[i : i + BATCH]
+            keys = sorted({k for c in part for k in keys_of[c]})
+            rows = self._runner.run(
+                EXACT_SQL.format(columns=COLUMNS, table=self._table),
+                [
+                    *scope_params(scope),
+                    ("keys", "ARRAY<STRING>", keys),
+                    ("by_base", "BOOL", True),
+                ],
+            )
+            pairs = [(r, _doc(r)) for r in rows]
+            kept = [(r, d) for r, d in pairs if scope.admits(d.tags)]
+            if len(kept) != len(pairs):
+                log.error(
+                    "bigquery scope predicate returned %d rows the scope refuses",
+                    len(pairs) - len(kept),
+                )
+            for cid in part:
+                ks = keys_of[cid]
+                # the rows `exact` would have read for this ID alone
+                pool = [
+                    d
+                    for r, d in kept
+                    if d.canonical_id in ks or (len(ks) == 1 and r.get("base_id") == ks[0])
+                ]
+                hits: list[IndexedDocument] = []
+                for key in ks:
+                    hits = [d for d in pool if d.canonical_id == key]
+                    if hits:
+                        break
+                if not hits and len(ks) == 1:
+                    hits = sorted(pool, key=lambda d: d.canonical_id)
+                out[cid] = hits
+        return out
 
     def filter(self, criteria: L1Criteria, scope: Scope) -> list[IndexedDocument]:
         out = self._rows(

@@ -1,3 +1,4 @@
+import { SendHorizontal, Square } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { ApiError } from "../api";
 import type { Api } from "../api";
@@ -34,7 +35,12 @@ export function ChatPanel({ api, computerNo, onInserted, onOpenDoc, suggestions 
     if (!prefs.shortcuts) return undefined; // switched off in Settings
     const onKey = (e: KeyboardEvent) => {
       if (!(e.ctrlKey || e.metaKey)) return;
-      if (e.key.toLowerCase() === "k") { e.preventDefault(); input.current?.focus(); }
+      if (e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        // a box in a collapsed panel cannot take focus: open the panel on Ask (AssistDock)
+        if (input.current?.offsetParent) input.current.focus();
+        else window.dispatchEvent(new Event("c2:ask"));
+      }
       if (e.key === "Enter" && latest?.first_cut?.note?.sections.length && computerNo && !busy) {
         e.preventDefault(); void insert(latest);
       }
@@ -97,12 +103,12 @@ export function ChatPanel({ api, computerNo, onInserted, onOpenDoc, suggestions 
           {suggestions.map((q) => <button key={q} className="chip" onClick={() => { setMessage(q); void send(q); }}>{q}</button>)}
         </div>
       )}
-      <div className="row">
+      <div className="row composer">
         <input ref={input} aria-label="Ask C2-24 (Ctrl+K)" onKeyDown={(e) => { if (e.key === "Enter" && !e.ctrlKey && !e.metaKey && !busy) void send(); }} value={message} onChange={(e) => setMessage(e.target.value)} maxLength={500}
           placeholder='e.g. "Has this been decided before?" then "Draft the noting using that precedent."' />
         {busy
-          ? <button onClick={() => stop.current?.abort()}>Stop</button>
-          : <button onClick={() => void send()}>Ask</button>}
+          ? <button onClick={() => stop.current?.abort()}><Square size={14} aria-hidden="true" />Stop</button>
+          : <button className="primary" onClick={() => void send()}><SendHorizontal size={14} aria-hidden="true" />Ask</button>}
       </div>
       {error && <p className="error">{error}</p>}
     </section>

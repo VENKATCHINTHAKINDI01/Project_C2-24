@@ -11,8 +11,8 @@ import { ReceiptInbox, ReceiptView } from "./components/Receipts";
 import { SearchPage } from "./components/SearchPage";
 import { SettingsPage } from "./components/Settings";
 import { AskAi } from "./components/AskAi";
+import { AssistDock } from "./components/AssistDock";
 import { DraftStudio } from "./components/DraftStudio";
-import { FormatsPage } from "./components/FormatsPage";
 import { SignIn } from "./components/SignIn";
 import { SideNav, TopBar, type View } from "./components/TopBar";
 import { setDateStyle } from "./format";
@@ -83,9 +83,16 @@ export function App() {
     applyPreferences(next);
     api.savePreferences(next).catch(() => { /* kept for this sign-in; Settings shows the saved value */ });
   };
-  // Ask AI (top bar, every screen): on a file or its draft, the questions are about that file
-  const [asking, setAsking] = useState(false);
-  const askFile = view.kind === "file" || view.kind === "draft" ? view.computerNo : undefined;
+  // The assistant panel (right, every screen): open by default where a file or receipt fills it
+  // (Settings › assistant panel), collapsed elsewhere until the officer opens it.
+  const contextual = view.kind === "file" || view.kind === "receipt";
+  const [dockOpen, setDockOpen] = useState(true);
+  const [askOpen, setAskOpen] = useState(false);
+  useEffect(() => setDockOpen(prefs.assistant_panel === "open"), [prefs.assistant_panel]);
+  const asking = contextual ? dockOpen : askOpen;
+  const setAsking = useCallback((o: boolean) => (contextual ? setDockOpen : setAskOpen)(o), [contextual]);
+  // the menu: full, or icons only (kept for this sign-in)
+  const [navMini, setNavMini] = useState(false);
   const openFile = (c: string) => go({ kind: "file", computerNo: c });
   // The files this officer can open (from the server): folder counts, Go to file, Recent.
   const [files, setFiles] = useState<FileRow[]>([]);
@@ -124,13 +131,13 @@ export function App() {
         }} />
       ) : (
         <>
-          <TopBar me={me} signOut={() => { setMe(null); setRecentNos([]); setAsking(false); go(HOME, true); }}
+          <TopBar me={me} signOut={() => { setMe(null); setRecentNos([]); setAskOpen(false); go(HOME, true); }}
             files={files} open={openFile} dark={dark} toggleTheme={toggleTheme}
-            ask={() => setAsking((a) => !a)} asking={asking} />
-          <AskAi key={me.user_id} api={api} open={asking} onClose={() => setAsking(false)}
-            computerNo={askFile} fileNo={askFile ? files.find((f) => f.computer_no === askFile)?.file_no : undefined} />
-          <div className={`shell${view.kind === "file" ? " wide" : ""}`}>
+            ask={() => setAsking(!asking)} asking={asking} toggleNav={() => setNavMini((m) => !m)} />
+          <div className={`shell${navMini ? " nav-mini" : ""}${asking ? " dock-open" : " dock-closed"}`}>
             <SideNav view={view} go={go} monitoring={monitoring} counts={counts} recent={recent} />
+            <AssistDock key={me.user_id} open={asking} setOpen={setAsking}
+              general={<AskAi api={api} open />}>
             <div className="main">
               {view.kind === "monitor" && monitoring && <MonitorPad api={api} />}
               {view.kind === "files" && <FileList key={view.folder} api={api} folder={view.folder} open={openFile} />}
@@ -138,9 +145,11 @@ export function App() {
                 draft={() => go({ kind: "draft", computerNo: view.computerNo })} />}
               {view.kind === "draft" && <DraftStudio key={`${view.computerNo}/${view.format ?? ""}`} api={api} computerNo={view.computerNo}
                 initialFormat={view.format} back={() => go({ kind: "file", computerNo: view.computerNo })} onSaved={() => { /* drafts show on the file */ }} />}
-              {view.kind === "newdraft" && <DraftStudio key={`new/${view.format ?? ""}`} api={api} initialFormat={view.format}
-                back={() => go({ kind: "formats" })} onSaved={() => { /* the file list reloads when the file opens */ }} openFile={openFile} />}
-              {view.kind === "formats" && <FormatsPage go={go} api={api} />}
+              {/* New draft and the draft formats are one page: choose a format, see its layout, prepare the draft.
+                  The old #/formats address opens the same page. */}
+              {(view.kind === "newdraft" || view.kind === "formats") && <DraftStudio key={`new/${view.kind === "newdraft" ? view.format ?? "" : ""}`} api={api}
+                initialFormat={view.kind === "newdraft" ? view.format : undefined}
+                back={() => go(HOME)} onSaved={() => { /* the file list reloads when the file opens */ }} openFile={openFile} />}
               {view.kind === "newfile" && <main className="page"><NewFilePanel api={api} open={openFile} /></main>}
               {view.kind === "handover" && <main className="page"><HandoverPanel api={api} open={openFile} /></main>}
               {view.kind === "search" && <SearchPage api={api} />}
@@ -149,6 +158,7 @@ export function App() {
               {view.kind === "settings" && <SettingsPage api={api} prefs={prefs} monitoring={monitoring} onSaved={applyPreferences} />}
               {view.kind === "receipt" && <ReceiptView key={view.computerNo} api={api} computerNo={view.computerNo} />}
             </div>
+            </AssistDock>
           </div>
         </>
       )}

@@ -9,13 +9,19 @@ Distinguishes between four explicit states:
 - CONFIGURED_CALIBRATED: Threshold is empirically calibrated against a validation dataset with
   documented precision, recall, and false-positive metrics. Can terminate retrieval when score
   meets or exceeds threshold.
+- SANDBOX_STAND_IN: a documented TEST value for the in-memory keyword stand-in (sandbox.yaml, unit
+  tests). It ends the ladder exactly as the stand-in always has, is labelled as a stand-in in every
+  trace, and is never a calibration: the cloud L2 can never be in this state.
+
+Calibrated requires evidence (ADR-0061 addendum, 24 Nov 2026): `calibrated=True` without
+calibration metadata, or with metadata whose threshold differs from the configured one, is
+CONFIGURED_UNCALIBRATED. No metadata is ever filled in.
 
 When L2 cannot confidently terminate, retrieval safely escalates to L3 without guessing.
 """
 
 from __future__ import annotations
 
-import datetime as dt
 from collections.abc import Mapping, Sequence
 from enum import StrEnum
 from typing import Any
@@ -27,17 +33,26 @@ class _Frozen(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
 
+# scores that were not measured on a real retriever never calibrate anything
+_NOT_MEASURED = ("simulat", "synthetic", "stand-in", "stand_in", "hard-coded", "mock")
+
+
 class ThresholdCalibrationState(StrEnum):
     NOT_CONFIGURED = "not_configured"
     CONFIGURED_INVALID = "configured_invalid"
     CONFIGURED_UNCALIBRATED = "configured_uncalibrated"
     CONFIGURED_CALIBRATED = "configured_calibrated"
+    SANDBOX_STAND_IN = "sandbox_stand_in"
 
 
 class CalibrationMetadata(_Frozen):
     """Empirical calibration evidence supporting a configured threshold."""
 
     calibrated_at: str = Field(description="ISO 8601 timestamp of calibration")
+    retriever: str = Field(
+        min_length=1,
+        description="Retriever whose real scores were measured, e.g. bigquery-hybrid@asia-south1",
+    )
     dataset_version: str = Field(description="Validation dataset version/identifier")
     sample_size: int = Field(ge=1, description="Number of validation queries evaluated")
     precision: float = Field(ge=0.0, le=1.0, description="Precision achieved at threshold")
@@ -86,8 +101,19 @@ class L2ConfidencePolicy(_Frozen):
 
     @property
     def can_terminate(self) -> bool:
-        """Only calibrated thresholds can ever terminate retrieval at L2."""
-        return self.is_calibrated and self.threshold is not None
+        """Only a calibrated threshold (or the labelled sandbox stand-in) can end the ladder."""
+        return self.threshold is not None and self.state in (
+            ThresholdCalibrationState.CONFIGURED_CALIBRATED,
+            ThresholdCalibrationState.SANDBOX_STAND_IN,
+        )
+
+    @classmethod
+    def stand_in(cls, threshold: float) -> L2ConfidencePolicy:
+        """The in-memory keyword stand-in's documented TEST threshold (sandbox.yaml, tests)."""
+        val = float(threshold)
+        if val <= 0.0:
+            return cls(threshold=val, state=ThresholdCalibrationState.CONFIGURED_INVALID)
+        return cls(threshold=val, state=ThresholdCalibrationState.SANDBOX_STAND_IN)
 
     def evaluate(self, scores: Sequence[float]) -> L2EvaluationResult:
         """Evaluate candidate scores against the confidence policy.
@@ -144,8 +170,24 @@ class L2ConfidencePolicy(_Frozen):
                 escalated_to_l3=has_hits,
             )
 
+        # State 5: SANDBOX_STAND_IN (labelled TEST value; never the cloud L2)
+        if self.state is ThresholdCalibrationState.SANDBOX_STAND_IN:
+            ok = has_hits and max_score >= self.threshold
+            return L2EvaluationResult(
+                can_exit=ok,
+                max_score=max_score,
+                state=ThresholdCalibrationState.SANDBOX_STAND_IN,
+                threshold=self.threshold,
+                note=(
+                    f"sandbox stand-in threshold {self.threshold} (test value, not a calibration): "
+                    + ("passes" if ok else "below; escalating to next rung")
+                ),
+                escalated_to_l3=has_hits and not ok,
+            )
+
         # State 4: CONFIGURED_CALIBRATED
-        assert self.metadata is not None  # enforced by create()
+        if self.metadata is None:  # unreachable through create(); never trusted without evidence
+            raise ValueError("a calibrated policy needs its calibration metadata")
         if max_score >= self.threshold:
             note = (
                 f"passes calibrated threshold ({max_score:.4f} >= {self.threshold:.4f}, "
@@ -214,25 +256,32 @@ class L2ConfidencePolicy(_Frozen):
                 metadata=None,
             )
 
-        meta_obj: CalibrationMetadata
-        if isinstance(metadata, CalibrationMetadata):
-            meta_obj = metadata
-        elif isinstance(metadata, Mapping):
-            meta_obj = CalibrationMetadata.model_validate(metadata)
-        else:
-            # Synthetic or test calibration metadata when none is provided
-            meta_obj = CalibrationMetadata(
-                calibrated_at=dt.datetime.now(dt.UTC).isoformat(timespec="seconds"),
-                dataset_version="synthetic-v1",
-                sample_size=10,
-                precision=0.90,
-                recall=0.85,
-                f1=0.87,
-                target_min_precision=0.85,
-                optimal_threshold=val,
-                termination_rate=0.70,
-                unnecessary_escalation_rate=0.10,
-                false_termination_rate=0.00,
+        # evidence or nothing: no metadata is ever invented (ADR-0061 addendum)
+        meta_obj: CalibrationMetadata | None
+        try:
+            if isinstance(metadata, CalibrationMetadata):
+                meta_obj = metadata
+            elif isinstance(metadata, Mapping):
+                meta_obj = CalibrationMetadata.model_validate(metadata)
+            else:
+                meta_obj = None
+        except ValueError:
+            meta_obj = None
+        if (
+            meta_obj is None
+            or abs(meta_obj.optimal_threshold - val) > 1e-9
+            or any(w in meta_obj.retriever.lower() for w in _NOT_MEASURED)
+        ):
+            return cls(
+                threshold=val,
+                state=ThresholdCalibrationState.CONFIGURED_UNCALIBRATED,
+                metadata=None,
+            )
+        if meta_obj.precision < meta_obj.target_min_precision:
+            return cls(
+                threshold=val,
+                state=ThresholdCalibrationState.CONFIGURED_UNCALIBRATED,
+                metadata=None,
             )
 
         return cls(

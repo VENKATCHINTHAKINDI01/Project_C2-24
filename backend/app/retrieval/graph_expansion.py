@@ -135,9 +135,9 @@ def format_truncation_disclaimer(
         return None
     reason_desc = truncation_reason or "operational limit"
     return (
-        f"⚠️ Archival Traversal Limit: Graph expansion reached operational limit ({reason_desc}). "
-        f"Results show {item_count} related records. Earlier or additional amendments/orders "
-        f"may exist in institutional archives."
+        f"The relations lookup reached its limit ({reason_desc}); {item_count} related "
+        "record(s) are listed. Later orders that replace or amend these records may not all be "
+        "listed."
     )
 
 

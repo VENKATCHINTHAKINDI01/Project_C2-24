@@ -273,8 +273,21 @@ def test_non_silent_truncation_disclaimer() -> None:
     """Non-silent truncation guarantee: assistant disclaimer is generated when truncated."""
     disc = format_truncation_disclaimer(True, "max_nodes_exceeded (50)", 50)
     assert disc is not None
-    assert "Archival Traversal Limit" in disc
-    assert "50 related records" in disc
-    assert "institutional archives" in disc
+    assert "reached its limit" in disc
+    assert "50 related record(s) are listed" in disc
+    assert "may not all be listed" in disc
 
     assert format_truncation_disclaimer(False, None, 10) is None
+
+
+def test_a_limit_drops_citations_before_amendments() -> None:
+    """ADR-0063 addendum: with room for one step, the walk takes the amendment, not the citation."""
+    g = InMemoryGraphRepository()
+    pub = DocumentAccessTags(doc_id="A", department="USD01", classification="UNCLASSIFIED")
+    for cid in ("A", "AM", "CT"):
+        g.upsert_node(GraphNode(canonical_id=cid, tags=pub.model_copy(update={"doc_id": cid})))
+    g.upsert_edge(GraphEdge(source="A", kind=EdgeKind.CITES, target="CT"))  # sorts first by kind
+    g.upsert_edge(GraphEdge(source="AM", kind=EdgeKind.AMENDS, target="A"))
+    scope = compute_scope(new_store().principal("U01"), POLICY, CLASSES)
+    hits = g.walk(["A"], scope, kinds=ALL_KINDS, direction=Direction.BOTH, max_hops=1, max_nodes=1)
+    assert [h.canonical_id for h in hits] == ["AM"] and hits.truncated

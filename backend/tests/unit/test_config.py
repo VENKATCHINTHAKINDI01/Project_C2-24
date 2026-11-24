@@ -40,12 +40,12 @@ def test_runtime_thresholds_start_uncalibrated() -> None:
     assert rt.ingestion.extraction_confidence_min is None
 
 
-def test_runtime_l2_calibrated() -> None:
+def test_runtime_l2_is_not_calibrated_until_measured() -> None:
+    """ADR-0061 addendum: the 20 Nov values came from hard-coded scores and were withdrawn."""
     rt = load_runtime_config(REPO_ROOT / "backend" / "config" / "runtime.yaml")
-    assert rt.retrieval.l2_rerank_min_score == 0.50
-    assert rt.retrieval.l2_calibrated is True
-    assert rt.retrieval.l2_calibration_metadata is not None
-    assert rt.retrieval.l2_calibration_metadata["optimal_threshold"] == 0.50
+    assert rt.retrieval.l2_rerank_min_score is None
+    assert rt.retrieval.l2_calibrated is False
+    assert rt.retrieval.l2_calibration_metadata is None
 
 
 def test_hierarchy_rejects_gaps(tmp_path: Path) -> None:

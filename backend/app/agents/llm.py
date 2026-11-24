@@ -203,11 +203,14 @@ class CachingLLM:
         if self.last_from_cache:
             return dict(json.loads(path.read_text("utf-8"))["response"])
         out = self.live.generate_json(prompt_id=prompt_id, system=system, user=user, schema=schema)
-        self.directory.mkdir(parents=True, exist_ok=True)
-        path.write_text(
-            json.dumps({"prompt": prompt_id, "model": self.live.model, "response": out}),
-            "utf-8",
-        )
+        try:
+            self.directory.mkdir(parents=True, exist_ok=True)
+            path.write_text(
+                json.dumps({"prompt": prompt_id, "model": self.live.model, "response": out}),
+                "utf-8",
+            )
+        except OSError:
+            log.warning("could not write llm cache to %s", path)
         return out
 
     def stream_json(
@@ -229,11 +232,14 @@ class CachingLLM:
         out = stream_json(
             self.live, prompt_id=prompt_id, system=system, user=user, schema=schema, on_text=on_text
         )
-        self.directory.mkdir(parents=True, exist_ok=True)
-        path.write_text(
-            json.dumps({"prompt": prompt_id, "model": self.live.model, "response": out}),
-            "utf-8",
-        )
+        try:
+            self.directory.mkdir(parents=True, exist_ok=True)
+            path.write_text(
+                json.dumps({"prompt": prompt_id, "model": self.live.model, "response": out}),
+                "utf-8",
+            )
+        except OSError:
+            log.warning("could not write llm cache to %s", path)
         return out
 
 

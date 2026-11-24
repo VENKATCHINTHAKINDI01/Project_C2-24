@@ -33,8 +33,11 @@ from app.graph.repository import (
     GraphHit,
     GraphNode,
     GraphWalkResult,
+    StepOrder,
+    statutory_first,
 )
 from app.graph.sync import SyncPlan, check, plan
+from app.retrieval.request_memo import count_query
 
 _NODE = (
     "SELECT canonical_id, department, section, classification, file_no, doc_id "
@@ -78,6 +81,7 @@ class CloudSpannerPort:
         self._db: Any = client.instance(instance).database(database)
 
     def query(self, sql: str, params: Mapping[str, Any] | None = None) -> list[tuple[Any, ...]]:
+        count_query("spanner")
         p = dict(params or {})
         types = {
             k: self._types.Array(self._types.STRING) if isinstance(v, list) else self._types.STRING
@@ -208,6 +212,31 @@ class SpannerGraphRepository:
         max_nodes: int | None = None,
         max_edges: int | None = None,
     ) -> GraphWalkResult:
+        """The store's own order first; only when a limit cuts the walk is it walked again with
+        legally binding relations first (ADR-0063 addendum), so an uncut walk is unchanged."""
+        start = tuple(seeds)
+        first = self._walk(start, scope, kinds=kinds, direction=direction, max_hops=max_hops,
+                           include_unconfirmed=include_unconfirmed, max_nodes=max_nodes,
+                           max_edges=max_edges)  # fmt: skip
+        if not getattr(first, "truncated", False):
+            return first
+        return self._walk(start, scope, kinds=kinds, direction=direction, max_hops=max_hops,
+                          include_unconfirmed=include_unconfirmed, max_nodes=max_nodes,
+                          max_edges=max_edges, order=statutory_first)  # fmt: skip
+
+    def _walk(
+        self,
+        seeds: Iterable[str],
+        scope: Scope,
+        *,
+        kinds: frozenset[EdgeKind],
+        direction: Direction,
+        max_hops: int,
+        include_unconfirmed: bool = False,
+        max_nodes: int | None = None,
+        max_edges: int | None = None,
+        order: StepOrder = list,
+    ) -> GraphWalkResult:
         """Scope-constrained breadth-first walk; same order and results as the reference.
 
         Hop by hop: the whole frontier's edges in one read, its neighbours' tags in another, then
@@ -253,21 +282,23 @@ class SpannerGraphRepository:
                     (e, e.source)
                     for e in sorted(into.get(cid, ()), key=lambda e: (e.kind, e.source))
                 ]
-                return [
+                return order(
                     (e, n) for e, n in s if e.kind in kinds and (e.confirmed or include_unconfirmed)
-                ]
+                )
 
             per = {cid: steps(cid) for cid in ids}
             tags = self._nodes(n for st in per.values() for _, n in st)
             for cid, path in layer:
                 for edge, nxt in per[cid]:
-                    edges_traversed += 1
+                    if nxt not in tags or not scope.admits(tags[nxt].tags):
+                        continue  # out of scope: never visited, returned or counted
+                    edges_traversed += 1  # in scope only: no hidden-record signal
                     if max_edges is not None and edges_traversed > max_edges:
                         truncated = True
                         truncation_reason = f"max_edges_exceeded ({max_edges})"
                         break
-                    if nxt in seen or nxt not in tags or not scope.admits(tags[nxt].tags):
-                        continue  # never visit, return or pass through a node outside the scope
+                    if nxt in seen:
+                        continue
                     if max_nodes is not None and len(hits) >= max_nodes:
                         truncated = True
                         truncation_reason = f"max_nodes_exceeded ({max_nodes})"

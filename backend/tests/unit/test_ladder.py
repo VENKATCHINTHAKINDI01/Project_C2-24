@@ -213,7 +213,6 @@ def test_ladder_truncation_reported_non_silently() -> None:
         l2_min_score=0.5,
         l3_max_hops=2,
         l3_max_nodes=1,  # limit to 1 node to force truncation on multi-edge seed D01
-        calibrated=True,
     )
     res = _run(
         LadderRequest(
@@ -227,4 +226,4 @@ def test_ladder_truncation_reported_non_silently() -> None:
     assert res.truncated is True
     assert res.truncation_reason == "max_nodes_exceeded (1)"
     assert res.disclaimer is not None
-    assert "Archival Traversal Limit" in res.disclaimer
+    assert "reached its limit" in res.disclaimer

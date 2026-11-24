@@ -1,3 +1,4 @@
+import { Folders } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import type { Api } from "../api";
 import { fmtDate, fmtDateTime } from "../format";
@@ -66,7 +67,7 @@ export function FileList({ api, open, folder }: { api: Api; open: (computerNo: s
             if (first) { e.preventDefault(); first.focus(); }
           }} />
       </div>
-      <table className="grid register">
+      {rows.length > 0 && <table className="grid register">
         <thead>
           <tr>
             <th className="num">Comp. No.</th><th>File No.</th><th>Subject</th>
@@ -89,8 +90,8 @@ export function FileList({ api, open, folder }: { api: Api; open: (computerNo: s
             </tr>
           ))}
         </tbody>
-      </table>
-      {rows.length === 0 && <p className="empty">{find ? "No file matches this filter." : EMPTY[folder]}</p>}
+      </table>}
+      {rows.length === 0 && <div className="empty-state"><Folders size={28} aria-hidden="true" /><p>{find ? "No file matches this filter." : EMPTY[folder]}</p></div>}
     </main>
   );
 }

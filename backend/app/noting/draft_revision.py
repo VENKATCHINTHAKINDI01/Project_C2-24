@@ -13,6 +13,7 @@ assisted wording revisions:
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict
@@ -31,6 +32,36 @@ SCHEMA: dict[str, Any] = {
 }
 
 
+# what a revision may not invent (ADR-0062 addendum, 24 Nov 2026): every number, date and order /
+# file reference in the revised text must already be in the draft, the reviewer's remarks or the
+# file subject. The prompt asks for this; this check enforces it (CLAUDE.md §7.7).
+_CHECKABLE = re.compile(
+    r"\b(?:G\.?\s*O\.?\s*(?:\(?(?:Ms|Rt|P)\)?\.?)?\s*No\.?\s*[\w/-]+"
+    r"|(?:Memo|Circular|Rc|Lr|File)\.?\s*No\.?\s*[\w./-]+"
+    r"|\d{1,2}[-./]\d{1,2}[-./]\d{2,4}"
+    r"|(?:Rs\.?|₹)\s*[\d,]+(?:\.\d+)?"
+    r"|\d[\d,]*(?:\.\d+)?)",
+    re.I,
+)
+
+
+def _norm(token: str) -> str:
+    return re.sub(r"[\s,]", "", token).lower().rstrip(".")
+
+
+def unsupported_tokens(revised: str, *sources: str) -> list[str]:
+    """Numbers, dates and references in `revised` that none of `sources` contains."""
+    have = {_norm(t) for src in sources for t in _CHECKABLE.findall(src)}
+    have_digits = {re.sub(r"\D", "", t) for t in have}
+    out: list[str] = []
+    for t in _CHECKABLE.findall(revised):
+        n = _norm(t)
+        if n in have or re.sub(r"\D", "", n) in have_digits and re.sub(r"\D", "", n):
+            continue
+        out.append(t.strip())
+    return list(dict.fromkeys(out))
+
+
 class DraftRevisionResult(BaseModel):
     """Result of an AI-assisted draft revision."""
 
@@ -41,6 +72,7 @@ class DraftRevisionResult(BaseModel):
     engine: str | None = None
     fallback: bool = False
     reason: str | None = None
+    unsupported: tuple[str, ...] = ()  # what the model added that no source holds (withheld)
 
 
 def suggest_revision(
@@ -108,6 +140,21 @@ def suggest_revision(
             changes_summary="AI revision service temporarily unavailable.",
             engine=llm.name,
             reason="engine_down",
+        )
+
+    added = unsupported_tokens(revised, clean_text, clean_remarks, subject, file_context)
+    if added:  # withheld, never shown as a suggestion: the officer keeps their own text
+        return DraftRevisionResult(
+            revised_text=clean_text,
+            changes_summary=(
+                "The suggested revision was withheld: it introduced figures or references that "
+                "are not in the draft or the remarks ("
+                + ", ".join(added[:5])
+                + "). Please revise by hand."
+            ),
+            engine=llm.name,
+            reason="unsupported",
+            unsupported=tuple(added),
         )
 
     used = str(getattr(llm, "last_used", None) or llm.name)

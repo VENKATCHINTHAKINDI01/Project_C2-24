@@ -198,8 +198,11 @@ def calibrate_threshold(
     *,
     min_precision: float = 0.85,
     dataset_version: str = "1.0",
+    retriever: str,
 ) -> CalibrationResult:
-    """Find the optimal threshold satisfying target precision while maximizing F1."""
+    """`retriever` names the retriever whose REAL scores `predictions` hold (ADR-0061 addendum):
+    a policy built from this result is calibrated only if they were measured and the selected
+    threshold meets `min_precision`."""
     if not candidate_thresholds:
         raise ValueError("candidate_thresholds cannot be empty")
     if not predictions:
@@ -219,6 +222,7 @@ def calibrate_threshold(
 
     metadata = CalibrationMetadata(
         calibrated_at=dt.datetime.now(dt.UTC).isoformat(timespec="seconds"),
+        retriever=retriever,
         dataset_version=dataset_version,
         sample_size=len(predictions),
         precision=best.precision,

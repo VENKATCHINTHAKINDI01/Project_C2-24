@@ -18,7 +18,8 @@ claims wait for full coverage. Hidden records still change nothing in the answer
 from __future__ import annotations
 
 import datetime as dt
-from collections.abc import Callable, Mapping
+import logging
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Any
@@ -65,6 +66,9 @@ CURRENT_UNCONFIRMED = (
 
 class _Frozen(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
+
+
+log = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -156,6 +160,19 @@ def _visible(ctx: ToolContext, cid: str) -> IndexedDocument | None:
     return hit if ok else None
 
 
+def _prefetch(ctx: ToolContext, cids: Sequence[str]) -> None:
+    """Warm the request memo with one batched read for many records (cloud backend). Only a
+    speed-up: every record is still checked by `_visible`; a failure here changes nothing."""
+    fetch = getattr(ctx.index, "prefetch", None)
+    if fetch is None or not cids:
+        return
+    try:
+        scope = scope_for(ctx.user_id, ctx.store, ctx.policy, ctx.classification)
+        fetch(cids, scope)
+    except Exception as exc:  # the per-record checks that follow fail closed on their own
+        log.warning("prefetch skipped: %s", type(exc).__name__)
+
+
 def _status_covered(ctx: ToolContext, doc: IndexedDocument) -> bool:
     """Scope-only test (no record lookups): could this officer see everything that might change
     the order's status? Fails closed on any scope problem."""
@@ -174,11 +191,13 @@ def _visible_facts(
     ctx: ToolContext, ids: set[str]
 ) -> tuple[dict[str, Instrument], list[TemporalRelation]]:
     """Temporal facts restricted to what this officer may see (no restricted successor leaks)."""
-    seen = {
+    cands = sorted(
         cid
         for cid in ids | {r.source for r in ctx.relations} | {r.target for r in ctx.relations}
-        if cid in ctx.instruments and _visible(ctx, cid) is not None
-    }
+        if cid in ctx.instruments
+    )
+    _prefetch(ctx, cands)
+    seen = {cid for cid in cands if _visible(ctx, cid) is not None}
     inst = {cid: ctx.instruments[cid] for cid in seen}
     rels = [r for r in ctx.relations if r.source in seen and r.target in seen]
     return inst, rels

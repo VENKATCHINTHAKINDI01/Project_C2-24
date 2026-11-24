@@ -1,3 +1,4 @@
+import { Search } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { FileRow } from "../types";
 
@@ -42,7 +43,9 @@ export function GoTo({ files, open }: { files: FileRow[]; open: (computerNo: str
   };
   return (
     <div className="goto" role="search">
-      <input ref={box} value={typed} placeholder="Go to file — File No., Comp. No. or subject   ( / )"
+      <Search className="goto-icon" size={16} aria-hidden="true" />
+      <kbd className="goto-key" aria-hidden="true">/</kbd>
+      <input ref={box} value={typed} placeholder="Go to file — File No., Comp. No. or subject"
         aria-label="Go to file" aria-expanded={shown && hits.length > 0} aria-controls="goto-list" aria-autocomplete="list"
         aria-activedescendant={shown && hits[at] ? `goto-${hits[at].computer_no}` : undefined} role="combobox"
         onChange={(e) => { setTyped(e.target.value); setShown(true); }}

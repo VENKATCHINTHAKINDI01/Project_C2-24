@@ -5,9 +5,9 @@
 [![Python](https://img.shields.io/badge/Python-3.11%2B-blue.svg)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/Framework-FastAPI%20%2B%20LangGraph-009688.svg)](https://fastapi.tiangolo.com)
 [![Retrieval](https://img.shields.io/badge/Retrieval-L0--L3%20Ladder%20(ADR--0063)-orange.svg)](#4-rung-permission-aware-retrieval-ladder)
-[![Security](https://img.shields.io/badge/Zero--Leakage-100%25%20Verified%20(0%2F1142)-brightgreen.svg)](#empirical-performance--benchmarks)
+[![Security](https://img.shields.io/badge/Zero--Leakage-100%25%20Verified%20(0%2F86%2C373%20v2)-brightgreen.svg)](#empirical-performance--benchmarks)
 
-**C2-24** is an enterprise-grade, security-hardened institutional memory and statutory conflict detection engine engineered for the Government of Andhra Pradesh (Departmental e-Office). It eliminates institutional amnesia across decades of Secretariat records, validates the legal status of historical Government Orders (G.O.s), flags statutory and temporal contradictions before official files are dispatched, and drafts verifiable, fully-cited administrative notes.
+**C2-24** is a proof-of-concept institutional memory and conflict detection assistant for the Government of Andhra Pradesh (Departmental e-Office), built and evaluated in a mock e-Office sandbox with synthetic e-files and public Government Orders. It eliminates institutional amnesia across decades of Secretariat records, validates the legal status of historical Government Orders (G.O.s), flags statutory and temporal contradictions before official files are dispatched, and drafts verifiable, fully-cited administrative notes.
 
 > **Operational Context & Governance Disclaimer:**
 > - **Evaluation Environment:** The system operates in a containerized mock e-Office sandbox demonstrating all 20 Secretariat file lifecycle touchpoints without requiring live NIC e-Office network connections.
@@ -42,9 +42,9 @@
 | Pillar | Capability | Operational Impact | Reference |
 | :--- | :--- | :--- | :--- |
 | **Institutional Memory** | Scoped precedent search over multi-decade orders, circulars, and executive proceedings. | Section officers discover binding precedents in milliseconds, preventing inadvertent policy reversals. | [Plan §3](IMPLEMENTATION_PLAN.md), [ADR-0026](docs/decisions/0026-l2-on-bigquery-in-region.md) |
-| **Temporal Reasoning** | Deterministic point-in-time ("as-of") validity resolution across amendment and supersession trees. | Answers queries like *"What was the dearness relief rate on 15-08-2022?"* using exact legal status on that calendar date. | [Plan §5](IMPLEMENTATION_PLAN.md), [ADR-0024](docs/decisions/0024-temporal-as-of-verification.md) |
-| **Conflict Detection** | Multi-layer analysis across **7 statutory conflict types (A–G)**: direct contradiction, implicit amendment, scope expansion, procedural mismatch, financial eligibility divergence, retrospective clash, and jurisdictional overlap. | Catches contradictions before a draft leaves the section, avoiding judicial scrutiny and audit objections. | [Plan §6](IMPLEMENTATION_PLAN.md), [ADR-0010](docs/decisions/0010-conflict-detection-rules.md), [ADR-0022](docs/decisions/0022-gemini-conflict-eval.md) |
-| **First-Cut Noting** | Automated drafting of Green Notes and Yellow Notes with verbatim evidence grounding. | Reduces note drafting time by up to 70% while guaranteeing that every factual sentence is backed by an authorized citation. | [Plan §11.5](IMPLEMENTATION_PLAN.md), [ADR-0030](docs/decisions/0030-noting-agent-v2.md), [ADR-0062](docs/decisions/0062-senior-review-remarks-draft-revision.md) |
+| **Temporal Reasoning** | Deterministic point-in-time ("as-of") validity resolution across amendment and supersession trees. | Answers queries like *"What was the dearness relief rate on 15-08-2022?"* using exact legal status on that calendar date. | [Plan §5](IMPLEMENTATION_PLAN.md), [ADR-0024](docs/decisions/0024-first-cited-answer.md) |
+| **Conflict Detection** | Multi-layer analysis across **7 statutory conflict types (A–G)**: direct contradiction, implicit amendment, scope expansion, procedural mismatch, financial eligibility divergence, retrospective clash, and jurisdictional overlap. | Catches contradictions before a draft leaves the section, avoiding judicial scrutiny and audit objections. | [Plan §6](IMPLEMENTATION_PLAN.md), [ADR-0010](docs/decisions/0010-approval-authority-rules-for-conflict-type-c.md), [ADR-0022](docs/decisions/0022-gemini-conflict-eval.md) |
+| **First-Cut Noting** | First-cut Yellow Note / DFA drafts with verbatim evidence grounding. | Every factual sentence carries an authorised citation; time saved is not yet measured with officers. | [Plan §11.5](IMPLEMENTATION_PLAN.md), [ADR-0030](docs/decisions/0030-noting-agent-text.md), [ADR-0062](docs/decisions/0062-senior-review-and-ai-draft-revision.md) |
 | **Full Lifecycle Integration** | Native integration across **all 20 Secretariat file touchpoints**: receipt diarisation, reference matching, review remarks, handover briefs, and draft revisions. | Fits directly into existing Secretariat workflows without disrupting standard operating procedures. | [Plan §11.5](IMPLEMENTATION_PLAN.md), [ADR-0037](docs/decisions/0037-touchpoint-scenarios.md) |
 | **Human-in-the-Loop** | OCR confidence gating, relation confirmation, draft editing, and senior review remarks. | AI suggests and flags; only human officers confirm, sign, and issue official Government Orders. | [Plan §12](IMPLEMENTATION_PLAN.md), [ADR-0018](docs/decisions/0018-ocr-confidence-gate.md), [ADR-0031](docs/decisions/0031-hitl-feedback-loop.md) |
 
@@ -99,31 +99,25 @@ RUNG L1: Structured Filter Search
   │      Deterministic SQL filter over department, date ranges, and document status.
   ▼
 RUNG L2: Scoped Hybrid Semantic Search (BigQuery Vector + BM25)
-  │      Pre-filtered cosine similarity (0.7) + BM25 keyword match (0.3) inside BigQuery.
+  │      Scope-filtered vector + keyword search inside BigQuery. Its early-exit threshold is NOT
+  │      calibrated yet (ADR-0061 addendum): until a measured calibration is approved, L2 never
+  │      ends the ladder alone on the cloud and the walk continues to L3.
   ▼
 RUNG L3: Graph-Guided Hybrid Evidence Retrieval (Spanner Graph / Cloud SQL)
-         Relationship discovery, intent filtering, scoped vector search & evidence consolidation.
+         Bounded, scope-constrained walk; binding relations first when a limit cuts it (ADR-0063).
 ```
 
 ### Graph-Guided Hybrid Evidence Retrieval (ADR-0063)
 
 Foundational statutory orders (e.g., *Andhra Pradesh Revised Pension Rules, 1980*) possess hundreds of connected amendments and judicial citations. Standard breadth-first traversal causes graph fan-out explosion, token starvation, and silent context truncation. 
 
-ADR-0063 introduces a 4-phase sub-workflow inside Rung L3:
+ADR-0063 (with its 24 Nov addendum) bounds Rung L3. What runs today:
 
-```mermaid
-flowchart LR
-    L2["L0-L2 Initial Hits"] --> Step1["1. Graph Relationship Discovery\n(Bounded by max_nodes=50, max_edges=100)"]
-    Step1 --> Step2["2. Intent-Based Selector\n(Filter: AMENDS, SUPERSEDES, REPEALS)"]
-    Step2 --> Step3["3. Scoped Hybrid Retrieval\n(Vector + BM25 only over candidate IDs)"]
-    Step3 --> Step4["4. Evidence Consolidation\n(Attach legal_force=HIGH; emit archival disclaimer)"]
-    Step4 --> Engine["Temporal & Conflict Engine"]
-```
+1. **Bounded traversal**: at most `l3_max_nodes: 50` nodes and `l3_max_edges: 100` in-scope steps per walk (`runtime.yaml`). Only steps to records the officer may see are counted, so a limit never reveals hidden records.
+2. **Binding relations first when cut**: a walk runs in the store's normal order; only if a limit cuts it is it walked again with `SUPERSEDES`, `REPEALS`, `AMENDS`, `CLARIFIES` and `CONFLICTS_WITH` before citations and references, so a cut drops a citation before an amendment.
+3. **No silent truncation**: a cut walk adds a notice to the answer ("Not every related order was looked up …").
 
-1. **Graph Relationship Discovery**: Discovers connected orders using bounded traversal (`l3_max_nodes: 50`, `l3_max_edges: 100`).
-2. **Intent-Based Selector**: If the officer asks about eligibility changes, the traversal narrows strictly to statutory relationships (`AMENDS`, `SUPERSEDES`, `REPEALS`, `CLARIFIES`), bypassing tangential citations.
-3. **Scoped Hybrid Retrieval**: Runs vector similarity and BM25 keyword matching **strictly restricted** to the candidate document IDs discovered by the graph.
-4. **Evidence Consolidation & Statutory Priority**: Merges retrieved chunks with relationship metadata. Statutory relationships receive `legal_force="HIGH"`, ensuring semantic relevance never overrides legal supersession. If bounds are reached, an explicit non-silent truncation disclaimer is emitted.
+Planned, not yet in the answer path: an intent-based relation selector, hybrid search restricted to the graph's candidate IDs, and the evidence consolidator (`select_relationships_by_intent`, `ScopedChunkMatch`, `consolidate_evidence` exist as tested helpers).
 
 ---
 
@@ -133,12 +127,12 @@ The system adheres strictly to the Government of Andhra Pradesh data sovereignty
 
 - **Strict Data Residency (asia-south1)**:
   - All compute (Cloud Run), storage (Cloud SQL, Cloud Storage), analytics (BigQuery), and inference (Vertex AI Gemini & Embeddings) execute exclusively within **`asia-south1` (Mumbai)**.
-  - Multi-region or global endpoints (such as Vertex AI Search in US/EU) were explicitly rejected ([ADR-0017](docs/decisions/0017-ocr-and-data-residency.md), [ADR-0026](docs/decisions/0026-l2-on-bigquery-in-region.md)).
+  - Multi-region or global endpoints (such as Vertex AI Search in US/EU) were explicitly rejected ([ADR-0017](docs/decisions/0017-region-and-gemini-model.md), [ADR-0026](docs/decisions/0026-l2-on-bigquery-in-region.md)).
 - **Dual-Gate Fail-Closed Authorization**:
   - The officer's clearance scope (`compute_scope(officer)`) is compiled into a deterministic boolean predicate containing allowed departments, sections, classification ceilings, and handling codes.
   - **Gate 1 (Storage Layer):** Injected directly into BigQuery SQL `WHERE` clauses and graph traversals. Unauthorized rows are never read from disk.
   - **Gate 2 (Memory Layer):** Every retrieved chunk is re-evaluated against the security scope in application memory before reaching the prompt buffer.
-  - **Zero Leakage:** Across 1,142 automated permission matrix checks, the system achieved **0 unauthorized disclosures (100% pass)**.
+  - **Zero Leakage (measured):** 0 unauthorized disclosures in 86,373 checks (seed v2: 21 officers × 203 files, every assistant path incl. drafting; `evaluation/reports/2026-11-19-leakage-v2-drafting-0060.md`) and in 1,142 checks on seed v1.
 - **Verbatim Citation Verifier**:
   - Every factual claim and numerical figure produced by the LLM is validated by a deterministic verifier. Unsupported statements are automatically withheld before presentation to the officer.
 
@@ -151,10 +145,10 @@ The system adheres strictly to the Government of Andhra Pradesh data sovereignty
 | **Backend Core** | Modular Monolith | Python 3.11+, FastAPI, Pydantic v2, uv | Unified, high-throughput asynchronous REST API and business logic. |
 | **Agentic Workflow** | State Orchestrator | LangGraph, LangChain Core | Single typed `AgentState` managing multi-turn dialogue, intent classification, and noting. |
 | **Vector DB / Search** | Regional Hybrid Search | Google BigQuery Vector Search (`asia-south1`) | In-database cosine similarity (`ML.DISTANCE`) combined with BM25 keyword scoring over 768-dim embeddings. |
-| **Embeddings & AI** | Foundation Models | Vertex AI (`text-embedding-004`, Gemini 1.5 Pro/Flash) | Regional text embeddings and strictly-grounded legal drafting / conflict detection. |
-| **Graph Store** | Knowledge Graph | Cloud SQL (PostgreSQL 16) / Cloud Spanner Graph | Directed acyclic graph tracking statutory modifications (`AMENDS`, `SUPERSEDES`, `CITED_IN`). |
+| **Embeddings & AI** | Foundation Models | Vertex AI in asia-south1 (`gemini-embedding-001`, `gemini-3.5-flash`) | Regional text embeddings and strictly-grounded legal drafting / conflict detection. |
+| **Graph Store** | Knowledge Graph | Cloud Spanner Graph (Cloud SQL as the reference store) | Directed graph of confirmed relations (`SUPERSEDES`, `AMENDS`, `CLARIFIES`, `REPEALS`, `CITES`, `REFERENCES`). |
 | **Document Processing** | Ingestion & OCR | Google Document AI, PyPDF | Multi-format parsing (PDF text, scans, DOCX, XLSX) with confidence-gated human review queues. |
-| **Frontend UI** | Mock e-Office Sandbox | React 18, TypeScript, Vite, Tailwind CSS | High-fidelity reproduction of Secretariat file screens, Green Notes, and Assistant side panel. |
+| **Frontend UI** | Mock e-Office Sandbox | React 18, TypeScript, Vite, plain CSS | High-fidelity reproduction of Secretariat file screens, Green Notes, and Assistant side panel. |
 | **Infrastructure** | Containerized Deployment | Docker, Docker Compose, Cloud Run, Cloud Build | Serverless, immutable container deployments with automated secret injection and IAP authentication. |
 
 ---
@@ -214,37 +208,37 @@ The entire retrieval, reasoning, and latency pipeline is continuously evaluated 
 | **MRR (Mean Reciprocal Rank)** | $\ge 0.800$ | **0.886** | Primary governing precedent appears at rank **1.12** on average. |
 | **NDCG@10** | $\ge 0.700$ | **0.746** (74.6%) | Highly authoritative orders rank ahead of tangential citations. |
 | **Ladder-Level Accuracy** | $\ge 0.700$ | **0.737** (73.7%) | 73.7% of requests terminate on their optimal minimal ladder rung without unnecessary traversal. |
-| **Unauthorized Disclosures** | **0 (Zero)** | **0 / 1,142 (100% Pass)** | **Zero data leakage** across all role clearance levels, sections, and handling codes. |
+| **Unauthorized Disclosures** | **0 (Zero)** | **0 / 1,142 (v1) · 0 / 86,373 (v2)** | **Zero data leakage** across all role clearance levels, sections, and handling codes. |
 
-### 2. RAG Quality & Groundedness (ADR-0050)
+### 2. RAG Quality & Groundedness (ADR-0050; RAGAS 19 Nov 2026, 17 scored questions, synthetic data, judge = same model family)
 
 | Metric | Score | Definition & Verification Method |
 | :--- | :--- | :--- |
 | **Citation Correctness** | **1.000 (100.0%)** | All model statements, quotes, and numbers match verbatim against cited source spans. |
 | **Citation Completeness** | **0.699 (69.9%)** | Share of expected ground-truth records successfully retrieved and cited. |
-| **Groundedness / Faithfulness** | **0.938 (93.8%)** | RAGAS benchmark score confirming answers are strictly derived from evidence chunks. |
-| **Answer Relevancy** | **0.754 (75.4%)** | Semantic alignment between the officer's administrative inquiry and the drafted reply. |
+| **Faithfulness / Response groundedness (RAGAS)** | **1.000 / 1.000** | RAGAS scores after the 18 Nov fixes (`evaluation/reports/2026-11-19-ragas-after-fixes.md`; before: 0.923 / 0.938). |
+| **Answer Relevancy (RAGAS)** | **0.762** | Semantic alignment between the officer's administrative inquiry and the drafted reply. |
 | **Context Recall** | **0.877 (87.7%)** | Share of essential legal records successfully delivered to the model evidence buffer. |
 
 ### 3. Latency & Concurrency
 
-- **Per-Rung Execution Latency (In-Memory Engine)**:
+- **Per-Rung Execution Latency (in-memory sandbox engine only — not the cloud stores)**:
   - **L0 Exact Reference:** `0.06 ms` (p50: 0.05 ms, p95: 0.08 ms)
   - **L1 Structured Filter:** `0.05 ms` (p50: 0.05 ms, p95: 0.06 ms)
   - **L2 Hybrid Search:** `0.08 ms` (p50: 0.08 ms, p95: 0.11 ms)
   - **L3 Graph Expansion:** `0.16 ms` (p50: 0.15 ms, p95: 0.17 ms)
-  - *Note: In cloud mode, BigQuery / Cloud SQL network roundtrips add ~60–80 ms total latency.*
+  - *Cloud latency is not measured here. On 19 Nov a draft on the cloud stores took 352 s (≈ 400 BigQuery queries); the per-request query memo (ADR-0060 addendum 2) is the fix, still to be measured on the cloud.*
 - **Throughput & Concurrency**:
-  - Benchmarked across 160 requests on 8 concurrent workers: **5,889.8 QPS**, mean latency `0.31 ms`, p95 `0.20 ms`, **0.0% error rate**.
+  - In-memory engine, 160 requests on 8 workers: 5,889.8 QPS, mean 0.31 ms (a ceiling for the Python code alone, not a service throughput figure).
 
 ### 4. High-Degree Graph Fan-Out Stress Test (*AP Revised Pension Rules, 1980*)
 
-Simulated against a foundational statutory order with **250 connected amendments and citations**:
+Synthetic graph (250 generated links around one order, `evaluation/benchmark_suite.py`) — not a real corpus measurement:
 
 | Architecture | Nodes Explored | Latency | Silent Truncation? | Statutory Hierarchy Recall |
 | :--- | :--- | :--- | :--- | :--- |
 | **Unconstrained Traversal** | 250 nodes | 5.00 ms | **Yes (Context Overflow)** | Unranked |
-| **Graph-Guided Hybrid (ADR-0063)** | **50 nodes (bounded)** | **1.17 ms (76.6% faster)** | **No (Explicit Notice)** | **100% (`legal_force="HIGH"`)** |
+| **Bounded walk (ADR-0063)** | **50 nodes (bounded)** | **1.17 ms** | **No (notice in the answer, ADR-0063 addendum)** | Binding relations walked first when a limit cuts the walk |
 
 ---
 
@@ -366,15 +360,15 @@ uv run python evaluation/benchmark_suite.py
 
 Key architectural selections are documented as immutable decision records in [`docs/decisions/`](docs/decisions/):
 
-- **[ADR-0009](docs/decisions/0009-mock-eoffice-adapter.md)** — Mock e-Office integration boundary and connector interface.
-- **[ADR-0010](docs/decisions/0010-conflict-detection-rules.md)** — Deterministic classification of statutory conflict types A–G.
-- **[ADR-0017](docs/decisions/0017-ocr-and-data-residency.md)** — Sovereign data residency in `asia-south1` and Document AI configuration.
-- **[ADR-0024](docs/decisions/0024-temporal-as-of-verification.md)** — Deterministic point-in-time ("as-of") validity resolution.
+- **[ADR-0009](docs/decisions/0009-authz-spike-and-eoffice-connector-contract.md)** — Mock e-Office integration boundary and connector interface.
+- **[ADR-0010](docs/decisions/0010-approval-authority-rules-for-conflict-type-c.md)** — Deterministic classification of statutory conflict types A–G.
+- **[ADR-0017](docs/decisions/0017-region-and-gemini-model.md)** — Sovereign data residency in `asia-south1` and Document AI configuration.
+- **[ADR-0024](docs/decisions/0024-first-cited-answer.md)** — Deterministic point-in-time ("as-of") validity resolution.
 - **[ADR-0026](docs/decisions/0026-l2-on-bigquery-in-region.md)** — In-region BigQuery Vector Search replacing global Vertex AI Search.
-- **[ADR-0030](docs/decisions/0030-noting-agent-v2.md)** — First-cut noting engine with strict evidence citing and review markers.
-- **[ADR-0039](docs/decisions/0039-iap-identity-and-auth.md)** — Dual-identity handling (IAP ES256 assertion vs mock sandbox header).
-- **[ADR-0050](docs/decisions/0050-rag-quality-benchmarks.md)** — RAGAS groundedness and factual completeness evaluation framework.
-- **[ADR-0062](docs/decisions/0062-senior-review-remarks-draft-revision.md)** — Two-officer workflow with return remarks and AI-assisted draft revision.
+- **[ADR-0030](docs/decisions/0030-noting-agent-text.md)** — First-cut noting engine with strict evidence citing and review markers.
+- **[ADR-0039](docs/decisions/0039-production-hardening.md)** — Dual-identity handling (IAP ES256 assertion vs mock sandbox header).
+- **[ADR-0050](docs/decisions/0050-rag-quality-scoring.md)** — RAGAS groundedness and factual completeness evaluation framework.
+- **[ADR-0062](docs/decisions/0062-senior-review-and-ai-draft-revision.md)** — Two-officer workflow with return remarks and AI-assisted draft revision.
 - **[ADR-0063](docs/decisions/0063-graph-guided-hybrid-evidence-retrieval.md)** — Graph-Guided Hybrid Evidence Retrieval & non-silent fan-out bounds.
 
 ---

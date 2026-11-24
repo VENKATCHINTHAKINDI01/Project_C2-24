@@ -64,6 +64,7 @@ from app.retrieval.bigquery_index import BigQueryRunner
 from app.retrieval.cloud import cloud_rungs_from_settings
 from app.retrieval.graph_expansion import NotCalibratedError
 from app.retrieval.ladder import LadderConfig
+from app.retrieval.request_memo import RequestMemoMiddleware
 from app.tracking.model_usage import InMemoryModelUsage, ModelQuota, PostgresModelUsage
 from app.tracking.monitor import MonitorData, build_monitor, rows_from_bigquery
 from app.tracking.query_log import BigQueryQueryLog, InMemoryQueryLog, QueryLog
@@ -438,6 +439,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         )
     )
     app.state.banner = BANNER
+    # each request reads a cloud record once (within-request reuse only; never across requests)
+    app.add_middleware(RequestMemoMiddleware)
     # outermost: body limit, request ID, no-store headers, and the neutral answer to any failure
     app.add_middleware(
         HttpGuard,

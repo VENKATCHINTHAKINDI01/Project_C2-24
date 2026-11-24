@@ -117,17 +117,15 @@ class LadderConfig(_Frozen):
     l3_max_nodes: int | None = Field(default=50, ge=1)
     l3_max_edges: int | None = Field(default=100, ge=1)
     confidence_policy: L2ConfidencePolicy | None = None
-    calibrated: bool | None = None
 
     @model_validator(mode="after")
     def _ensure_confidence_policy(self) -> LadderConfig:
+        # A config built directly (sandbox.yaml, tests, harnesses) carries the in-memory keyword
+        # stand-in's TEST threshold: labelled as such, never a calibration (ADR-0061 addendum).
         if self.confidence_policy is None:
-            is_cal = True if self.calibrated is not False else False
-            policy = L2ConfidencePolicy.create(
-                threshold=self.l2_min_score,
-                calibrated=is_cal,
+            object.__setattr__(
+                self, "confidence_policy", L2ConfidencePolicy.stand_in(self.l2_min_score)
             )
-            object.__setattr__(self, "confidence_policy", policy)
         return self
 
     @classmethod
@@ -135,21 +133,20 @@ class LadderConfig(_Frozen):
         r = runtime.retrieval
         if r.l2_top_k is None or r.l2_rerank_min_score is None or r.l3_max_hops is None:
             raise NotCalibratedError("retrieval thresholds are not calibrated (runtime.yaml)")
-        is_cal = getattr(r, "l2_calibrated", False)
-        meta = getattr(r, "l2_calibration_metadata", None)
+        if r.l3_max_nodes is None or r.l3_max_edges is None:
+            raise NotCalibratedError("retrieval.l3_max_nodes / l3_max_edges are not set")
         policy = L2ConfidencePolicy.create(
             threshold=r.l2_rerank_min_score,
-            calibrated=is_cal,
-            metadata=meta,
+            calibrated=r.l2_calibrated,
+            metadata=r.l2_calibration_metadata,
         )
         return cls(
             l2_top_k=r.l2_top_k,
             l2_min_score=r.l2_rerank_min_score,
             l3_max_hops=r.l3_max_hops,
-            l3_max_nodes=getattr(r, "l3_max_nodes", 50) or 50,
-            l3_max_edges=getattr(r, "l3_max_edges", 100) or 100,
+            l3_max_nodes=r.l3_max_nodes,
+            l3_max_edges=r.l3_max_edges,
             confidence_policy=policy,
-            calibrated=is_cal,
         )
 
 
@@ -340,9 +337,9 @@ def run_ladder(
             if exp.truncated:
                 note = f"graph expansion (truncated: {exp.truncation_reason})"
                 l3_disclaimer = (
-                    f"⚠️ Archival Traversal Limit: Graph expansion reached operational limit "
-                    f"({exp.truncation_reason}). Results show {len(graph_ids)} related records. "
-                    "Earlier or additional amendments/orders may exist in institutional archives."
+                    f"The relations lookup reached its limit ({exp.truncation_reason}); "
+                    f"{len(graph_ids)} related record(s) are listed. Later orders that replace or "
+                    "amend these records may not all be listed."
                 )
             else:
                 note = "unavailable: graph store failed" if exp.unavailable else "graph expansion"

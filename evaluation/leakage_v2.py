@@ -191,6 +191,15 @@ def sweep(
                         "/assist/draft/prepare", {"computer_no": cno, "format_id": "note_proposal"}
                     ),
                 )
+                # ADR-0062: AI revision of a returned draft — same 404 for a file out of reach
+                record(
+                    "assist: draft revise",
+                    cno,
+                    post(
+                        "/assist/draft/revise",
+                        {"computer_no": cno, "current_text": "Draft.", "review_remarks": "Revise."},
+                    ),
+                )
                 record(
                     "assist: note reference",
                     cno,

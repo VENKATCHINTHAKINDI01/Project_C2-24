@@ -26,9 +26,12 @@ from app.graph.repository import (
     GraphHit,
     GraphNode,
     GraphWalkResult,
+    StepOrder,
+    statutory_first,
 )
 from app.graph.sync import SyncPlan, check, plan
 from app.pg import Pg
+from app.retrieval.request_memo import count_query
 
 _NODE_COLS = "canonical_id, department, section, classification, file_no, doc_id"
 _PROPS = ("doc_type", "hierarchy_level", "issue_date", "effective_from", "valid_until", "subject")
@@ -109,6 +112,7 @@ class PostgresGraphRepository:
         wanted = list(dict.fromkeys(ids))
         if not wanted:
             return {}
+        count_query("cloudsql-graph")
         with self._pg.tx() as cur:
             cur.execute(  # placeholders only; values are bound
                 f"SELECT {_NODE_COLS} FROM graph_nodes WHERE canonical_id IN "  # noqa: S608
@@ -135,6 +139,7 @@ class PostgresGraphRepository:
             return tuple(r[0] for r in cur.fetchall())
 
     def _edges(self, which: str, params: tuple[Any, ...] = ()) -> list[GraphEdge]:
+        count_query("cloudsql-graph")
         with self._pg.tx() as cur:
             cur.execute(_EDGES[which], params)
             rows = cur.fetchall()
@@ -172,6 +177,31 @@ class PostgresGraphRepository:
         max_nodes: int | None = None,
         max_edges: int | None = None,
     ) -> GraphWalkResult:
+        """The store's own order first; only when a limit cuts the walk is it walked again with
+        legally binding relations first (ADR-0063 addendum), so an uncut walk is unchanged."""
+        start = tuple(seeds)
+        first = self._walk(start, scope, kinds=kinds, direction=direction, max_hops=max_hops,
+                           include_unconfirmed=include_unconfirmed, max_nodes=max_nodes,
+                           max_edges=max_edges)  # fmt: skip
+        if not getattr(first, "truncated", False):
+            return first
+        return self._walk(start, scope, kinds=kinds, direction=direction, max_hops=max_hops,
+                          include_unconfirmed=include_unconfirmed, max_nodes=max_nodes,
+                          max_edges=max_edges, order=statutory_first)  # fmt: skip
+
+    def _walk(
+        self,
+        seeds: Iterable[str],
+        scope: Scope,
+        *,
+        kinds: frozenset[EdgeKind],
+        direction: Direction,
+        max_hops: int,
+        include_unconfirmed: bool = False,
+        max_nodes: int | None = None,
+        max_edges: int | None = None,
+        order: StepOrder = list,
+    ) -> GraphWalkResult:
         """Scope-constrained breadth-first walk; same order and results as the reference."""
         if max_hops < 1:
             raise ValueError("max_hops must be >= 1")
@@ -189,20 +219,22 @@ class PostgresGraphRepository:
             cid, path = queue.popleft()
             if len(path) - 1 >= max_hops:
                 continue
-            steps = [
+            steps = order(
                 (e, nxt)
                 for e, nxt in self._steps(cid, direction)
                 if e.kind in kinds and (e.confirmed or include_unconfirmed)
-            ]
+            )
             tags = self._nodes(nxt for _, nxt in steps)
             for edge, nxt in steps:
-                edges_traversed += 1
+                if nxt not in tags or not scope.admits(tags[nxt].tags):
+                    continue  # out of scope: never visited, returned or counted
+                edges_traversed += 1  # in scope only: no hidden-record signal
                 if max_edges is not None and edges_traversed > max_edges:
                     truncated = True
                     truncation_reason = f"max_edges_exceeded ({max_edges})"
                     break
-                if nxt in seen or nxt not in tags or not scope.admits(tags[nxt].tags):
-                    continue  # never visit, return or pass through a node outside the scope
+                if nxt in seen:
+                    continue
                 if max_nodes is not None and len(hits) >= max_nodes:
                     truncated = True
                     truncation_reason = f"max_nodes_exceeded ({max_nodes})"

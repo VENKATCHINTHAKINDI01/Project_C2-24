@@ -21,6 +21,8 @@ from app.graph.repository import (
     GraphHit,
     GraphNode,
     GraphWalkResult,
+    StepOrder,
+    statutory_first,
 )
 from app.retrieval.ladder import HybridRetriever, ScoredDocument
 from app.retrieval.scoped import IndexedDocument, L1Criteria, ScopedRetriever
@@ -38,6 +40,16 @@ class CompositeScopedIndex:
             if hits := p.exact(canonical_id, scope):
                 return hits
         return []
+
+    def prefetch(self, canonical_ids: Iterable[str], scope: Scope) -> None:
+        """Ask the later stores, in one batch each, about the records the earlier ones do not
+        hold (request memo, `request_memo.MemoScopedIndex`); `exact` then reads the memo."""
+        todo = list(dict.fromkeys(canonical_ids))
+        for p in self._parts:
+            fetch = getattr(p, "prefetch", None)
+            if fetch is not None and todo:
+                fetch(todo, scope)
+            todo = [c for c in todo if not p.exact(c, scope)]
 
     def filter(self, criteria: L1Criteria, scope: Scope) -> list[IndexedDocument]:
         seen: dict[str, IndexedDocument] = {}
@@ -125,6 +137,31 @@ class CompositeGraph:
         max_nodes: int | None = None,
         max_edges: int | None = None,
     ) -> GraphWalkResult:
+        """The store's own order first; only when a limit cuts the walk is it walked again with
+        legally binding relations first (ADR-0063 addendum), so an uncut walk is unchanged."""
+        start = tuple(seeds)
+        first = self._walk(start, scope, kinds=kinds, direction=direction, max_hops=max_hops,
+                           include_unconfirmed=include_unconfirmed, max_nodes=max_nodes,
+                           max_edges=max_edges)  # fmt: skip
+        if not getattr(first, "truncated", False):
+            return first
+        return self._walk(start, scope, kinds=kinds, direction=direction, max_hops=max_hops,
+                          include_unconfirmed=include_unconfirmed, max_nodes=max_nodes,
+                          max_edges=max_edges, order=statutory_first)  # fmt: skip
+
+    def _walk(
+        self,
+        seeds: Iterable[str],
+        scope: Scope,
+        *,
+        kinds: frozenset[EdgeKind],
+        direction: Direction,
+        max_hops: int,
+        include_unconfirmed: bool = False,
+        max_nodes: int | None = None,
+        max_edges: int | None = None,
+        order: StepOrder = list,
+    ) -> GraphWalkResult:
         if max_hops < 1:
             raise ValueError("max_hops must be >= 1")
 
@@ -144,16 +181,18 @@ class CompositeGraph:
             cid, path = queue.popleft()
             if len(path) - 1 >= max_hops:
                 continue
-            for edge, nxt in self._steps(cid, direction):
+            for edge, nxt in order(self._steps(cid, direction)):
                 if edge.kind not in kinds or (not edge.confirmed and not include_unconfirmed):
                     continue
-                edges_traversed += 1
+                if not visible(nxt):
+                    continue  # out of scope: never visited, returned or counted
+                edges_traversed += 1  # in scope only: no hidden-record signal
                 if max_edges is not None and edges_traversed > max_edges:
                     truncated = True
                     truncation_reason = f"max_edges_exceeded ({max_edges})"
                     break
-                if nxt in seen or not visible(nxt):
-                    continue  # never visit, return or pass through a node outside the scope
+                if nxt in seen:
+                    continue
                 if max_nodes is not None and len(hits) >= max_nodes:
                     truncated = True
                     truncation_reason = f"max_nodes_exceeded ({max_nodes})"

@@ -61,7 +61,6 @@ def run_retrieval_and_quality() -> dict[str, Any]:
         l2_top_k=lc["l2_top_k"],
         l2_min_score=lc["l2_min_score"],
         l3_max_hops=lc["l3_max_hops"],
-        calibrated=True,
     )
     stack = build_stack(cfg, transcribe=True)
     h = Harness(stack, slots)
@@ -134,7 +133,7 @@ def run_latency_benchmarks(stack: Any) -> dict[str, Any]:
     times_e2e: list[float] = []
 
     store = new_store()
-    cfg = LadderConfig(l2_top_k=5, l2_min_score=0.5, l3_max_hops=2, calibrated=True)
+    cfg = LadderConfig(l2_top_k=5, l2_min_score=0.5, l3_max_hops=2)
 
     cids = list(stack.cid_of.values())
     test_cid = cids[0] if cids else "AP-FIN01-GOMS-1-2022"
@@ -240,7 +239,7 @@ def run_latency_benchmarks(stack: Any) -> dict[str, Any]:
 
 def run_concurrency_benchmarks(stack: Any) -> dict[str, Any]:
     store = new_store()
-    cfg = LadderConfig(l2_top_k=5, l2_min_score=0.5, l3_max_hops=2, calibrated=True)
+    cfg = LadderConfig(l2_top_k=5, l2_min_score=0.5, l3_max_hops=2)
     cids = list(stack.cid_of.values())
     test_cid = cids[0] if cids else "AP-FIN01-GOMS-1-2022"
     req = LadderRequest(

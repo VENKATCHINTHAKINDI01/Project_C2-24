@@ -80,6 +80,10 @@ DEGRADED = {
     "filters and relations only.",
     "L3": "Supersession status unverified: the relations store was unavailable just now, so later "
     "orders that may replace or amend these records were not looked up.",
+    # ADR-0063 addendum: the bounded walk stopped at its limit (counted over the officer's own
+    # records only, so this says nothing about records they cannot see)
+    "L3-limit": "Not every related order was looked up: the relations lookup reached its limit, so "
+    "later orders that replace or amend these records may not all be listed.",
 }
 UNCHECKED = (
     "The answer could not be checked against its sources just now, so it is withheld. "
@@ -306,6 +310,8 @@ def evidence_for(
     found = search_authorized_documents(ctx, IntentSlots(text=question[:500]))
     if down is not None:
         down.update(found.unavailable)
+        if found.truncated:
+            down.add("L3-limit")
     order = list(dict.fromkeys([*seeds, *(r.canonical_id for r in found.documents)]))
     level = "L0" if seeds else found.ladder_level
     cands: list[CandidateSpan] = []

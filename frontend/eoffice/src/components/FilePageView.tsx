@@ -3,7 +3,9 @@ import { fmtDateTime } from "../format";
 import type { Api } from "../api";
 import type { DfaRow, DraftRow, FilePage, FileRecords, Highlight, PresendReport, Standing } from "../types";
 import { usePrefs } from "../prefs";
+import { Archive, FileText, Keyboard, LayoutTemplate, Library, Link2, Lock, Mails, NotebookPen, Paperclip, PenLine, Route, Send, Sparkles, type LucideIcon } from "lucide-react";
 import { AssistPanel } from "./AssistPanel";
+import { DockSlot, useDock } from "./AssistDock";
 import { ChatPanel } from "./ChatPanel";
 import { CitationLegend, DocumentViewer, HighlightedText } from "./Citations";
 
@@ -13,7 +15,7 @@ export function FilePageView({ api, computerNo, open, draft }: {
 }) {
   const [page, setPage] = useState<FilePage | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [tab, setTab] = useState<"toc" | "movements" | "records">("toc");
+  const [tab, setTab] = useState<"notes" | "toc" | "movements" | "records">("notes");
   const [records, setRecords] = useState<FileRecords | null>(null);
   const [attaching, setAttaching] = useState<string | null>(null);
   const [report, setReport] = useState<PresendReport | null>(null);
@@ -22,7 +24,7 @@ export function FilePageView({ api, computerNo, open, draft }: {
   const [viewing, setViewing] = useState<string | null>(null);
   const [help, setHelp] = useState(false);
   const prefs = usePrefs();
-  const [assistOpen, setAssistOpen] = useState(prefs.assistant_panel === "open");
+  const dock = useDock(["ask", "check", "draft"], "For this file and the records you may see");
 
   // J / K: next / previous pre-send flag; ?: the shortcuts (ADR-0034). Never while typing.
   useEffect(() => {
@@ -80,82 +82,115 @@ export function FilePageView({ api, computerNo, open, draft }: {
     <HighlightedText text={text ?? ""} highlights={marks[id] ?? []} onOpenDoc={setViewing}
       onOpenFile={(no) => { const c = files.get(no); if (c && open) open(c); }} fileNos={open ? fileNos : new Set()} />
   );
-  const send = () => { void api.presend(computerNo).then(setReport).catch((e: Error) => setError(e.message)); };
+  // Send = the pre-send check (nothing is sent); its result opens in the assistant's Check tab
+  const send = () => {
+    dock?.show("check");
+    void api.presend(computerNo).then(setReport).catch((e: Error) => setError(e.message));
+  };
+
+  const notesCount = page.notes.length + page.drafts.length + (page.awaiting_approval ?? []).length + (page.submitted ?? []).length;
+  const TABS: [typeof tab, string, LucideIcon, number | null][] = [
+    ["notes", "Notes", NotebookPen, notesCount], ["toc", "Correspondence", Mails, page.correspondence.length],
+    ["movements", "Movements", Route, page.movements.length], ["records", "Records", Library, records ? records.records.length : null],
+  ];
+  const closed = f.state === "closed";
 
   return (
     <div className="filepage">
-      <header className="filecover">
-        <div className="cover-main">
-          <p className="cover-no">File No. <strong>{f.file_no}</strong></p>
-          <h1 className="cover-subject">{f.subject}</h1>
-          <dl className="cover-meta">
-            <div><dt>Computer No.</dt><dd>{f.computer_no}</dd></div>
-            <div><dt>Section</dt><dd>{f.dealing_section}</dd></div>
-            <div><dt>Category</dt><dd>{f.category}</dd></div>
-            <div><dt>State</dt><dd>{f.state === "closed" ? "Closed" : "Open"}</dd></div>
-            {f.previous_references.length > 0 && <div><dt>Previous references</dt><dd>{f.previous_references.join(", ")}</dd></div>}
-          </dl>
+      <header className="filehead">
+        <div className="filehead-top">
+          <span className="fileno-label"><FileText size={16} aria-hidden="true" />File No. <strong>{f.file_no}</strong></span>
+          <span className={`classif ${f.classification.toLowerCase()}`} aria-label={`Classification: ${f.classification}`}>
+            <Lock size={12} aria-hidden="true" />{f.classification}
+          </span>
+          <span className={`state-pill${closed ? " closed" : ""}`}>{closed ? "Closed" : "Open"}</span>
         </div>
-        <span className={`stamp ${f.classification.toLowerCase()}`} aria-label={`Classification: ${f.classification}`}>{f.classification}</span>
+        <h1 className="cover-subject">{f.subject}</h1>
+        <dl className="cover-meta">
+          <div><dt>Computer No.</dt><dd>{f.computer_no}</dd></div>
+          <div><dt>Section</dt><dd>{f.dealing_section}</dd></div>
+          <div><dt>Category</dt><dd>{f.category}</dd></div>
+          {f.previous_references.length > 0 && <div><dt>Previous references</dt><dd>{f.previous_references.join(", ")}</dd></div>}
+        </dl>
       </header>
       <div className="toolbar" role="toolbar" aria-label="File actions">
-        <button onClick={() => setTab("movements")}>Movements</button>
-        <button onClick={send} title="Runs the C2-24 pre-send check; nothing is sent">Send</button>
-        {draft && <button onClick={draft} title="Prepare a note or an order in a chosen format">Draft</button>}
-        {f.state !== "closed" && (
+        <button onClick={send} title="Runs the C2-24 pre-send check; nothing is sent"><Send size={16} aria-hidden="true" />Send</button>
+        {draft && <button onClick={draft} title="Prepare a note or an order in a chosen format"><PenLine size={16} aria-hidden="true" />Draft</button>}
+        {!closed && (
           <label className="button-like" title="Attach a paper (PDF, Word, text or image). It is read and added to the records; a scan waits for OCR review.">
-            Attach
+            <Paperclip size={16} aria-hidden="true" />Attach
             <input type="file" hidden accept=".pdf,.docx,.txt,.jpg,.jpeg,.png,.heic,.tif,.tiff"
               onChange={(e) => { attach(e.target.files?.[0]); e.target.value = ""; }} />
           </label>
         )}
         <span className="toolbar-off" title="e-Office actions this sandbox does not simulate">
-          <button disabled>Link</button><button disabled>Park</button>
+          <button disabled><Link2 size={16} aria-hidden="true" />Link</button>
+          <button disabled><Archive size={16} aria-hidden="true" />Park</button>
         </span>
-        <button className="assist-toggle" aria-expanded={assistOpen} onClick={() => setAssistOpen((o) => !o)}>
-          {assistOpen ? "Hide assistant" : "Show assistant"}
-        </button>
+        {prefs.shortcuts && (
+          <button className="icon-btn toolbar-end" onClick={() => setHelp((h) => !h)} aria-label="Keyboard shortcuts" title="Keyboard shortcuts (?)">
+            <Keyboard size={18} aria-hidden="true" />
+          </button>
+        )}
       </div>
-      <div className={`panes${assistOpen ? "" : " solo"}`}>
-        <section className="noting">
-          {Object.values(marks).some((m) => m.length > 0) && <CitationLegend />}
-          {page.notes.map((n) => (
-            <article key={n.note_id} className={`note ${n.state}`}>
-              <h4><span className="note-no">Note #{n.note_no}</span> <span className="note-kind">{n.state === "green" ? "Green Note" : "Yellow Note (draft)"}</span><span className="note-by">{n.author_post}</span></h4>
-              {n.text_source === "needs_ocr"
-                ? <p className="muted">Scanned noting — text available after OCR and review.</p>
-                : show(n.note_id, n.text)}
-            </article>
-          ))}
-          {page.drafts.map((d) => (
-            <DraftCard key={`${d.draft_id}-${d.versions}`} api={api} computerNo={computerNo} d={d}
-              view={show(d.draft_id, d.text)} onChanged={load} />
-          ))}
-          {(page.awaiting_approval ?? []).map((d) => (
-            <ApprovalCard key={d.draft_id} api={api} computerNo={computerNo} d={d} onChanged={load} />
-          ))}
-          {(page.submitted ?? []).map((d) => <SubmittedCard key={d.draft_id} d={d} />)}
-          {page.notes.length === 0 && page.drafts.length === 0 && <p className="muted">No notes yet.</p>}
-        </section>
-        <section className="corr">
-          <div className="tabs">
-            <button className={tab === "toc" ? "active" : ""} onClick={() => setTab("toc")}>Correspondence</button>
-            <button className={tab === "movements" ? "active" : ""} onClick={() => setTab("movements")}>Movements</button>
-            <button className={tab === "records" ? "active" : ""} onClick={() => setTab("records")}>Records</button>
-          </div>
-          {attaching && <p className="busy" role="status">{attaching}</p>}
-          {tab === "toc" && page.correspondence.length === 0 && <p className="muted">No correspondence on this file.</p>}
-          {tab === "records" ? <RecordsTab records={records} attachments={page.attachments ?? []} view={setViewing} /> : tab === "toc" ? (
-            page.correspondence.length > 0 && <table className="grid">
-              <thead><tr><th>Type</th><th>Title</th><th className="num">Pages</th></tr></thead>
-              <tbody>
-                {page.correspondence.map((c) => (
-                  <tr key={c.correspondence_id}><td><abbr title={c.kind === "puc" ? "Paper under consideration" : "Fresh receipt"}>{c.kind.toUpperCase()}</abbr></td><td>{c.title}</td><td className="num">{c.page_from}–{c.page_to}</td></tr>
-                ))}
-              </tbody>
-            </table>
-          ) : (
-            <table className="grid">
+      <div className="filetabs" role="tablist" aria-label="File contents">
+        {TABS.map(([id, label, Icon, n]) => (
+          <button key={id} role="tab" aria-selected={tab === id} className={tab === id ? "on" : undefined} onClick={() => setTab(id)}>
+            <Icon size={16} aria-hidden="true" />{label}{n !== null && <span className="tab-count">{n}</span>}
+          </button>
+        ))}
+      </div>
+      {attaching && <p className="busy" role="status">{attaching}</p>}
+      <div className="filebody">
+        {tab === "notes" && (
+          <section className="noting">
+            {Object.values(marks).some((m) => m.length > 0) && <CitationLegend />}
+            {page.notes.map((n) => (
+              <article key={n.note_id} className={`note ${n.state}`}>
+                <h4><span className="note-no">Note #{n.note_no}</span> <span className="note-kind">{n.state === "green" ? "Green Note" : "Yellow Note (draft)"}</span><span className="note-by">{n.author_post}</span></h4>
+                {n.text_source === "needs_ocr"
+                  ? <p className="muted">Scanned noting — text available after OCR and review.</p>
+                  : show(n.note_id, n.text)}
+              </article>
+            ))}
+            {page.drafts.map((d) => (
+              <DraftCard key={`${d.draft_id}-${d.versions}`} api={api} computerNo={computerNo} d={d}
+                view={show(d.draft_id, d.text)} onChanged={load} />
+            ))}
+            {(page.awaiting_approval ?? []).map((d) => (
+              <ApprovalCard key={d.draft_id} api={api} computerNo={computerNo} d={d} onChanged={load} />
+            ))}
+            {(page.submitted ?? []).map((d) => <SubmittedCard key={d.draft_id} d={d} />)}
+            {notesCount === 0 && (
+              <div className="empty-state">
+                <NotebookPen size={28} aria-hidden="true" />
+                <p><strong>No notes yet.</strong></p>
+                <p className="muted">Start the noting with a draft, or ask the assistant for a first-cut note.</p>
+                <div className="actions">
+                  {draft && <button className="primary" onClick={draft}><PenLine size={16} aria-hidden="true" />Draft</button>}
+                  <button onClick={() => dock?.show("draft")}><Sparkles size={16} aria-hidden="true" />First-cut note</button>
+                </div>
+              </div>
+            )}
+          </section>
+        )}
+        {tab === "toc" && (
+          <section className="corr">
+            {page.correspondence.length === 0 ? <p className="empty">No correspondence on this file.</p> : (
+              <div className="table-wrap"><table className="grid">
+                <thead><tr><th>Type</th><th>Title</th><th className="num">Pages</th></tr></thead>
+                <tbody>
+                  {page.correspondence.map((c) => (
+                    <tr key={c.correspondence_id}><td><abbr title={c.kind === "puc" ? "Paper under consideration" : "Fresh receipt"}>{c.kind.toUpperCase()}</abbr></td><td>{c.title}</td><td className="num">{c.page_from}–{c.page_to}</td></tr>
+                  ))}
+                </tbody>
+              </table></div>
+            )}
+          </section>
+        )}
+        {tab === "movements" && (
+          <section className="corr">
+            <div className="table-wrap"><table className="grid">
               <thead><tr><th className="num">#</th><th>From</th><th>To</th><th>Sent on</th><th>Remarks</th></tr></thead>
               <tbody>
                 {page.movements.map((m) => (
@@ -167,15 +202,29 @@ export function FilePageView({ api, computerNo, open, draft }: {
                 ))}
                 {page.movements.length === 0 && <tr><td colSpan={5} className="muted">The file has not moved yet.</td></tr>}
               </tbody>
-            </table>
-          )}
-        </section>
-        <div className="assistcol" hidden={!assistOpen}>
-          <AssistPanel api={api} computerNo={computerNo} report={report} onReport={setReport} onInserted={load} onOpenDoc={setViewing} />
-          <ChatPanel api={api} computerNo={computerNo} onInserted={load} onOpenDoc={setViewing}
-            suggestions={suggestionsFor(marks, page?.file.subject ?? "")} />
-        </div>
+            </table></div>
+          </section>
+        )}
+        {tab === "records" && (
+          <section className="corr"><RecordsTab records={records} attachments={page.attachments ?? []} view={setViewing} /></section>
+        )}
       </div>
+      <DockSlot tab="ask">
+        <ChatPanel api={api} computerNo={computerNo} onInserted={load} onOpenDoc={setViewing} titled={false}
+          suggestions={suggestionsFor(marks, page?.file.subject ?? "")} />
+      </DockSlot>
+      <DockSlot tab="check">
+        <AssistPanel part="check" api={api} computerNo={computerNo} report={report} onReport={setReport} onInserted={load} onOpenDoc={setViewing} />
+      </DockSlot>
+      <DockSlot tab="draft">
+        {draft && (
+          <button className="studio-link" onClick={draft}>
+            <LayoutTemplate size={18} aria-hidden="true" />
+            <span><strong>Open the draft workspace</strong><span className="muted small">Notes, orders and letters in a chosen format</span></span>
+          </button>
+        )}
+        <AssistPanel part="draft" api={api} computerNo={computerNo} report={report} onReport={setReport} onInserted={load} onOpenDoc={setViewing} />
+      </DockSlot>
       {viewing && <DocumentViewer api={api} canonicalId={viewing} onClose={() => setViewing(null)} />}
       {help && (
         <div className="shortcuts" role="dialog" aria-label="Keyboard shortcuts" onClick={() => setHelp(false)}>
@@ -184,6 +233,7 @@ export function FilePageView({ api, computerNo, open, draft }: {
             <dt>Ctrl / ⌘ + K</dt><dd>Ask C2-24</dd>
             <dt>Ctrl / ⌘ + Enter</dt><dd>Insert the latest first-cut note as a Yellow Note (a draft)</dd>
             <dt>J / K</dt><dd>Next / previous pre-send flag</dd>
+            <dt>/</dt><dd>Go to file</dd>
             <dt>?</dt><dd>Show or hide this list</dd>
           </dl>
         </div>
@@ -399,7 +449,9 @@ function DraftCard({ api, computerNo, d, view, onChanged }: {
 /** The matter a file is about, from its subject line: "Establishment – Sri X – Request for
  *  transfer … on spouse grounds – Reg." → "request for transfer … on spouse grounds". */
 export function topicOf(subject: string): string {
-  const parts = subject.split(/\s[–—-]\s/).map((p) => p.trim()).filter((p) => p && !/^reg\.?$/i.test(p));
+  // the closing "– Reg." / "– Orders – Issued." are formalities, not the matter
+  const parts = subject.split(/\s[–—-]\s/).map((p) => p.trim().replace(/\.$/, ""))
+    .filter((p) => p && !/^(reg|orders?|issued|orders? issued)$/i.test(p));
   const t = (parts[parts.length - 1] ?? "").replace(/\.$/, "");
   return t ? t.charAt(0).toLowerCase() + t.slice(1) : "";
 }

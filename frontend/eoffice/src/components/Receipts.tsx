@@ -1,3 +1,5 @@
+import { ClipboardPen, ShieldCheck } from "lucide-react";
+import { DockSlot, useDock } from "./AssistDock";
 import { useEffect, useState } from "react";
 import { fmtDate } from "../format";
 import type { Api } from "../api";
@@ -42,7 +44,7 @@ export function ReceiptInbox({ api, open }: { api: Api; open: (computerNo: strin
   return (
     <main className="page">
       {notices && <NoticesPanel n={notices} />}
-      <h2>Receipt inbox</h2>
+      <div className="page-head"><h1>Receipt inbox</h1></div>
       <table className="grid">
         <thead><tr><th>Comp. No.</th><th>Receipt No.</th><th>Diary date</th><th>From</th><th>Letter</th><th>Subject</th></tr></thead>
         <tbody>
@@ -84,12 +86,14 @@ export function ReceiptView({ api, computerNo }: { api: Api; computerNo: string 
     api.receiptAssist(computerNo, asOf || undefined).then(setReview)
       .catch((e: Error) => setError(e.message)).finally(() => setBusy(false));
   };
+  const dock = useDock(["check"], "For this receipt and the records you may see");
+  useEffect(() => { dock?.show("check"); }, [dock?.show]); // eslint-disable-line react-hooks/exhaustive-deps
   if (error && !row) return <p className="error page">{error}</p>;
   if (!row) return <p className="muted page">Opening receipt…</p>;
   return (
-    <div className="panes receipt">
-      <section className="corr">
-        <h3>Receipt {row.receipt_no}</h3>
+    <main className="page receipt-page">
+      <section className="receipt-card">
+        <div className="page-head"><h1>Receipt {row.receipt_no}</h1></div>
         <table className="grid kv">
           <tbody>
             <tr><th>Computer No.</th><td>{row.computer_no}</td></tr>
@@ -107,11 +111,11 @@ export function ReceiptView({ api, computerNo }: { api: Api; computerNo: string 
         </div>
         {arrived && <NoticesPanel n={arrived} />}
       </section>
-      <aside className="assist">
-        <h3>C2-24 assistant <span className="h3-sub">for this receipt</span></h3>
-        <div className="chips">
-          <button disabled={busy} onClick={assist}>Summarise and check</button>
-          <button disabled={busy} onClick={() => { setBusy(true); setError(null); api.diarise(computerNo).then(setPre).catch((e: Error) => setError(e.message)).finally(() => setBusy(false)); }}>Pre-fill diary details</button>
+      <DockSlot tab="check">
+      <aside className="assist part-check">
+        <div className="tools">
+          <button disabled={busy} onClick={assist}><ShieldCheck size={16} aria-hidden="true" /><span>Summarise and check</span></button>
+          <button disabled={busy} onClick={() => { setBusy(true); setError(null); api.diarise(computerNo).then(setPre).catch((e: Error) => setError(e.message)).finally(() => setBusy(false)); }}><ClipboardPen size={16} aria-hidden="true" /><span>Pre-fill diary details</span></button>
         </div>
         <div className="asof">
           <label htmlFor="asof">Check as of</label>
@@ -123,7 +127,8 @@ export function ReceiptView({ api, computerNo }: { api: Api; computerNo: string 
         {review && <ReceiptAssistCard r={review} />}
         <p className="footnote">Drafts only. The officer decides where the receipt goes.</p>
       </aside>
-    </div>
+      </DockSlot>
+    </main>
   );
 }
 
