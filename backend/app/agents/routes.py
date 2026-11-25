@@ -27,6 +27,7 @@ from app.agents.answer import AskStatus, ask
 from app.agents.brief import approval_brief
 from app.agents.conversation import (
     choose_format,
+    closest_extracts,
     compose_answer,
     draft_inputs,
     record_lines,
@@ -668,6 +669,17 @@ def build_assist_router(
             except Exception:  # noqa: BLE001 — presentation only; the checked answer stands
                 log.warning("compose failed; answer shown as checked", exc_info=True)
                 payload["composed"] = None
+        if final.outcome != "denied" and not payload.get("statements"):
+            # no statement confirmed, records found: what the closest records say, verbatim,
+            # from records re-checked for this officer now (never a paraphrase)
+            texts = run.evidence_texts(o.ctx.user_id, store)
+            docs = [
+                (cid, texts.get(cid, ""))
+                for cid in list(payload.get("documents") or [])[:5]
+                if (t := run.tags(cid)) is not None
+                and check(o.ctx.user_id, t, store, run.policy, run.classification).allowed
+            ]
+            payload["extracts"] = closest_extracts(body.message, docs)
         if final.outcome != "denied":  # the officer's own history (ADR-0066)
             kept = fit(payload)
             chats.add(

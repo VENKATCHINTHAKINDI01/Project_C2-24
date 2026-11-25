@@ -345,3 +345,20 @@ def test_a_plain_draft_request_follows_the_file_stage() -> None:
     fid, why = choose_format(NOTES[:1], 1, "open")
     assert fid == "note_proposal" and "No approval is recorded" in why
     assert "closed in e-Office" in choose_format(NOTES, 3, "closed")[1]
+
+
+def test_closest_extracts_are_verbatim_and_follow_the_question() -> None:
+    from app.agents.conversation import closest_extracts
+
+    docs = [
+        ("AP-A", "GOVERNMENT OF ANDHRA PRADESH\nThe financial powers of the Commissioner for "
+                 "administrative sanction of works shall be up to Rs.1.00 crore. Other matters follow."),
+        ("AP-B", "Leave rules apply to all employees. Casual leave may be granted for ten days in a year."),
+    ]  # fmt: skip
+    got = closest_extracts(
+        "What are the financial powers of the Commissioner for sanction of works?", docs
+    )
+    assert got and got[0]["canonical_id"] == "AP-A"
+    assert got[0]["quote"].startswith("The financial powers of the Commissioner")
+    assert all(g["quote"] in d for g in got for c, d in docs if c == g["canonical_id"])
+    assert closest_extracts("hello", docs) == []

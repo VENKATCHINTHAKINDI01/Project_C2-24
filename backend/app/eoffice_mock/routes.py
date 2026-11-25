@@ -7,6 +7,7 @@ show more than C2-24 would — the officer's clearance must cover the file's cla
 Unknown and unavailable files give the same answer. Every response carries the mock banner.
 """
 
+import datetime as dt
 from collections.abc import Callable
 from pathlib import Path
 from typing import Annotated, Any
@@ -46,6 +47,28 @@ class CreateFileIn(BaseModel):
 
     subject: str = Field(min_length=10, max_length=500)
     previous_references: list[str] = Field(default_factory=list, max_length=20)
+
+
+class SendFileIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    to_user: str = Field(min_length=1, max_length=80)
+    remarks: str = Field(default="", max_length=1000)
+    priority: str = Field(default="normal", pattern=r"^(normal|urgent|most_urgent)$")
+    due_on: dt.date | None = None
+
+
+class SubmitIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    to_user: str | None = Field(default=None, max_length=80)
+    remarks: str = Field(default="", max_length=1000)
+
+
+class WriteNoteIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    text: str = Field(min_length=1, max_length=20000)
 
 
 class CloseFileIn(BaseModel):
@@ -155,6 +178,10 @@ def build_sandbox_router(
                     # the e-Office folders (Inbox / Created / Closed) are views of these fields
                     "with_me": f.state is not FileState.CLOSED and holder == p.user_id,
                     "created_by_me": f.created_by == p.user_id,
+                    # e-Office "Sent": the officer sent it last and it has not come back
+                    "sent_by_me": bool(
+                        last and last.from_user == p.user_id and holder != p.user_id
+                    ),
                     "holder_post": adapter.post_of(holder) if holder else None,
                     "sent_by_post": adapter.post_of(last.from_user) if last else None,
                     "received_on": last.sent_at.isoformat() if last else None,
@@ -198,6 +225,7 @@ def build_sandbox_router(
                 "review_remarks": d.review_remarks,
                 "returned_by_post": adapter.post_of(d.returned_by) if d.returned_by else None,
                 "returned_at": d.returned_at.isoformat() if d.returned_at else None,
+                "created_by_assistant": d.created_by_assistant,
             }
             for d in adapter.my_drafts(computer_no, p.user_id)  # the author's own, until confirmed
         ]
@@ -214,10 +242,14 @@ def build_sandbox_router(
                 "issued_as": d.issued_as,
             }
 
+        holder = adapter.holder(computer_no)
         return {
             "banner": BANNER,
             "file": {
                 **file_row(f),
+                # e-Office: only the officer the file is with writes notes, sends or closes it
+                "with_me": f.state is not FileState.CLOSED and holder == p.user_id,
+                "holder_post": adapter.post_of(holder) if holder else None,
                 "previous_references": f.previous_references,
                 "later_references": f.later_references,
                 "linked_files": f.linked_files,
@@ -228,6 +260,11 @@ def build_sandbox_router(
             "submitted": [dfa_row(d) for d in adapter.submitted_by_me(computer_no, p.user_id)],
             "awaiting_approval": [
                 dfa_row(d) for d in adapter.awaiting_approval(computer_no, p.user_id)
+            ],
+            # orders issued on this file: part of the file for everyone who can open it
+            "issued": [
+                {**dfa_row(d), "text": d.versions[-1].text if d.versions else None}
+                for d in adapter.issued_on(computer_no, p.user_id)
             ],
             "attachments": [
                 {
@@ -250,6 +287,80 @@ def build_sandbox_router(
                 }
                 for m in adapter.movements(computer_no)
             ],
+        }
+
+    def holder_file(computer_no: str, p: SandboxProfile) -> None:
+        """The file, opened and cleared for this officer, or the same 404 as everywhere."""
+        try:
+            f = adapter.open_file(computer_no, p.user_id)
+        except ConnectorError:
+            raise HTTPException(status_code=404, detail=NOT_AVAILABLE) from None
+        if not cleared(p, f):
+            raise HTTPException(status_code=404, detail=NOT_AVAILABLE)
+
+    @r.get("/files/{computer_no}/move-options")
+    def send_options(computer_no: str, p: Annotated[SandboxProfile, Depends(me)]) -> dict[str, Any]:
+        """Officers the holder may send the file to (same department, highest post first)."""
+        holder_file(computer_no, p)
+        return {
+            "banner": BANNER,
+            "options": [
+                {"user_id": x.user_id, "post": x.post, "name": x.name}
+                for x in adapter.send_options(computer_no, p.user_id)
+            ],
+        }
+
+    @r.get("/files/{computer_no}/approver-options")
+    def approver_options(
+        computer_no: str, p: Annotated[SandboxProfile, Depends(me)]
+    ) -> dict[str, Any]:
+        """Approving officers the holder may put a draft up to (highest post first)."""
+        holder_file(computer_no, p)
+        return {
+            "banner": BANNER,
+            "options": [
+                {"user_id": x.user_id, "post": x.post, "name": x.name}
+                for x in adapter.approver_options(computer_no, p.user_id)
+            ],
+        }
+
+    @r.post("/files/{computer_no}/notes")
+    def write_note(
+        computer_no: str, body: WriteNoteIn, p: Annotated[SandboxProfile, Depends(me)]
+    ) -> dict[str, Any]:
+        """The holder writes a note (saved as their Yellow Note until signed or sent)."""
+        holder_file(computer_no, p)
+        try:
+            d = adapter.write_note(computer_no, p.user_id, body.text)
+        except ConnectorError:
+            raise HTTPException(status_code=404, detail=NOT_AVAILABLE) from None
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from None
+        return {"banner": BANNER, "draft_id": d.draft_id, "status": d.status.value}
+
+    @r.post("/files/{computer_no}/move")
+    def send_file(
+        computer_no: str, body: SendFileIn, p: Annotated[SandboxProfile, Depends(me)]
+    ) -> dict[str, Any]:
+        """Simulated e-Office "Send" (the file moves on): the holder sends the file, with remarks.
+        Their own Yellow Notes are signed first. The officer's action under /sandbox; the
+        assistant has no such endpoint, and no path carries "send" (test_feedback guard)."""
+        holder_file(computer_no, p)
+        try:
+            m = adapter.send_file(
+                computer_no, p.user_id, body.to_user, body.remarks, body.priority, body.due_on
+            )
+        except ConnectorError:
+            raise HTTPException(status_code=404, detail=NOT_AVAILABLE) from None
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from None
+        return {
+            "banner": BANNER,
+            "movement": {
+                **m.model_dump(mode="json"),
+                "from_post": adapter.post_of(m.from_user),
+                "to_post": adapter.post_of(m.to_user),
+            },
         }
 
     def own_draft_file(computer_no: str, p: SandboxProfile) -> None:
@@ -294,13 +405,18 @@ def build_sandbox_router(
 
     @r.post("/files/{computer_no}/drafts/{draft_id}/submit")
     def submit_draft(
-        computer_no: str, draft_id: str, p: Annotated[SandboxProfile, Depends(me)]
+        computer_no: str,
+        draft_id: str,
+        p: Annotated[SandboxProfile, Depends(me)],
+        body: SubmitIn | None = None,
     ) -> dict[str, Any]:
-        """The author puts their DFA up for approval (ADR-0045). Nothing is ingested: a draft put
-        up is still a draft."""
+        """The author puts their DFA up for approval (ADR-0045), optionally to an approving
+        officer they choose (the file goes to them). Nothing is ingested: a draft put up is
+        still a draft."""
         own_draft_file(computer_no, p)
+        body = body or SubmitIn()
         try:
-            d = adapter.submit_draft(computer_no, draft_id, p.user_id)
+            d = adapter.submit_draft(computer_no, draft_id, p.user_id, body.to_user, body.remarks)
         except ConnectorError:
             raise HTTPException(status_code=404, detail=DRAFT_NOT_AVAILABLE) from None
         except ValueError as exc:

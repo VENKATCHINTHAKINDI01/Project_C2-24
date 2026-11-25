@@ -9,10 +9,11 @@ import { DigestPanel } from "./Digest";
 import type { Folder } from "./TopBar";
 
 const TITLE: Record<Folder, string> = {
-  inbox: "Inbox", created: "Created by you", closed: "Closed files", all: "All files you can open",
+  inbox: "Inbox", sent: "Sent by you", created: "Created by you", closed: "Closed files", all: "All files you can open",
 };
 const EMPTY: Record<Folder, string> = {
-  inbox: "No file is waiting with you. Files you can open are under All I can open.",
+  inbox: "No file is waiting with you.",
+  sent: "No file you sent is waiting with another officer.",
   created: "You have not created a file. Use Create new to open one.",
   closed: "No closed file is open to you.",
   all: "No file is open to you.",
@@ -20,6 +21,7 @@ const EMPTY: Record<Folder, string> = {
 
 function inFolder(f: FileRow, folder: Folder): boolean {
   if (folder === "inbox") return !!f.with_me;
+  if (folder === "sent") return !!f.sent_by_me;
   if (folder === "created") return !!f.created_by_me;
   if (folder === "closed") return f.state === "closed";
   return true;
@@ -72,6 +74,7 @@ export function FileList({ api, open, folder }: { api: Api; open: (computerNo: s
           <tr>
             <th className="num">Comp. No.</th><th>File No.</th><th>Subject</th>
             {folder === "inbox" && <><th>Sent by</th><th>Received</th><th>Due</th></>}
+            {folder === "sent" && <><th>With</th><th>Sent on</th></>}
             {folder === "created" && <><th>Created</th><th>With</th><th>State</th></>}
             {(folder === "closed" || folder === "all") && <><th>Section</th><th>Classification</th>{folder === "all" && <th>State</th>}</>}
           </tr>
@@ -85,6 +88,7 @@ export function FileList({ api, open, folder }: { api: Api; open: (computerNo: s
               <td>{f.subject}{f.priority && f.priority !== "normal" && <span className="tag">{f.priority}</span>}</td>
               {folder === "inbox" && <><td>{f.sent_by_post ?? "—"}</td><td className="date">{fmtDateTime(f.received_on)}</td>
                 <td className="date">{fmtDate(f.due_on)}{dueTag(f.due_on, dueSoon)}</td></>}
+              {folder === "sent" && <><td>{f.holder_post ?? "—"}</td><td className="date">{fmtDateTime(f.received_on)}</td></>}
               {folder === "created" && <><td className="date">{fmtDate(f.created_on)}</td><td>{f.state === "closed" ? "—" : f.holder_post ?? "—"}</td><td>{f.state}</td></>}
               {(folder === "closed" || folder === "all") && <><td>{f.dealing_section}</td><td><span className={`mark ${f.classification.toLowerCase()}`}>{f.classification}</span></td>{folder === "all" && <td>{f.state}</td>}</>}
             </tr>

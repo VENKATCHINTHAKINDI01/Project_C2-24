@@ -63,8 +63,9 @@ export function App() {
       setMonitoring(r.monitoring);
       applyPreferences(p);
       const named = asked.current;
-      let target = named ?? (r.monitoring && p.landing === "inbox" ? LANDING.monitor : LANDING[p.landing]);
+      let target = named ?? (r.monitoring ? LANDING.monitor : LANDING[p.landing]);
       if (target.kind === "monitor" && !r.monitoring) target = HOME;
+      if (r.monitoring) target = LANDING.monitor; // the monitoring officer sees the pad only
       go(target, true);
     });
   }, [api, me, go, applyPreferences]);
@@ -99,6 +100,7 @@ export function App() {
   }, [api, me, view.kind === "file"]);
   const counts = useMemo((): Record<string, number> => files.length ? {
     inbox: files.filter((f) => f.with_me).length,
+    sent: files.filter((f) => f.sent_by_me).length,
     created: files.filter((f) => f.created_by_me).length,
     closed: files.filter((f) => f.state === "closed").length,
     all: files.length,
@@ -128,8 +130,8 @@ export function App() {
       ) : (
         <>
           <TopBar me={me} signOut={() => { setMe(null); setRecentNos([]); setAiMode(null); go(HOME, true); }}
-            files={files} open={openFile} dark={dark} toggleTheme={toggleTheme}
-            ask={() => setAiMode(aiMode === "general" ? null : "general")} asking={aiMode === "general"} toggleNav={() => setNavMini((m) => !m)} />
+            files={files} open={monitoring ? undefined : openFile} dark={dark} toggleTheme={toggleTheme}
+            ask={monitoring ? undefined : () => setAiMode(aiMode === "general" ? null : "general")} asking={aiMode === "general"} toggleNav={() => setNavMini((m) => !m)} />
           <div className={`shell${navMini ? " nav-mini" : ""}`}>
             <SideNav view={view} go={go} monitoring={monitoring} counts={counts} recent={recent} />
             <AssistDock key={me.user_id} mode={aiMode} setMode={setAiMode} autoOpen={prefs.assistant_panel === "open"}

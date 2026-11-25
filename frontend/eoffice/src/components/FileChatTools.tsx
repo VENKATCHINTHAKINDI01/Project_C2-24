@@ -135,7 +135,7 @@ function DraftChat({ api, computerNo, d, filled, onInserted }: {
   return (
     <div className="assist draft-chat">
       <p className="answer-lead">
-        I've prepared a {d.format.title.charAt(0).toLowerCase() + d.format.title.slice(1)} for this file.
+        I've prepared a draft for this file: {d.format.title}.
         {filled?.format_reason ? ` ${filled.format_reason}` : ""}
         {gaps.length === 0 ? " It is filled from the notes; read it through, edit as needed and save." : " Check the marked gaps before saving."}
       </p>

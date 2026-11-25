@@ -1,6 +1,7 @@
 // Thin client for the sandbox + assist API. Sign-in is SIMULATED with a header (sandbox only,
 // ADR-0012). Errors keep the server's neutral wording; nothing is retried with less scope.
 import type {
+  Movement,
   ChatConversation, ChatConversationRow, FileSummary,
   Brief, ChatTurn, DraftWorkspace, FileRecords, ClosingRemarks, Diarise, Handover, Movements, PreviousRefs, SinceDecision, DfaPreview, DocumentInfo, Highlights, OcrReviewDetail, OcrReviewItem, OcrReviewResult, ChatEvent, Digest, DraftReceipt, MonitorData, PassageContext, FeedbackIn, FilePage, FileRow, FileSoFar, FirstCut, LinkSuggestions, Me, Preferences, NoteReferenceSuggestion, NoteReferences, Notices, PresendReport, Profile, ReceiptReview, ReceiptRow, ReferenceResult, SearchResult, DraftFormats, DraftInputs, PreparedDraft } from "./types";
 
@@ -194,9 +195,22 @@ export function createApi(userId: string | null, fetchFn: Fetch = (i, init) => f
       call<DraftReceipt>("/assist/draft", {
         computer_no: computerNo, kind: "yellow_note", body, citations, request_id: requestId,
       }),
+    // e-Office movement (sandbox, the officer's own actions): write a note, send the file on.
+    writeNote: (computerNo: string, text: string) =>
+      call<{ draft_id: string; status: string }>(`/sandbox/files/${encodeURIComponent(computerNo)}/notes`, { text }),
+    moveOptions: (computerNo: string) =>
+      call<{ options: { user_id: string; post: string; name: string }[] }>(
+        `/sandbox/files/${encodeURIComponent(computerNo)}/move-options`),
+    moveFile: (computerNo: string, body: { to_user: string; remarks: string; priority: string; due_on: string | null }) =>
+      call<{ movement: Movement & { from_post: string | null; to_post: string | null } }>(
+        `/sandbox/files/${encodeURIComponent(computerNo)}/move`, body),
     // A DFA's way to issue (ADR-0045): the author puts it up; another officer approves and issues.
-    submitDraft: (computerNo: string, draftId: string) =>
-      call<{ draft_id: string; status: string }>(`${draftPath(computerNo, draftId)}/submit`, {}),
+    submitDraft: (computerNo: string, draftId: string, toUser?: string, remarks?: string) =>
+      call<{ draft_id: string; status: string }>(`${draftPath(computerNo, draftId)}/submit`,
+        toUser ? { to_user: toUser, remarks: remarks ?? "" } : {}),
+    approverOptions: (computerNo: string) =>
+      call<{ options: { user_id: string; post: string; name: string }[] }>(
+        `/sandbox/files/${encodeURIComponent(computerNo)}/approver-options`),
     approveAndIssue: (computerNo: string, draftId: string) =>
       call<{ draft_id: string; status: string; issued_as: string }>(`${approvalPath(computerNo, draftId)}/issue`, {}),
     returnDraft: (computerNo: string, draftId: string, remarks?: string) =>

@@ -134,6 +134,7 @@ class Draft(_Model):
     review_remarks: str | None = None  # requested changes when returned by higher officer
     returned_by: str | None = None  # officer who returned it for changes
     returned_at: dt.datetime | None = None
+    submitted_to: str | None = None  # the approving officer the author chose (file sent to them)
 
 
 class Attachment(_Model):

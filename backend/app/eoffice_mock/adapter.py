@@ -129,6 +129,17 @@ class MockEOfficeAdapter:
     def _clock(self) -> dt.datetime:
         return self._now or dt.datetime.now(dt.UTC)
 
+    def _office_now(self) -> dt.datetime:
+        """Now on the sandbox's office date (the seed's "today"), at the current time of day in
+        IST: a file sent in the demo is received "today", not on the real calendar date, so the
+        Inbox and the digest count days consistently with the seeded movements."""
+        now = self._clock()
+        if self._office_date is None:
+            return now
+        ist = dt.timezone(dt.timedelta(hours=5, minutes=30))
+        day = self._office_date
+        return dt.datetime.combine(day, now.astimezone(ist).time(), tzinfo=ist).astimezone(dt.UTC)
+
     def _profile(self, user_id: str) -> SandboxProfile:
         try:
             return self._profiles[user_id]
@@ -617,10 +628,27 @@ class MockEOfficeAdapter:
         p = self._profiles.get(user_id)
         return bool(p and p.login and any(p.post.startswith(x) for x in self._approver_posts))
 
-    def submit_draft(self, computer_no: str, draft_id: str, user_id: str) -> Draft:
+    def approver_options(self, computer_no: str, user_id: str) -> list[SandboxProfile]:
+        """Approving officers the holder may put a DFA up to (send options that are approvers)."""
+        return [x for x in self.send_options(computer_no, user_id) if self.is_approver(x.user_id)]
+
+    def submit_draft(
+        self,
+        computer_no: str,
+        draft_id: str,
+        user_id: str,
+        to_user: str | None = None,
+        remarks: str = "",
+    ) -> Draft:
         """The author puts their DFA up for approval. From now on it is the approver's to act on:
-        the author no longer edits it (they can see it until it is returned or issued)."""
+        the author no longer edits it (they can see it until it is returned or issued). With
+        `to_user` (the approving officer the author chose, e-Office "send for approval") the file
+        is sent to that officer with the draft, and only they see it for approval."""
         d = self._own_draft(computer_no, draft_id, user_id)
+        if to_user is not None and to_user not in {
+            x.user_id for x in self.approver_options(computer_no, user_id)
+        }:
+            raise ConnectorError("draft not available")
         if d.kind != DraftKind.DFA_DRAFT.value:
             raise ValueError("only a draft for approval (DFA) is put up for approval")
         _check_issuable(d.versions[-1].text or "")
@@ -631,9 +659,12 @@ class MockEOfficeAdapter:
                 "review_remarks": None,
                 "returned_by": None,
                 "returned_at": None,
+                "submitted_to": to_user,
             }
         )
         self.drafts[draft_id] = up
+        if to_user is not None:
+            self.send_file(computer_no, user_id, to_user, remarks or "Draft put up for approval.")
         return up
 
     def submitted_by_me(self, computer_no: str, user_id: str) -> list[Draft]:
@@ -644,6 +675,15 @@ class MockEOfficeAdapter:
             if d.computer_no == computer_no
             and d.requested_by == user_id
             and d.status in (DraftStatus.SUBMITTED, DraftStatus.DISPATCHED)
+        ]
+
+    def issued_on(self, computer_no: str, user_id: str) -> list[Draft]:
+        """Orders issued on this file (approved, signed and numbered), oldest first."""
+        self.open_file(computer_no, user_id)
+        return [
+            d
+            for d in self.drafts.values()
+            if d.computer_no == computer_no and d.status is DraftStatus.DISPATCHED
         ]
 
     def awaiting_approval(self, computer_no: str, user_id: str) -> list[Draft]:
@@ -657,6 +697,7 @@ class MockEOfficeAdapter:
             if d.computer_no == computer_no
             and d.status is DraftStatus.SUBMITTED
             and d.requested_by != user_id
+            and d.submitted_to in (None, user_id)  # put up to a chosen officer: only them
         ]
 
     def _awaiting(self, computer_no: str, draft_id: str, user_id: str) -> Draft:
@@ -735,6 +776,95 @@ class MockEOfficeAdapter:
         self.drafts[draft_id] = done
         self._emit(EventKind.DRAFT_DISPATCHED, f, draft_id, art)
         return done
+
+    # --- Moving the file (e-Office "Send"; sandbox, simulated) -------------------------------
+
+    def send_options(self, computer_no: str, user_id: str) -> list[SandboxProfile]:
+        """Whom the holder may send the file to: officers with a sandbox login in the file's
+        department, highest post first (role_rank; the mock hierarchy, [To confirm]). Only the
+        holder of an open file has options; anyone else gets none."""
+        f = self._files.get(computer_no)
+        p = self.profile(user_id)
+        if f is None or not self._reachable(p, f) or f.state is not FileState.OPEN:
+            return []
+        if self.holder(computer_no) != user_id:
+            return []
+        return sorted(
+            (
+                x
+                for x in self._profiles.values()
+                if x.login and x.user_id != user_id and x.department == f.department
+            ),
+            key=lambda x: (-x.role_rank, x.post),
+        )
+
+    def write_note(self, computer_no: str, user_id: str, text: str) -> Draft:
+        """The holder types a note in the file (e-Office's note editor): it is saved as their
+        Yellow Note — editable until they confirm it or send the file, which signs it (simulated
+        click, no DSC/eSign). Only the holder of an open file writes notes."""
+        f = self._files.get(computer_no)
+        p = self.profile(user_id)
+        if f is None or not self._reachable(p, f) or self.holder(computer_no) != user_id:
+            raise ConnectorError("file not available")
+        if f.state is not FileState.OPEN:
+            raise ValueError("the file is closed")
+        body = text.strip()
+        if not body:
+            raise ValueError("an empty note cannot be saved")
+        now = self._clock()
+        draft_id = f"MOCK-DRAFT-{next(self._seq):05d}"
+        d = Draft(
+            draft_id=draft_id,
+            computer_no=computer_no,
+            kind=DraftKind.YELLOW_NOTE.value,
+            status=DraftStatus.DRAFT,
+            versions=[NoteVersion(version=1, text=body, saved_at=now, saved_by=user_id)],
+            created_by_assistant=False,
+            requested_by=user_id,
+        )
+        self.drafts[draft_id] = d
+        return d
+
+    def send_file(
+        self,
+        computer_no: str,
+        user_id: str,
+        to_user: str,
+        remarks: str = "",
+        priority: str = "normal",
+        due_on: dt.date | None = None,
+    ) -> Movement:
+        """e-Office "Send": the holder sends the open file to an officer of its department. The
+        sender's own Yellow Notes on the file are signed first, as e-Office does on sending
+        (simulated click). The move is recorded in the movement trail, so the receiver can open
+        the file and it is in their Inbox; a move down to a lower post is marked "sent back"."""
+        if to_user not in {x.user_id for x in self.send_options(computer_no, user_id)}:
+            raise ConnectorError("file not available")
+        for d in list(self.drafts.values()):
+            if (
+                d.computer_no == computer_no
+                and d.requested_by == user_id
+                and d.kind == DraftKind.YELLOW_NOTE.value
+                and d.status is DraftStatus.DRAFT
+                and strip_watermark(d.versions[-1].text or "").strip()
+            ):
+                self.confirm_yellow_note(computer_no, d.draft_id, user_id)
+        moves = [m for m in self._movements if m.computer_no == computer_no]
+        # "sent back": the file goes down the hierarchy (to a lower post than the sender's)
+        back = self.profile(to_user).role_rank < self.profile(user_id).role_rank
+        m = Movement(
+            computer_no=computer_no,
+            seq=max((x.seq for x in moves), default=0) + 1,
+            from_user=user_id,
+            to_user=to_user,
+            sent_at=self._office_now(),
+            due_on=due_on,
+            priority=priority if priority in ("normal", "urgent", "most_urgent") else "normal",
+            remarks=remarks.strip()[:1000],
+            sent_back=back,
+        )
+        self._movements = sorted([*self._movements, m], key=lambda x: (x.computer_no, x.seq))
+        return m
 
     def holder(self, computer_no: str) -> str | None:
         moves = [m for m in self._movements if m.computer_no == computer_no]

@@ -38,9 +38,10 @@ describe("officer settings (ADR-0041)", () => {
     expect(html).not.toContain(">Monitoring<"); // only a monitoring officer may start there
   });
 
-  it("Settings is a working menu item; Dispatch and Draft register stay off", () => {
+  it("Settings is a working menu item; actions the sandbox does not simulate are not listed", () => {
     const html = text(<SideNav view={{ kind: "settings" }} go={() => {}} monitoring={false} />);
     expect(html).toMatch(/<button class="on"[^>]*>(?:(?!<\/button>).)*>Settings<\/span>/);
-    expect(html).toMatch(/<button disabled=""[^>]*>(?:(?!<\/button>).)*>Dispatch<\/span>/);
+    expect(html).not.toContain("Dispatch");
+    expect(html).not.toContain("Draft register");
   });
 });

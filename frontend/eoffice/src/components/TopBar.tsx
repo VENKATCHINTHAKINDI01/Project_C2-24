@@ -1,13 +1,13 @@
 import type { ReactNode } from "react";
 import {
-  Activity, Archive, ArrowRightLeft, BookMarked, BookOpen, Clock, FilePlus2, FileSearch, FolderCheck,
-  FolderPen, FolderPlus, Folders, Inbox, Landmark, LogOut, Mail, Moon, PanelLeft, ScanText, Send,
+  Activity, ArrowRightLeft, FileSearch, FolderCheck,
+  FolderPen, FolderPlus, Inbox, Landmark, LogOut, Mail, Moon, PanelLeft, ScanText, Send,
   Settings, Sparkles, Sun, type LucideIcon,
 } from "lucide-react";
 import { GoTo } from "./GoTo";
 import type { FileRow, Profile } from "../types";
 
-export type Folder = "inbox" | "created" | "closed" | "all";
+export type Folder = "inbox" | "sent" | "created" | "closed" | "all";
 export type View =
   | { kind: "files"; folder: Folder } | { kind: "file"; computerNo: string } | { kind: "newfile" }
   | { kind: "handover" } | { kind: "search" } | { kind: "receipts" }
@@ -19,7 +19,7 @@ const initials = (name: string) =>
   name.replace(/^(Sri|Smt|Dr|Shri)\.?\s+/i, "").split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join("").toUpperCase();
 
 /** The header: product, Go to file, the assistant, light / dark, the signed-in officer, sign out. */
-export function TopBar({ me, signOut, files = [], open = () => {}, dark = false, toggleTheme, ask, asking = false, toggleNav }: {
+export function TopBar({ me, signOut, files = [], open, dark = false, toggleTheme, ask, asking = false, toggleNav }: {
   me: Profile; signOut: () => void; files?: FileRow[]; open?: (computerNo: string) => void;
   dark?: boolean; toggleTheme?: () => void;
   /** the assistant panel, on every screen */
@@ -40,7 +40,7 @@ export function TopBar({ me, signOut, files = [], open = () => {}, dark = false,
         <span className="brand-name">eFile</span>
         <span className="brand-sub">sandbox</span>
       </span>
-      <GoTo files={files} open={open} />
+      {open && <GoTo files={files} open={open} />}
       <div className="topbar-end">
         {ask && (
           <button className="ask-ai" onClick={ask} aria-expanded={asking}
@@ -72,7 +72,7 @@ export function TopBar({ me, signOut, files = [], open = () => {}, dark = false,
 }
 
 const FOLDERS: [Folder, string, LucideIcon][] = [
-  ["inbox", "Inbox", Inbox], ["created", "Created", FolderPen], ["closed", "Closed", FolderCheck], ["all", "All I can open", Folders],
+  ["inbox", "File inbox", Inbox], ["sent", "Sent", Send], ["created", "Created", FolderPen], ["closed", "Closed", FolderCheck],
 ];
 
 function Item({ icon: Icon, label, on, onClick, disabled, title, count, hot }: {
@@ -93,61 +93,46 @@ function Item({ icon: Icon, label, on, onClick, disabled, title, count, hot }: {
 
 /** The eFile menu tree (Receipts, File), then the assistant's own pages. Items e-Office has but
  *  this sandbox does not are listed, switched off, so the shape matches what officers know. */
-export function SideNav({ view, go, monitoring, counts = {}, recent = [] }: {
+export function SideNav({ view, go, monitoring, counts = {} }: {
   view: View; go: (v: View) => void; monitoring: boolean; counts?: Record<string, number>;
   /** Files opened in this sign-in, newest first (kept only until sign-out). */
   recent?: { computerNo: string; fileNo: string }[];
 }) {
-  const inFile = view.kind === "file";
+  if (monitoring) {
+    // the monitoring officer has no files or receipts: the monitoring pad only (owner, 25 Nov)
+    return (
+      <nav className="sidenav" aria-label="Main menu">
+        <h2>Monitoring</h2>
+        <ul>
+          <Item icon={Activity} label="Monitoring" on={view.kind === "monitor"} onClick={() => go({ kind: "monitor" })} />
+        </ul>
+      </nav>
+    );
+  }
   return (
     <nav className="sidenav" aria-label="Main menu">
       <h2>Receipts</h2>
       <ul>
-        <Item icon={Mail} label="Inbox" on={view.kind === "receipts" || view.kind === "receipt"} onClick={() => go({ kind: "receipts" })} />
-        <Item icon={BookOpen} label={<>Browse &amp; diarise</>} disabled title="Not in this sandbox" />
+        <Item icon={Mail} label="Receipt inbox" title="Letters received, not yet put in a file" on={view.kind === "receipts" || view.kind === "receipt"} onClick={() => go({ kind: "receipts" })} />
       </ul>
       <h2>File</h2>
       <ul>
         {FOLDERS.map(([f, label, icon]) => (
           <Item key={f} icon={icon} label={label} count={counts[f]}
-            on={(view.kind === "files" && view.folder === f) || (inFile && f === "all")}
+            on={view.kind === "files" && view.folder === f}
             onClick={() => go({ kind: "files", folder: f })} />
         ))}
         <Item icon={FolderPlus} label="Create new" on={view.kind === "newfile"} onClick={() => go({ kind: "newfile" })} />
-        <Item icon={Archive} label="Parked" disabled title="Not in this sandbox" />
       </ul>
-      <h2>Drafting</h2>
-      <ul>
-        <Item icon={FilePlus2} label="New draft" title="Choose a format, see how it is laid out, and prepare the draft"
-          on={view.kind === "newdraft" || view.kind === "formats" || view.kind === "draft"} onClick={() => go({ kind: "newdraft" })} />
-      </ul>
-      {recent.length > 0 && (
-        <>
-          <h2>Recent</h2>
-          <ul className="recent">
-            {recent.map((r) => (
-              <Item key={r.computerNo} icon={Clock} label={r.fileNo} title={r.fileNo}
-                on={view.kind === "file" && view.computerNo === r.computerNo}
-                onClick={() => go({ kind: "file", computerNo: r.computerNo })} />
-            ))}
-          </ul>
-        </>
-      )}
       <h2>Assistant</h2>
       <ul>
         <Item icon={FileSearch} label="Search records" on={view.kind === "search"} onClick={() => go({ kind: "search" })} />
         <Item icon={ArrowRightLeft} label="Section handover" on={view.kind === "handover"} onClick={() => go({ kind: "handover" })} />
         <Item icon={ScanText} label="OCR review" on={view.kind === "review"} onClick={() => go({ kind: "review" })} />
-        {monitoring && <Item icon={Activity} label="Monitoring" on={view.kind === "monitor"} onClick={() => go({ kind: "monitor" })} />}
       </ul>
       <h2>Personal</h2>
       <ul>
         <Item icon={Settings} label="Settings" on={view.kind === "settings"} onClick={() => go({ kind: "settings" })} />
-      </ul>
-      <h2>Not in this sandbox</h2>
-      <ul className="off">
-        <Item icon={Send} label="Dispatch" disabled title="An officer's own action; not simulated in this sandbox" />
-        <Item icon={BookMarked} label="Draft register" disabled title="Not in this sandbox" />
       </ul>
     </nav>
   );

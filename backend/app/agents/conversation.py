@@ -157,6 +157,36 @@ _SMALL_TALK: tuple[tuple[re.Pattern[str], str], ...] = (
 )
 
 
+_SENTENCE = re.compile(r"(?<=[.;:])\s+|\n+")
+
+
+def closest_extracts(
+    question: str, docs: Sequence[tuple[str, str]], per_doc: int = 2, most: int = 4
+) -> list[dict[str, str]]:
+    """When no statement could be confirmed but records were found (25 Nov 2026): the sentences
+    of those records that share the most words with the question, verbatim, each with its
+    record. Nothing is written or paraphrased, so nothing needs checking; records come only
+    from the officer's evidence package, re-checked by the caller."""
+    want = _content(question)
+    if not want:
+        return []
+    out: list[tuple[int, int, dict[str, str]]] = []
+    for rank, (cid, text) in enumerate(docs):
+        best: list[tuple[int, str]] = []
+        for raw in _SENTENCE.split(text or ""):
+            s = " ".join(raw.split())
+            if not 40 <= len(s) <= 400:
+                continue
+            hit = len(want & _content(s))
+            if hit >= 2:
+                best.append((hit, s))
+        best.sort(key=lambda x: -x[0])
+        for hit, s in best[:per_doc]:
+            out.append((hit, -rank, {"canonical_id": cid, "quote": s}))
+    out.sort(key=lambda x: (-x[0], -x[1]))
+    return [x[2] for x in out[:most]]
+
+
 def small_talk(message: str) -> str | None:
     """A fixed reply for greetings, thanks and "what can you do" (ADR-0067 addendum 2): no
     retrieval, no model, nothing from any record. None for every other message."""

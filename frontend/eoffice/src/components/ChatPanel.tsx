@@ -412,7 +412,21 @@ export function ChatReply({ api, asked, reply, onOpenDoc, onInsert }: {
             )}
           </>
         )}
-        {reply.statements.length === 0 && reply.documents.length > 0 && (
+        {reply.statements.length === 0 && (reply.extracts ?? []).length > 0 && (
+          <div className="extracts">
+            <p>I could not confirm a direct answer, but this is what the closest records say:</p>
+            <ul>
+              {(reply.extracts ?? []).map((x, i) => (
+                <li key={i}>
+                  <span className="quote">“{x.quote}”</span>{" "}
+                  {onOpenDoc ? <button className="link" onClick={() => onOpenDoc(x.canonical_id)}>{x.canonical_id}</button> : <span className="muted">{x.canonical_id}</span>}
+                </li>
+              ))}
+            </ul>
+            <p className="muted small">Quoted as written; read the record before relying on it.</p>
+          </div>
+        )}
+        {reply.statements.length === 0 && (reply.extracts ?? []).length === 0 && reply.documents.length > 0 && (
           // no answer written (no model, or nothing supported): the records found, to open and read
           <ul className="found-docs" aria-label="Records found">
             {reply.documents.map((d) => (

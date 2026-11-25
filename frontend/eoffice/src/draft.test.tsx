@@ -27,15 +27,14 @@ describe("draft workspace (ADR-0044)", () => {
     expect(insertAfterBody(filled, "More.").split("\n")).toEqual(["ORDER:", "1. Done.", "More.", "(BY ORDER AND IN THE NAME OF THE GOVERNOR OF ANDHRA PRADESH)"]);
   });
 
-  it("New draft and the draft formats are one menu item; a draft has its own address (Back / Forward)", () => {
+  it("drafts start in a file, as in e-Office (owner, 25 Nov): no New draft menu item; a draft keeps its own address", () => {
     const nav = text(<SideNav view={{ kind: "formats" }} go={() => {}} monitoring={false} />);
-    expect(nav).toMatch(/<button class="on"[^>]*>(?:(?!<\/button>).)*>New draft<\/span>/);
+    expect(nav).not.toContain("New draft");
     expect(nav).not.toContain("Draft formats");
     expect(fromHash(toHash({ kind: "draft", computerNo: "1771342", format: "memo" }))).toEqual({ kind: "draft", computerNo: "1771342", format: "memo" });
   });
 
-  it("a new draft needs no file: New draft is in the menu and the library offers no file picker", () => {
-    expect(text(<SideNav view={{ kind: "newdraft" }} go={() => {}} monitoring={false} />)).toMatch(/<button class="on"[^>]*>(?:(?!<\/button>).)*>New draft<\/span>/);
+  it("the draft library still opens by its address and offers no file picker", () => {
     expect(fromHash("#/newdraft/go_ms")).toEqual({ kind: "newdraft", format: "go_ms" });
     const api = { draftFormats: () => new Promise(() => {}) } as unknown as Api;
     const studio = text(<DraftStudio api={api} back={() => {}} onSaved={() => {}} />);

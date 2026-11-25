@@ -3,7 +3,7 @@ import { fmtDateTime } from "../format";
 import type { Api } from "../api";
 import type { DfaRow, DraftRow, FilePage, FileRecords, Highlight, Standing } from "../types";
 import { usePrefs } from "../prefs";
-import { Archive, FileText, Keyboard, Link2, Lock, Mails, NotebookPen, Paperclip, PenLine, Route, Send, Sparkles, type LucideIcon } from "lucide-react";
+import { FileText, Keyboard, Lock, Mails, NotebookPen, Paperclip, PenLine, Route, Send, Sparkles, type LucideIcon } from "lucide-react";
 import { fileTools } from "./FileChatTools";
 import { DockSlot, useDock } from "./AssistDock";
 import { ChatPanel } from "./ChatPanel";
@@ -22,6 +22,8 @@ export function FilePageView({ api, computerNo, open, draft }: {
   const [files, setFiles] = useState<Map<string, string>>(new Map()); // file no. → comp. no.
   const [viewing, setViewing] = useState<string | null>(null);
   const [help, setHelp] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [sentTo, setSentTo] = useState<string | null>(null);
   const prefs = usePrefs();
   // one chat for the file (24 Nov 2026): every Check and Draft tool is asked in it, by chip or in words
   const dock = useDock(["ask"], "About this file: its notes, movements, records, checks and drafts");
@@ -81,8 +83,7 @@ export function FilePageView({ api, computerNo, open, draft }: {
     <HighlightedText text={text ?? ""} highlights={marks[id] ?? []} onOpenDoc={setViewing}
       onOpenFile={(no) => { const c = files.get(no); if (c && open) open(c); }} fileNos={open ? fileNos : new Set()} />
   );
-  // Send = the pre-send check (nothing is sent); its result opens in the assistant's Check tab
-  const send = () => askTool("presend");
+  const withMe = !!f.with_me;
 
 
   const notesCount = page.notes.length + page.drafts.length + (page.awaiting_approval ?? []).length + (page.submitted ?? []).length;
@@ -104,6 +105,7 @@ export function FilePageView({ api, computerNo, open, draft }: {
             <Lock size={12} aria-hidden="true" />{f.classification}
           </span>
           <span className={`state-pill${closed ? " closed" : ""}`}>{closed ? "Closed" : "Open"}</span>
+          {!closed && <span className={`with-pill${withMe ? " mine" : ""}`}>{withMe ? "With you" : `With ${f.holder_post ?? "another officer"}`}</span>}
         </div>
         <h1 className="cover-subject">{f.subject}</h1>
         <dl className="cover-meta">
@@ -114,7 +116,9 @@ export function FilePageView({ api, computerNo, open, draft }: {
         </dl>
       </header>
       <div className="toolbar" role="toolbar" aria-label="File actions">
-        <button onClick={send} title="Runs the C2-24 pre-send check; nothing is sent"><Send size={16} aria-hidden="true" />Send</button>
+        <button onClick={() => setSending((x) => !x)} disabled={!withMe}
+          title={withMe ? "Send the file to another officer, with remarks" : `The file is with ${f.holder_post ?? "another officer"}`}>
+          <Send size={16} aria-hidden="true" />Send</button>
         {draft && <button onClick={draft} title="Prepare a note or an order in a chosen format"><PenLine size={16} aria-hidden="true" />Draft</button>}
         {!closed && (
           <label className="button-like" title="Attach a paper (PDF, Word, text or image). It is read and added to the records; a scan waits for OCR review.">
@@ -123,10 +127,6 @@ export function FilePageView({ api, computerNo, open, draft }: {
               onChange={(e) => { attach(e.target.files?.[0]); e.target.value = ""; }} />
           </label>
         )}
-        <span className="toolbar-off" title="e-Office actions this sandbox does not simulate">
-          <button disabled><Link2 size={16} aria-hidden="true" />Link</button>
-          <button disabled><Archive size={16} aria-hidden="true" />Park</button>
-        </span>
         {prefs.shortcuts && (
           <button className="icon-btn toolbar-end" onClick={() => setHelp((h) => !h)} aria-label="Keyboard shortcuts" title="Keyboard shortcuts (?)">
             <Keyboard size={18} aria-hidden="true" />
@@ -140,6 +140,11 @@ export function FilePageView({ api, computerNo, open, draft }: {
           </button>
         ))}
       </div>
+      {sending && withMe && (
+        <SendPanel api={api} computerNo={computerNo} check={() => askTool("presend")}
+          done={(to) => { setSending(false); setSentTo(to); load(); }} cancel={() => setSending(false)} />
+      )}
+      {sentTo && <p className="ok-line" role="status">File sent to {sentTo}. It is now in their Inbox and under Sent in yours.</p>}
       {attaching && <p className="busy" role="status">{attaching}</p>}
       <div className="filebody">
         {tab === "notes" && (
@@ -160,7 +165,14 @@ export function FilePageView({ api, computerNo, open, draft }: {
             {(page.awaiting_approval ?? []).map((d) => (
               <ApprovalCard key={d.draft_id} api={api} computerNo={computerNo} d={d} onChanged={load} />
             ))}
-            {(page.submitted ?? []).map((d) => <SubmittedCard key={d.draft_id} d={d} />)}
+            {(page.submitted ?? []).filter((d) => d.status !== "dispatched").map((d) => <SubmittedCard key={d.draft_id} d={d} />)}
+            {(page.issued ?? []).map((d) => (
+              <article key={d.draft_id} className="note issued">
+                <h4>Issued: {d.issued_as ?? ""}<span className="muted"> approved and signed by {d.approved_by_post ?? ""}</span></h4>
+                <pre className="draft-text">{d.text}</pre>
+              </article>
+            ))}
+            {withMe && <WriteNote api={api} computerNo={computerNo} onSaved={load} />}
             {notesCount === 0 && (
               <div className="empty-state">
                 <NotebookPen size={28} aria-hidden="true" />
@@ -240,6 +252,82 @@ const STANDING_TEXT: Record<Standing, string> = {
 
 /** ADR-0045: what of this file entered institutional memory (only official acts: the file's
  *  particulars, attached papers, confirmed notes, issued orders), and what still waits. */
+/** e-Office "Send": the officer the file is with marks it to another officer of the department,
+ *  with remarks, priority and a due date. Their own Yellow Notes are signed on sending. */
+function SendPanel({ api, computerNo, check, done, cancel }: {
+  api: Api; computerNo: string; check: () => void; done: (toPost: string) => void; cancel: () => void;
+}) {
+  const [options, setOptions] = useState<{ user_id: string; post: string; name: string }[] | null>(null);
+  const [to, setTo] = useState("");
+  const [remarks, setRemarks] = useState("");
+  const [priority, setPriority] = useState("normal");
+  const [due, setDue] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    api.moveOptions(computerNo).then((r) => setOptions(r.options)).catch((e: Error) => setError(e.message));
+  }, [api, computerNo]);
+  const submit = () => {
+    setBusy(true); setError(null);
+    api.moveFile(computerNo, { to_user: to, remarks, priority, due_on: due || null })
+      .then((r) => done(r.movement.to_post ?? "the officer"))
+      .catch((e: Error) => setError(e.message)).finally(() => setBusy(false));
+  };
+  return (
+    <section className="send-panel" aria-label="Send file">
+      <h3>Send file</h3>
+      <div className="send-grid">
+        <label>Send to
+          <select value={to} onChange={(e) => setTo(e.target.value)} disabled={!options}>
+            <option value="">{options ? "Choose an officer…" : "Loading…"}</option>
+            {(options ?? []).map((o) => <option key={o.user_id} value={o.user_id}>{o.post}</option>)}
+          </select>
+        </label>
+        <label>Priority
+          <select value={priority} onChange={(e) => setPriority(e.target.value)}>
+            <option value="normal">Normal</option><option value="urgent">Urgent</option><option value="most_urgent">Most urgent</option>
+          </select>
+        </label>
+        <label>Due date <input type="date" value={due} onChange={(e) => setDue(e.target.value)} /></label>
+      </div>
+      <label className="send-remarks">Remarks
+        <textarea rows={2} value={remarks} onChange={(e) => setRemarks(e.target.value)} placeholder="For orders, please." />
+      </label>
+      <p className="muted small">Your Yellow Notes on this file are signed when you send it.</p>
+      {error && <p className="error">{error}</p>}
+      <div className="actions">
+        <button className="primary" disabled={!to || busy} onClick={submit}><Send size={16} aria-hidden="true" />Send</button>
+        <button onClick={check} disabled={busy}>Check before sending</button>
+        <button onClick={cancel} disabled={busy}>Cancel</button>
+      </div>
+    </section>
+  );
+}
+
+/** The note editor: the officer the file is with writes the next note; it is their Yellow Note
+ *  (editable) until they confirm it or send the file. */
+function WriteNote({ api, computerNo, onSaved }: { api: Api; computerNo: string; onSaved: () => void }) {
+  const [text, setText] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const save = () => {
+    setBusy(true); setError(null);
+    api.writeNote(computerNo, text).then(() => { setText(""); onSaved(); })
+      .catch((e: Error) => setError(e.message)).finally(() => setBusy(false));
+  };
+  return (
+    <article className="note write-note">
+      <h4>Write a note</h4>
+      <textarea aria-label="Note text" rows={4} value={text} onChange={(e) => setText(e.target.value)}
+        placeholder="Type your note. It is saved as your Yellow Note and signed when you confirm it or send the file." />
+      {error && <p className="error">{error}</p>}
+      <div className="actions">
+        <button className="primary" disabled={!text.trim() || busy} onClick={save}><PenLine size={16} aria-hidden="true" />Save note</button>
+      </div>
+    </article>
+  );
+}
+
 function RecordsTab({ records, attachments, view }: {
   records: FileRecords | null; attachments: { attachment_id: string; filename: string; uploaded_by_post: string | null; uploaded_at: string }[];
   view: (cid: string) => void;
@@ -356,6 +444,9 @@ function DraftCard({ api, computerNo, d, view, onChanged }: {
   const [error, setError] = useState<string | null>(null);
   const [revising, setRevising] = useState(false);
   const [revisionSummary, setRevisionSummary] = useState<string | null>(null);
+  const [choosing, setChoosing] = useState(false);
+  const [approvers, setApprovers] = useState<{ user_id: string; post: string; name: string }[] | null>(null);
+  const [approver, setApprover] = useState("");
 
   const act = (f: () => Promise<unknown>) => {
     setBusy(true); setError(null);
@@ -380,7 +471,9 @@ function DraftCard({ api, computerNo, d, view, onChanged }: {
   return (
     <article className="note yellow">
       <h4>{DRAFT_TITLE[d.kind] ?? "Draft"} <span className="muted">{d.draft_id} · version {d.versions}</span></h4>
-      <p className="ai">AI-assisted draft — inserted by you, editable, visible only to you. Not confirmed, signed or sent.</p>
+      {d.created_by_assistant === false
+        ? <p className="muted small">Your note — editable, visible only to you until you confirm it or send the file.</p>
+        : <p className="ai">AI-assisted draft — inserted by you, editable, visible only to you. Not confirmed, signed or sent.</p>}
 
       {d.review_remarks && (
         <div className="review-banner" style={{ margin: "0.75rem 0", padding: "0.75rem", background: "var(--bg-warn-subtle, #fff8e1)", borderLeft: "4px solid #ffb300", borderRadius: "4px" }}>
@@ -415,10 +508,24 @@ function DraftCard({ api, computerNo, d, view, onChanged }: {
         {editing
           ? <button disabled={busy || !text.trim()} onClick={() => act(() => api.saveDraft(computerNo, d.draft_id, text))}>Save</button>
           : <button disabled={busy} onClick={() => setEditing(true)}>Edit</button>}
-        {d.kind === "dfa_draft" && (
+        {d.kind === "dfa_draft" && !choosing && (
           <button className="primary" disabled={busy || editing}
-            title="Put the draft up to the approving officer. You can no longer edit it unless it is returned."
-            onClick={() => act(() => api.submitDraft(computerNo, d.draft_id))}>Put up for approval</button>
+            title="Choose the approving officer; the file goes to them with this draft. You can no longer edit it unless it is returned."
+            onClick={() => {
+              setChoosing(true);
+              api.approverOptions(computerNo).then((r) => setApprovers(r.options)).catch((e: Error) => setError(e.message));
+            }}>Put up for approval…</button>
+        )}
+        {d.kind === "dfa_draft" && choosing && (
+          <span className="approver-pick">
+            <select aria-label="Approving officer" value={approver} onChange={(e) => setApprover(e.target.value)}>
+              <option value="">{approvers ? "Send for approval to…" : "Loading…"}</option>
+              {(approvers ?? []).map((o) => <option key={o.user_id} value={o.user_id}>{o.post}</option>)}
+            </select>
+            <button className="primary" disabled={busy || !approver}
+              onClick={() => act(() => api.submitDraft(computerNo, d.draft_id, approver, "Draft put up for approval."))}>Put up and send</button>
+            <button disabled={busy} onClick={() => setChoosing(false)}>Cancel</button>
+          </span>
         )}
         {d.kind === "yellow_note" && (
           <button className="primary" disabled={busy || editing}

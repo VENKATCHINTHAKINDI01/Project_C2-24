@@ -34,17 +34,17 @@ describe("faster work (ADR-0042)", () => {
 
   it("the top bar has Go to file and a one-click theme switch", () => {
     const me = { user_id: "U01", name: "Officer A", post: "Section Officer (Estt.I)", login: true } as never;
-    const html = text(<TopBar me={me} signOut={() => {}} files={FILES} dark={false} toggleTheme={() => {}} />);
+    const html = text(<TopBar me={me} signOut={() => {}} files={FILES} open={() => {}} dark={false} toggleTheme={() => {}} />);
     expect(html).toContain('aria-label="Go to file"');
     expect(html).toContain("Switch to the dark theme");
   });
 
-  it("Recent lists files opened in this sign-in", () => {
+  it("the menu is e-Office's own (owner, 25 Nov): Inbox, Sent, Created, Closed — no Recent or All I can open", () => {
     const html = text(<SideNav view={{ kind: "files", folder: "inbox" }} go={() => {}} monitoring={false}
       recent={[{ computerNo: "1771342", fileNo: "USD01-12/19/2026-ESTT.I" }]} />);
-    expect(html).toContain("Recent");
-    expect(html).toContain("USD01-12/19/2026-ESTT.I");
-    expect(text(<SideNav view={{ kind: "settings" }} go={() => {}} monitoring={false} />)).not.toContain(">Recent<");
+    for (const s of [">Receipt inbox<", ">File inbox<", ">Sent<", ">Created<", ">Closed<", ">Create new<"]) expect(html).toContain(s);
+    for (const s of [">Recent<", "All I can open", "Not in this sandbox", "Parked"]) expect(html).not.toContain(s);
+    expect(html.indexOf(">Search records<")).toBeGreaterThan(html.indexOf(">Create new<")); // assistant pages below
   });
 
   it("theme: Light, Dark and Match my computer are offered; light and dark resolve to themselves", () => {
@@ -53,5 +53,13 @@ describe("faster work (ADR-0042)", () => {
     expect(resolveTheme("dark")).toBe("dark");
     expect(resolveTheme("light")).toBe("light");
     expect(["light", "dark"]).toContain(resolveTheme("system"));
+  });
+});
+
+describe("monitoring officer (owner, 25 Nov)", () => {
+  it("sees the Monitoring item only", () => {
+    const html = text(<SideNav view={{ kind: "monitor" }} go={() => {}} monitoring />);
+    expect(html).toContain(">Monitoring<");
+    for (const s of ["inbox", ">Sent<", "Create new", "Search records", "OCR review", "Settings"]) expect(html).not.toContain(s);
   });
 });

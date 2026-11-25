@@ -75,3 +75,19 @@ describe("structured file summary (25 Nov, 17:40)", () => {
     expect(html).not.toContain("What is pending");
   });
 });
+
+describe("general chat with records but no confirmed statement (25 Nov)", () => {
+  it("quotes the closest records instead of only listing them", () => {
+    const turn = {
+      request_id: "r", session_id: "s", turn: 1, from_cache: false, used_earlier_turn: false,
+      status: "no_answer", statements: [], review_needed: [], removed: 0, documents: ["AP-A"], notices: [],
+      message: "No sufficiently supported answer was found in the authorised records.", as_of: "2026-11-25",
+      first_cut: null, calibrated: false, mock_rules: true,
+      extracts: [{ canonical_id: "AP-A", quote: "The financial powers of the Commissioner shall be up to Rs.1.00 crore." }],
+    } as unknown as ChatTurn;
+    const html = renderToString(<ChatReply asked="financial powers" reply={turn} />).replace(/<!-- -->/g, "");
+    expect(html).toContain("this is what the closest records say");
+    expect(html).toContain("“The financial powers of the Commissioner shall be up to Rs.1.00 crore.”");
+    expect(html).not.toContain("found-docs");
+  });
+});

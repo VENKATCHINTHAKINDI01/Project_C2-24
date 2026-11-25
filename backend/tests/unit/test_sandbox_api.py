@@ -535,6 +535,8 @@ def test_tp14_dfa_preview_then_draft_only_on_click(client: TestClient) -> None:
     assert set(officer_acts) == {
         "/sandbox/files/{computer_no}/approvals/{draft_id}/issue",
         "/sandbox/files/{computer_no}/approvals/{draft_id}/return",
+        # read-only: whom the officer holding the file may put a draft up to (25 Nov 2026)
+        "/sandbox/files/{computer_no}/approver-options",
     }
 
 

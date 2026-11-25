@@ -16,6 +16,8 @@ export interface FileRow {
   dealing_section: string; category: string; classification: string; state: string;
   // e-Office folders (Inbox / Created / Closed) — present in the file listing
   with_me?: boolean; created_by_me?: boolean; holder_post?: string | null; sent_by_post?: string | null;
+  /** e-Office "Sent": this officer sent it last and it has not come back */
+  sent_by_me?: boolean;
   received_on?: string | null; due_on?: string | null; priority?: string; created_on?: string | null;
 }
 
@@ -28,6 +30,8 @@ export interface Note {
 export interface DraftRow {
   draft_id: string; kind: string; status: string; text: string | null; request_id: string | null;
   versions: number; review_remarks?: string | null; returned_by_post?: string | null; returned_at?: string | null;
+  /** false: the officer typed it in the note editor (no AI label) */
+  created_by_assistant?: boolean;
 }
 
 /** Feedback (plan §9.2, ADR-0031): IDs and fixed codes only — never text. */
@@ -54,8 +58,11 @@ export interface Movement {
 export interface FilePage {
   banner: string;
   file: FileRow & { previous_references: string[]; later_references: string[]; linked_files: string[] };
+  // FileRow's with_me / holder_post: only the officer the file is with notes, sends or closes it
   notes: Note[]; drafts: DraftRow[]; correspondence: Correspondence[]; movements: Movement[];
   submitted?: DfaRow[]; awaiting_approval?: DfaRow[]; attachments?: AttachmentRow[];
+  /** orders issued on this file (everyone who can open it sees them) */
+  issued?: (DfaRow & { text: string | null })[];
 }
 
 /** A DFA on its way to issue (ADR-0045). */
@@ -285,6 +292,8 @@ export interface ChatTurn extends AssistMeta {
   status: "answered" | "review_needed" | "no_answer" | "not_run" | "denied" | "chat";
   statements: ChatStatement[]; review_needed: ChatStatement[]; removed: number;
   message: string | null; documents: string[]; notices: string[]; as_of: string;
+  /** no statement confirmed, records found: their closest sentences, verbatim (25 Nov 2026) */
+  extracts?: { canonical_id: string; quote: string }[];
   first_cut: (FirstCut & { note: DraftNote | null }) | null;
   /** ADR-0067: the checked statements laid out as an assistant answers (numbers are 1-based
    *  positions in `statements`); absent or null: shown as they are */
