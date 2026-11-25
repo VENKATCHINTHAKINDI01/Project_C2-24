@@ -327,19 +327,6 @@ learnings, the agent contract, design PDFs and run reports.
 
 ---
 
-## Known limitations
-
-- Synthetic and public data only; department hierarchy, numbering and access rules are unconfirmed.
-- No live e-Office integration; the connector is exercised only by the mock.
-- L2 early exit is off until a calibration meets its bar.
-- Retrieval metrics are from the in-memory sandbox stores, not the cloud stores.
-- The RAGAS judge is from the same model family as the generator, and RAGAS has not yet been re-run
-  since the model began laying out answers and writing file summaries.
-- The live model's intent accuracy is measured by `conversation_check.py --live`; the fixed rules
-  alone route 32 of 39 test phrasings correctly.
-- Chat history and per-officer daily model limits are in memory unless PostgreSQL state is
-  configured, so they reset when the service restarts.
-
 ---
 
 ## Contributing
