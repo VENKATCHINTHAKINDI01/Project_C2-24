@@ -207,9 +207,9 @@ export function FilePageView({ api, computerNo, open, draft }: {
         )}
       </div>
       <DockSlot tab="ask">
-        <ChatPanel api={api} computerNo={computerNo} onInserted={load} onOpenDoc={setViewing} titled={false} tools={tools}
+        <ChatPanel key={computerNo} api={api} computerNo={computerNo} onInserted={load} onOpenDoc={setViewing} titled={false} tools={tools}
           caveat={`About File No. ${f.file_no} and the orders and precedents it relates to. Each line shows its source. Drafts only.`}
-          suggestions={suggestionsFor(marks, page?.file.subject ?? "")} />
+          autoSummary />
       </DockSlot>
       {viewing && <DocumentViewer api={api} canonicalId={viewing} onClose={() => setViewing(null)} />}
       {help && (

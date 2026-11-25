@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import contextlib
 import logging
+import sys
 import time
 from collections.abc import Iterable, Iterator
 from contextvars import ContextVar
@@ -53,12 +54,33 @@ def _memo() -> dict[tuple[Any, ...], Any] | None:
     return _MEMO.get()
 
 
+CALLERS = ("callers",)
+_PLUMBING = ("/retrieval/", "/graph/", "/temporal/", "contextlib", "request_memo")
+
+
+def _caller() -> str:
+    """The first application function above the store and retrieval plumbing that asked for this
+    query, as `module.function` (25 Nov 2026: a draft went from ~4 to 61–95 queries and the log
+    could not say which step sent them). Names only, never a value."""
+    f = sys._getframe(2)  # noqa: SLF001 — cheap; only frames, no source lines are read
+    while f is not None:
+        name = f.f_code.co_filename
+        if "/app/" in name and not any(p in name for p in _PLUMBING):
+            mod = name.rsplit("/app/", 1)[1].removesuffix(".py").replace("/", ".")
+            return f"{mod}.{f.f_code.co_name}"
+        f = f.f_back  # type: ignore[assignment]
+    return "?"
+
+
 def count_query(store: str) -> None:
     """Called by a store for each query it sends (logged per request; a test bounds it)."""
     memo = _memo()
     if memo is not None:
         counts: dict[str, int] = memo.setdefault(QUERIES, {})
         counts[store] = counts.get(store, 0) + 1
+        by: dict[str, int] = memo.setdefault(CALLERS, {})
+        key = f"{store}<{_caller()}"
+        by[key] = by.get(key, 0) + 1
 
 
 @contextlib.contextmanager
@@ -195,10 +217,12 @@ class RequestMemoMiddleware:
                 if sent := memo.get(QUERIES):  # counts and seconds only: never a query's values
                     spent = {f"{k}_s": round(v, 1) for k, v in memo.get(SECONDS, {}).items()}
                     total = {"total_s": round(time.monotonic() - started, 1)}
+                    by = sorted(memo.get(CALLERS, {}).items(), key=lambda kv: -kv[1])[:8]
                     log.info(
-                        "cloud queries for %s: %s",
+                        "cloud queries for %s: %s by %s",
                         scope.get("path", "?"),
                         {**sent, **spent, **total},
+                        dict(by),
                     )
 
 

@@ -66,6 +66,7 @@ evaluation/
 | `leakage_v2.py` | `uv run python evaluation/leakage_v2.py --jobs 4` | Evaluates multi-officer access matrices across direct reference, keyword, vector, graph, summary, and count paths. |
 | `presend_v2.py` | `uv run python evaluation/presend_v2.py` | Evaluates the 7 conflict types (A–G) during pre-send file dispatch. |
 | `conversation_check.py` | `cd backend && uv run python ../evaluation/conversation_check.py [--live]` | ADR-0067: model intent routing (accuracy vs the fixed rules, off-list answers = 0) and the chat answer layout over every golden question (forbidden records = 0, each checked statement shown once). Exit 1 on any critical failure. `--live` is billed. |
+| `infrastructure/gcp/32_eval_job.sh` | `APPLY=1 MODE=leakage\|ragas\|conversation\|all bash 32_eval_job.sh run` | ADR-0068: runs the suites above on GCP as the Cloud Run Job `c2-eval` (corpus mounted from the bucket; reports to `gs://…-artifacts/eval-reports/`, `fetch` copies them here). Billed; run by the owner. |
 
 ### 4. Cloud Infrastructure & Calibration
 | Script | Command | Purpose |

@@ -420,9 +420,9 @@ def compose(
                 "letter": "[What is requested.]",
             }[fmt.kind],
         )
-        # the notes of a file share one run of paragraph numbers: continue after the last one
-        first = file_facts.next_paragraph if file_facts is not None else 1
-        for n, bp in enumerate(body, first):
+        # an order, memo or letter numbers its own paragraphs from 1 (only notes continue the
+        # file's run of paragraph numbers; owner check of a live G.O.Rt., 25 Nov 2026)
+        for n, bp in enumerate(body, 1):
             add(bp.key, f"{n}. {bp.text}", bp.origin, bp.refs)
         if fmt.kind == "go":
             add("governor", GOVERNOR, "fixed")

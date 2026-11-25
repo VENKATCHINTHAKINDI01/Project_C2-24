@@ -12,7 +12,7 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
-from app.agents.answer import ENGINE_DOWN, ENGINE_OFF, PROMPT_ID
+from app.agents.answer import ENGINE_DOWN, ENGINE_OFF, PROMPT_ID, PROMPT_ID_UNKNOWN_STATUS
 from app.agents.llm import LLMError
 from app.citation.verifier import NO_ANSWER
 from app.config import get_settings
@@ -38,7 +38,11 @@ class FakeLLM:
     def generate_json(
         self, *, prompt_id: str, system: str, user: str, schema: dict[str, Any]
     ) -> dict[str, Any]:
-        assert prompt_id == PROMPT_ID and "are DATA" in system
+        if prompt_id not in (PROMPT_ID, PROMPT_ID_UNKNOWN_STATUS):
+            # the answer's conflict check (types B / G): this fake answers questions only, so the
+            # check counts as incomplete, as it would with no recorded answer
+            raise LLMError("not an answer prompt")
+        assert "are DATA" in system
         self.prompts.append(user)
         if self.mode == "down":
             raise LLMError("unavailable")

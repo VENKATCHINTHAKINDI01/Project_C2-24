@@ -77,9 +77,9 @@ def use_gcloud_user_credentials() -> None:
         cmd = ["gcloud", "auth", "print-access-token"]
         return subprocess.check_output(cmd).decode().strip()  # noqa: S603
 
-    class GcloudCredentials(google.auth.credentials.Credentials):  # type: ignore[misc]
+    class GcloudCredentials(google.auth.credentials.Credentials):  # type: ignore[misc,unused-ignore]
         def __init__(self) -> None:
-            super().__init__()
+            super().__init__()  # type: ignore[no-untyped-call,unused-ignore]
             self.token = token()
 
         def refresh(self, request: Any) -> None:

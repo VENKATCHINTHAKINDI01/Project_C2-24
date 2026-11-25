@@ -28,6 +28,9 @@ if [[ "${LLM:-recorded}" == "vertex" ]]; then
   ENV="${ENV},C2_DRAFT_WORDING_PER_DAY=${WORDING_PER_DAY:-40},C2_RATE_MODEL_PER_MINUTE=${MODEL_PER_MINUTE:-20}"
   ENV="${ENV},C2_LLM_RECORDED_DIR=/tmp/llm"
 fi
+# the answering model (default in code: gemini-3.5-flash). Change it only after a MODE=all evaluation
+# with GEMINI_MODEL set the same way (32_eval_job.sh) has passed the release bar
+[[ -n "${GEMINI_MODEL:-}" ]] && ENV="${ENV},C2_GEMINI_MODEL=${GEMINI_MODEL}"
 [[ -n "${EMBEDDING_MODEL:-}" ]] && ENV="${ENV},C2_EMBEDDING_MODEL=${EMBEDDING_MODEL},C2_EMBEDDING_DIMENSIONS=${EMBEDDING_DIMENSIONS:-768}"
 # L2 early exit (ADR-0061): unset = cloud L2 never ends the ladder on its own. L2_MIN_SCORE alone
 # sets a score that is listed but never trusted to end the ladder. L2_CALIBRATION=<file written by

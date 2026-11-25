@@ -1,0 +1,6 @@
+# Build the evaluation image (ADR-0068; used by 32_eval_job.sh build).
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args: ["build", "-f", "infrastructure/gcp/eval.Dockerfile", "-t", "${_IMAGE}", "."]
+images: ["${_IMAGE}"]
+timeout: 1800s

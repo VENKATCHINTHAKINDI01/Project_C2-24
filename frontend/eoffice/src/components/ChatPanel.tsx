@@ -21,7 +21,12 @@ export interface FileTool {
 }
 
 /** One exchange on screen: a searched answer, a tool's card, or a restored turn (ADR-0066). */
-interface Shown { asked: string; reply?: ChatTurn; card?: ReactNode; tool?: string; withheld?: boolean }
+interface Shown { asked: string; reply?: ChatTurn; card?: ReactNode; tool?: string; withheld?: boolean; auto?: boolean }
+
+/** What the file chat asks by itself when it opens (25 Nov 2026): the whole file, end to end. */
+export const AUTO_SUMMARY_ASK =
+  "Summarise this file end to end: what it is about, what was proposed and by whom, what was decided or " +
+  "directed and by whom, where the file is now and what is pending.";
 
 const fmtWhen = (iso: string) => new Date(iso).toLocaleString(undefined, { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
 
@@ -29,7 +34,7 @@ const fmtWhen = (iso: string) => new Date(iso).toLocaleString(undefined, { day: 
  * from; nothing is inserted into the file except on the officer's click. The server keeps the
  * officer's conversations (ADR-0066): the last one here opens again and continues where it
  * stopped; earlier ones can be reopened or deleted. */
-export function ChatPanel({ api, computerNo, onInserted, onOpenDoc, suggestions = [], titled = true, tools = [], caveat }: {
+export function ChatPanel({ api, computerNo, onInserted, onOpenDoc, suggestions = [], titled = true, tools = [], caveat, autoSummary = false }: {
   api: Api; computerNo?: string; onInserted?: () => void;
   onOpenDoc?: (canonicalId: string) => void;
   /** Questions this file invites (ADR-0034): one click asks them. */
@@ -39,13 +44,14 @@ export function ChatPanel({ api, computerNo, onInserted, onOpenDoc, suggestions 
   /** the open file's own answers (ADR-0064 addendum 1); asked by chip or by a matching question */
   tools?: FileTool[];
   caveat?: string;
+  /** the file chat: when its panel opens, start with the file's summary instead of suggestions */
+  autoSummary?: boolean;
 }) {
   const place = computerNo ?? "all";
   const [session, setSession] = useState<string | null>(null);
   const [turns, setTurns] = useState<Shown[]>([]);
   const [convs, setConvs] = useState<ChatConversationRow[]>([]);
   const [listing, setListing] = useState(false);
-  const [actions, setActions] = useState(false);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -70,7 +76,7 @@ export function ChatPanel({ api, computerNo, onInserted, onOpenDoc, suggestions 
       const c = await api.chatConversation(id);
       setSession(c.conversation_id); setInserted(null);
       const shown = c.turns.map((x): Shown => (x.kind === "tool"
-        ? { asked: x.asked, tool: x.tool ?? undefined }
+        ? { asked: x.asked, tool: x.tool ?? undefined, auto: x.asked === AUTO_SUMMARY_ASK }
         : x.answer ? { asked: x.asked, reply: x.answer } : { asked: x.asked, withheld: true }));
       setTurns(shown);
       // a file tool's answer is never stored: read the latest ones again now, under today's access
@@ -97,7 +103,8 @@ export function ChatPanel({ api, computerNo, onInserted, onOpenDoc, suggestions 
       // like a chat app: the conversation continues if it was used in the last two hours; an older
       // one waits under "Earlier chats" and the officer starts fresh
       const last = r.conversations[0];
-      if (last && Date.now() - new Date(last.updated_at).getTime() < 2 * 3600_000) await open(last.conversation_id);
+      // the file chat starts with a fresh summary instead; its earlier chats stay listed
+      if (!autoSummary && last && Date.now() - new Date(last.updated_at).getTime() < 2 * 3600_000) await open(last.conversation_id);
     }).catch(() => undefined).finally(done);
     return () => { gone = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- once per place
@@ -142,8 +149,21 @@ export function ChatPanel({ api, computerNo, onInserted, onOpenDoc, suggestions 
     return () => window.removeEventListener("c2:file-tool", onTool);
   });
 
+  // the file chat's summary: once per opening of the file, when its panel is first shown
+  const summarised = useRef(false);
+  const summarise = () => {
+    const tool = tools.find((x) => x.id === "summary");
+    if (!autoSummary || summarised.current || !loaded || busy || !tool) return;
+    if (!input.current?.offsetParent) return; // the panel is closed: wait until it opens
+    summarised.current = true;
+    void runTool(tool, AUTO_SUMMARY_ASK, true);
+  };
   useEffect(() => {
-    if (!loaded || !queued.current) return;
+    window.addEventListener("c2:file-panel-open", summarise);
+    return () => window.removeEventListener("c2:file-panel-open", summarise);
+  });
+  useEffect(() => {
+    if (!loaded || !queued.current) { summarise(); return; }
     const tool = tools.find((x) => x.id === queued.current);
     queued.current = null;
     if (tool) void runTool(tool, tool.label ?? tool.id);
@@ -169,12 +189,12 @@ export function ChatPanel({ api, computerNo, onInserted, onOpenDoc, suggestions 
     return offered.find((x) => x.match(asked)) ?? null;
   }
 
-  async function runTool(tool: FileTool, asked: string) {
-    setBusy(true); setError(null); setActions(false);
-    setPending({ asked, stage: "Reading this file's records…", statements: [], review: [] });
+  async function runTool(tool: FileTool, asked: string, auto = false) {
+    setBusy(true); setError(null);
+    setPending({ asked, auto, stage: auto ? "Reading this file and writing its summary…" : "Reading this file's records…", statements: [], review: [] });
     try {
       const card = await tool.run(asked);
-      setTurns((t) => [...t, { asked, card, tool: tool.id }]);
+      setTurns((t) => [...t, { asked, card, tool: tool.id, auto }]);
       setMessage("");
       if (computerNo) {
         // kept in the history as the question and the tool only; read again when shown
@@ -201,7 +221,7 @@ export function ChatPanel({ api, computerNo, onInserted, onOpenDoc, suggestions 
     if (asked.length < 2) return;
     const tool = await pick(asked);
     if (tool) { await runTool(tool, asked); return; }
-    setBusy(true); setError(null); setActions(false);
+    setBusy(true); setError(null);
     setPending({ asked, stage: STAGES.searching, statements: [], review: [] });
     const ctrl = new AbortController();
     stop.current = ctrl;
@@ -238,7 +258,6 @@ export function ChatPanel({ api, computerNo, onInserted, onOpenDoc, suggestions 
     setInserted(r.draft_id); onInserted?.();
   }
 
-  const chips = tools.filter((x) => x.label);
   return (
     <section className="chat">
       {titled && <h3>Ask C2-24</h3>}
@@ -265,17 +284,12 @@ export function ChatPanel({ api, computerNo, onInserted, onOpenDoc, suggestions 
         </ul>
       )}
       <p className="caveat">{caveat ?? "Answers come only from records you may see, each line with its source. Drafts only."}</p>
-      {chips.length > 0 && !busy && (turns.length === 0 || actions) && (
-        <div className="chips tools" aria-label="About this file">
-          {chips.map((x) => <button key={x.id} className="chip tool" onClick={() => void runTool(x, x.label as string)}>{x.label}</button>)}
-        </div>
-      )}
       {turns.map((x, i) => (x.reply
         ? <ChatReply key={i} api={api} asked={x.asked} reply={x.reply} onOpenDoc={onOpenDoc}
             onInsert={computerNo ? () => insert(x.reply as ChatTurn) : undefined} />
         : (
           <div key={i} className="turn">
-            <p className="asked"><strong>You:</strong> {x.asked}</p>
+            {!x.auto && <p className="asked"><strong>You:</strong> {x.asked}</p>}
             {x.card ?? (x.withheld
               ? <p className="noanswer">This answer cited records that are no longer available to you, so it is not shown.</p>
               : <button className="link" onClick={() => void again(i)}>Show the current answer</button>)}
@@ -285,10 +299,7 @@ export function ChatPanel({ api, computerNo, onInserted, onOpenDoc, suggestions 
       {pending && <PendingReply p={pending} />}
       <div ref={end} />
       {inserted && <p className="ok">Inserted as Yellow Note (draft {inserted}). It is yours to edit and sign.</p>}
-      {chips.length > 0 && turns.length > 0 && !busy && !actions && (
-        <button className="link chat-actions" onClick={() => setActions(true)}>File actions: summary, movements, checks, drafts…</button>
-      )}
-      {suggestions.length > 0 && !busy && turns.length === 0 && (
+      {suggestions.length > 0 && !computerNo && !busy && turns.length === 0 && (
         <div className="chips" aria-label="Suggested questions">
           {suggestions.map((q) => <button key={q} className="chip" onClick={() => { setMessage(q); void send(q); }}>{q}</button>)}
         </div>
@@ -313,6 +324,8 @@ const STAGES = {
 
 interface Pending {
   asked: string; stage: string; statements: ChatStatement[]; review: ChatStatement[]; stopped?: boolean;
+  /** asked by the chat itself (the file summary on opening): no "You:" line */
+  auto?: boolean;
 }
 
 function step(p: Pending, e: ChatEvent): Pending {
@@ -336,7 +349,7 @@ function PendingReply({ p }: { p: Pending }) {
   const nums = sourceNumbers([...p.statements, ...p.review]);
   return (
     <div className="turn pending" aria-live="polite" aria-busy={!p.stopped}>
-      <p className="asked"><strong>You:</strong> {p.asked}</p>
+      {!p.auto && <p className="asked"><strong>You:</strong> {p.asked}</p>}
       <div className="reply">
         {p.stopped
           ? <p className="meta">Stopped. The statements shown were checked; the answer may be incomplete.</p>
@@ -385,8 +398,19 @@ export function ChatReply({ api, asked, reply, onOpenDoc, onInsert }: {
           reply.composed
             ? <ComposedBody c={reply.composed} statements={reply.statements} nums={nums} onOpenDoc={onOpenDoc} />
             : <AnswerBody statements={reply.statements} nums={nums} onOpenDoc={onOpenDoc} />
+        ) : reply.status === "chat" ? (
+          <p className="chat-reply">{reply.message}</p>
         ) : (
-          <p className="noanswer">{reply.message ?? "No sufficiently supported answer was found in the authorised records."}</p>
+          <>
+            <p className="noanswer">{reply.message ?? "No sufficiently supported answer was found in the authorised records."}</p>
+            {reply.status === "no_answer" && (
+              <p className="muted small">
+                {reply.documents.length > 0
+                  ? "These records came closest. Open one to read it, or ask again naming the order number, subject or file."
+                  : "Try naming the order number (for example G.O.Ms.No.31 of 2025), the subject or the file number."}
+              </p>
+            )}
+          </>
         )}
         {reply.statements.length === 0 && reply.documents.length > 0 && (
           // no answer written (no model, or nothing supported): the records found, to open and read
@@ -403,6 +427,18 @@ export function ChatReply({ api, asked, reply, onOpenDoc, onInsert }: {
           </div>
         )}
         {reply.removed > 0 && <p className="meta">{reply.removed} statement(s) withheld: not supported by the cited text.</p>}
+        {(reply.conflicts?.length ?? 0) > 0 && (
+          <div className="answer-conflicts" role="note">
+            <h4>Potential conflict{(reply.conflicts?.length ?? 0) > 1 ? "s" : ""} between the records used</h4>
+            <ul>{reply.conflicts?.map((f, i) => (
+              <li key={i}><b>{f.type === "G" ? "Hierarchy (G)" : f.type === "B" ? "Same level (B)" : f.type}</b> {f.explanation}{" "}
+                {f.evidence_ids.map((e) => <button key={e} className="link" onClick={() => onOpenDoc?.(e.split("#")[0])}>{e.split("#")[0]}</button>)}
+              </li>
+            ))}</ul>
+            <p className="meta">Advisory: the records disagree on this point. Review which one applies; nothing has been decided for you.</p>
+          </div>
+        )}
+        {reply.conflict_check === "incomplete" && <p className="meta">The conflict check between these records did not finish; review before relying on them together.</p>}
         {all.length > 0 && <SourceList statements={all} nums={nums} api={api} requestId={reply.request_id} onOpenDoc={onOpenDoc} />}
         {(all.length > 0 || (api && reply.status !== "denied" && reply.status !== "not_run")) && (
           <div className="reply-actions">

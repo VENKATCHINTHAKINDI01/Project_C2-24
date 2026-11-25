@@ -163,3 +163,22 @@ def test_draft_autofill_without_a_model_leaves_the_inputs_to_the_officer(c: Test
     assert c.post("/assist/draft/autofill", json=body, headers=_h("U03")).status_code == 404
     other = {"computer_no": f["computer_no"], "format_id": "no_such_format"}
     assert c.post("/assist/draft/autofill", json=other, headers=_h("U01")).status_code == 404
+
+
+def test_small_talk_is_answered_without_retrieval(c: TestClient) -> None:
+    r = c.post("/assist/chat", json={"message": "hello"}, headers=_h("U01")).json()
+    assert r["status"] == "chat" and r["message"].startswith("Hello!")
+    assert r["statements"] == [] and r["documents"] == []
+    s = c.post("/assist/chat/stream", json={"message": "what can you do"}, headers=_h("U01"))
+    assert '"status": "chat"' in s.text and "I answer from the records" in s.text
+
+
+def test_autofill_auto_picks_a_format_from_the_record(c: TestClient) -> None:
+    f = c.post(
+        "/sandbox/files",
+        json={"subject": "Auto format", "previous_references": []},
+        headers=_h("U01"),
+    ).json()["file"]
+    body = {"computer_no": f["computer_no"], "format_id": "auto"}
+    r = c.post("/assist/draft/autofill", json=body, headers=_h("U01")).json()
+    assert r["format_id"] == "note_proposal" and r["format_reason"].startswith("No approval")

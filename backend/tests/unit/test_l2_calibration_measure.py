@@ -55,7 +55,8 @@ def test_enough_exits_qualify_and_record_how_they_were_measured() -> None:
         safeguards=SAFEGUARDS,
     )  # fmt: skip
     m = res.metadata
-    assert m.precision_ci_low >= 0.9 and m.min_margin == 0.03 and m.safeguards == SAFEGUARDS
+    assert m.precision_ci_low is not None and m.precision_ci_low >= 0.9
+    assert m.min_margin == 0.03 and m.safeguards == SAFEGUARDS
     assert evaluate_predictions_at_threshold(preds, 0.9, 0.03).tp == 120  # 5 ties escalated
     policy = L2ConfidencePolicy.create(threshold=0.9, calibrated=True, metadata=m, margin=0.03)
     assert policy.is_calibrated

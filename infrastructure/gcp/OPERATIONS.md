@@ -21,6 +21,16 @@ The TechBharat admins own who can reach c2-frontend and c2-api (auth, IAP, ingre
 - After agreement: `SECURITY_CHANGE=approved PART=owner IAP_MEMBERS=… APPLY=1 bash 23_frontend_service.sh`. Without the flag the commands are printed, not run.
 - After every deploy: open the c2-frontend URL in a browser; a 403 means report to the admins — do not try to fix it by changing access.
 
+## Evaluation on GCP (ADR-0068)
+Heavy and billed suites run as the Cloud Run Job `c2-eval`, not on a laptop. From `infrastructure/gcp/`:
+
+| When | Command | Pass |
+|---|---|---|
+| After changing backend, evaluation or synthetic data | `APPLY=1 bash 32_eval_job.sh build` | image tagged `latest` |
+| Before every release | `APPLY=1 MODE=leakage bash 32_eval_job.sh run` (all 21 officers) | 0 disclosures, every officer swept |
+| Before a release that changes prompts or the model's role | `APPLY=1 MODE=ragas bash 32_eval_job.sh run`; `APPLY=1 MODE=conversation bash 32_eval_job.sh run` | RAGAS not below the baseline; `critical_failures: 0` |
+| After a run | `APPLY=1 bash 32_eval_job.sh fetch` | reports in `evaluation/reports/`; record them in PROGRESS.md |
+
 ## Other alerts already in place
 - **Tracking buffer full** (`28_tracking_alert.sh`, ADR-0049): BigQuery query-log rows were dropped. Check BigQuery access and quota.
 

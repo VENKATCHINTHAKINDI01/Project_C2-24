@@ -175,3 +175,16 @@ def test_exact_many_answers_exactly_like_exact() -> None:
     assert set(many) == set(ids)
     for cid in ids:
         assert many[cid] == idx.exact(cid, scope), cid
+
+
+def test_the_request_log_names_the_steps_that_sent_queries(
+    cloud: tuple[Any, _Runner], caplog: pytest.LogCaptureFixture
+) -> None:
+    """25 Nov 2026: live drafts went from ~4 to 61–95 BigQuery queries and the log only had
+    totals. It now names the application step behind each query (names only, never values)."""
+    c, _ = cloud
+    with caplog.at_level("INFO", logger="app.retrieval.request_memo"):
+        c.post("/assist/draft/prepare", json={"computer_no": NAVEEN, "format_id": "go_rt"},
+               headers=_h("U01"))  # fmt: skip
+    line = next(r.getMessage() for r in caplog.records if "cloud queries for" in r.getMessage())
+    assert " by {" in line and "bigquery<agents.tools." in line

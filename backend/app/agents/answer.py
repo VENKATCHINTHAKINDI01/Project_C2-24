@@ -65,6 +65,11 @@ from app.retrieval.evidence import (
 from app.retrieval.graph_expansion import expand
 
 PROMPT_ID = "answer_cited.v2"
+# the same rules plus one for passages whose status is "not established" (owner, 25 Nov 2026: what
+# a record says is answered, attributed to it; whether it is in force is never claimed). Used only
+# when the package holds such a passage, so every other answer keeps its recorded replay.
+PROMPT_ID_UNKNOWN_STATUS = "answer_cited.v4"
+UNKNOWN_STATUS = "not established"
 MAX_DOCS = 8  # records sent to the model
 SPANS_PER_DOC = 2
 SPAN_CHARS = 700
@@ -996,10 +1001,12 @@ def ask(
 
     emit({"type": "stage", "stage": "writing"})
     try:
+        unknown = any(i.status == UNKNOWN_STATUS for i in pkg.items)
+        prompt_id = PROMPT_ID_UNKNOWN_STATUS if unknown else PROMPT_ID
         raw = stream_json(
             llm,
-            prompt_id=PROMPT_ID,
-            system=load_prompt(PROMPT_ID),
+            prompt_id=prompt_id,
+            system=load_prompt(prompt_id),
             user=user,
             schema=SCHEMA,
             on_text=on_text if on_event is not None else None,

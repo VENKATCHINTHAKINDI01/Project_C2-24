@@ -72,7 +72,9 @@ def inputs(sample: Mapping[str, Any]) -> dict[str, Any] | None:
     }
 
 
-def scorers(model: str, embed_model: str, project: str, location: str) -> dict[str, Scorer]:
+def scorers(
+    model: str, embed_model: str, project: str, location: str, max_tokens: int = 8192
+) -> dict[str, Scorer]:
     """The judge: Gemini on Vertex AI in the project's region, cached on disk."""
     from google import genai
     from ragas.cache import DiskCacheBackend
@@ -82,7 +84,10 @@ def scorers(model: str, embed_model: str, project: str, location: str) -> dict[s
 
     client = genai.Client(vertexai=True, project=project, location=location)
     cache = DiskCacheBackend(cache_dir=str(CACHE))
-    llm = llm_factory(model, provider="google", client=client, cache=cache)
+    # RAGAS's default output limit is 1,024 tokens; the context metrics answer with one verdict and
+    # reason per passage / sentence, and the judge's thinking counts against the same limit, so a
+    # cut-off reply cannot be read (InstructorRetryException on almost every question, 25 Nov 2026)
+    llm = llm_factory(model, provider="google", client=client, cache=cache, max_tokens=max_tokens)
     emb = GoogleEmbeddings(client=client, model=embed_model, cache=cache)
     faith = rc.Faithfulness(llm=llm)
     grounded = rc.ResponseGroundedness(llm=llm)
@@ -217,6 +222,7 @@ def main() -> int:
     ap.add_argument("--compare", type=Path, help="an earlier ragas report (.json)")
     ap.add_argument("--judge-model", default=os.environ.get("C2_GEMINI_MODEL", "gemini-3.5-flash"))
     ap.add_argument("--embedding-model", default="gemini-embedding-001")
+    ap.add_argument("--judge-max-tokens", type=int, default=8192, help="judge output limit")
     a = ap.parse_args()
     samples = [json.loads(line) for line in a.samples.read_text("utf-8").splitlines() if line]
     if a.limit:
@@ -231,7 +237,7 @@ def main() -> int:
     if not (project and location):
         print("set C2_GCP_PROJECT_ID and C2_GCP_REGION (the judge runs in the project's region)")
         return 2
-    fns = scorers(a.judge_model, a.embedding_model, project, location)
+    fns = scorers(a.judge_model, a.embedding_model, project, location, a.judge_max_tokens)
     rows = asyncio.run(score_all(samples, fns))
     day = dt.date.today().isoformat()
     meta = {

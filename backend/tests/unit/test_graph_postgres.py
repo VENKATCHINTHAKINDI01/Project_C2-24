@@ -236,7 +236,8 @@ def test_on_real_postgres() -> None:
         ids = [n.canonical_id for n in nodes]  # batched reads (24 Nov 2026) = one-by-one reads
         out, into = repo.edges_many(ids)
         assert all(out[c] == repo.edges_from(c) and into[c] == repo.edges_to(c) for c in ids)
-        assert repo.nodes_many(ids) == {c: n for c in ids if (n := repo.node(c)) is not None}
+        one_by_one = {c: repo.node(c) for c in ids}
+        assert repo.nodes_many(ids) == {c: x for c, x in one_by_one.items() if x is not None}
     finally:
         with conn.cursor() as cur:
             cur.execute("DROP SCHEMA c2_graph_test CASCADE")

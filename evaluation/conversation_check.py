@@ -68,6 +68,8 @@ INTENTS: list[tuple[str, bool, str]] = [
     ("write a first-cut note for this file", True, "first_cut"),
     ("prepare a draft note for approval", True, "dfa"),
     ("draft the transfer order for approval", True, "dfa"),
+    ("prepare a draft for this file", True, "dfa"),
+    ("can you make a draft about this file", True, "dfa"),
     ("prepare closing remarks, the matter is settled", True, "closing"),
     ("quote what the earlier note said about the enquiry", True, "note_ref"),
     ("is G.O.Ms.No.31 of 2025 still in force", True, "reference"),
@@ -77,6 +79,9 @@ INTENTS: list[tuple[str, bool, str]] = [
     ("explain wha i need to do next action", True, "ask_file"),
     ("what is my next action on this file", True, "ask_file"),
     ("what did the secretary decide here", True, "ask_file"),
+    ("do i have any actions to be done for this file now", True, "ask_file"),
+    ("what are the actions to be taken from my side", True, "ask_file"),
+    ("is anything pending from me on this file", True, "ask_file"),
     ("were similar enquiries ordered earlier in other files", True, SEARCH),
     ("what are the current rules on transfers of teachers", True, SEARCH),
     ("draft the noting using that precedent", True, SEARCH),
@@ -91,6 +96,75 @@ INTENTS: list[tuple[str, bool, str]] = [
     ("which orders on transfers are in force now", False, SEARCH),
     ("hello, what can you do", False, SEARCH),
 ]
+
+
+# 3. file chat (ADR-0067 addendum 2): asked on every seed file, by an officer who can open it
+FILE_QUESTIONS: list[tuple[str, str]] = [
+    ("do i have any actions to be done for this file now", "action"),
+    ("what are the actions to be taken from my side", "action"),
+    ("what is pending on this file", "pending"),
+    ("summarise this file", "summary"),
+    ("what was decided in this file", "decided"),
+]
+SMALL_TALK = [
+    "hello",
+    "good morning",
+    "what can you do",
+    "how can you help me?",
+    "thank you",
+]
+YES_NO = re.compile(
+    r"^\s*(is|are|was|were|does|do|did|has|have|can|should)\b", re.IGNORECASE
+)
+ISO_DATE = re.compile(r"\b\d{4}-\d{2}-\d{2}\b")
+
+
+def holder_wrong(lead: str, with_you: bool) -> bool:
+    """Meaning check on the one fact an action answer must get right: whether the file is with
+    the officer. Only judged when the reply speaks about it."""
+    low = lead.lower()
+    says_not = bool(
+        re.search(r"\b(not|isn't|is not|no longer)\b[^.]{0,30}\bwith you\b", low)
+    )
+    says_with = "with you" in low and not says_not
+    return (with_you and says_not) or (not with_you and says_with)
+
+
+def file_chat(client: TestClient, seed: dict[str, Any]) -> list[dict[str, Any]]:
+    users = [p["user_id"] for p in seed["profiles"]]
+    rows: list[dict[str, Any]] = []
+    for f in seed["files"]:
+        cno = f["computer_no"]
+        for uid in users:  # the first officer who can open it
+            probe = client.post(
+                "/assist/file-summary", json={"computer_no": cno, "request": "summarise this file"},
+                headers={"X-Sandbox-User": uid},
+            )  # fmt: skip
+            if probe.status_code == 200:
+                break
+        else:
+            continue
+        for q, kind in FILE_QUESTIONS:
+            r = client.post(
+                "/assist/file-summary", json={"computer_no": cno, "request": q},
+                headers={"X-Sandbox-User": uid},
+            )  # fmt: skip
+            out: dict[str, Any] = r.json() if r.status_code == 200 else {}
+            summ = out.get("summary") or {}
+            lead = str(summ.get("lead") or "")
+            facts = out.get("facts") or []
+            text = " ".join(
+                [lead] + [str(p.get("text", "")) for p in summ.get("points", [])]
+            )
+            rows.append(
+                {"file": cno, "user": uid, "state": f.get("state"), "asked": q, "kind": kind,
+                 "http": r.status_code, "lead": lead, "points": len(summ.get("points", [])),
+                 "answered": bool(lead) or bool(facts),
+                 "direct": kind != "action" or bool(re.match(r"\s*(yes|no)\b", lead, re.IGNORECASE)),
+                 "holder_wrong": bool(lead) and holder_wrong(lead, "The file is with you now." in facts),
+                 "iso_dates": bool(ISO_DATE.search(text))}
+            )  # fmt: skip
+    return rows
 
 
 def rules(message: str) -> str:
@@ -120,7 +194,9 @@ def rules(message: str) -> str:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    ap.add_argument("--live", action="store_true", help="call Gemini for answers not yet saved")
+    ap.add_argument(
+        "--live", action="store_true", help="call Gemini for answers not yet saved"
+    )
     ap.add_argument("--label", default="")
     ap.add_argument("--skip-chat", action="store_true", help="intent part only")
     a = ap.parse_args()
@@ -128,6 +204,7 @@ def main() -> int:
         update={
             "sandbox": True,
             "llm_provider": "vertex" if a.live else "recorded",
+            "llm_max_output_tokens": 8192,  # as on Cloud Run (a cut answer skips the layout)
             "state_store": "memory",
             **NO_RATE_LIMITS,
         }
@@ -147,8 +224,12 @@ def main() -> int:
 
     # 2. chat answers
     chats: list[dict[str, Any]] = []
+    files: list[dict[str, Any]] = []
+    small: list[dict[str, Any]] = []
     if not a.skip_chat:
-        golden = json.loads((CORPUS / "ground_truth" / "golden_questions.json").read_text("utf-8"))
+        golden = json.loads(
+            (CORPUS / "ground_truth" / "golden_questions.json").read_text("utf-8")
+        )
         seed = json.loads((CORPUS / "eoffice" / "seed.json").read_text("utf-8"))
         with TestClient(create_app(settings)) as client:
             confirm_held_scans(client, seed)
@@ -160,8 +241,19 @@ def main() -> int:
                 out: dict[str, Any] = r.json() if r.status_code == 200 else {}
                 n = len(out.get("statements") or [])
                 comp = out.get("composed")
-                shown = [i for s in (comp or {}).get("sections", []) for i in s["items"]]
+                shown = [
+                    i for s in (comp or {}).get("sections", []) for i in s["items"]
+                ]
                 named = {m.group(0) for m in ID_RX.finditer(json.dumps(out))}
+                # claims the records do not support (owner, 25 Nov 2026: Q26 must never give the
+                # Commissioner's limit to the Engineer-in-Chief)
+                said = " ".join(
+                    [str(x.get("text", "")) for x in out.get("statements") or []]
+                    + [str((out.get("composed") or {}).get("lead") or "")]
+                )
+                unsupported = [
+                    rx for rx in g.get("forbidden_claims", []) if re.search(rx, said)
+                ]
                 forbidden = sorted(
                     c for c in named
                     if any(c.startswith(f) or f.startswith(c) for f in g.get("forbidden_docs", []))
@@ -170,9 +262,24 @@ def main() -> int:
                     {"id": g["id"], "user": g["user"], "http": r.status_code,
                      "status": out.get("status"), "statements": n, "composed": comp is not None,
                      "lead": (comp or {}).get("lead"),
+                     "yes_no": bool(YES_NO.match(g["question"])),
                      "each_once": comp is None or sorted(shown) == list(range(1, n + 1)),
-                     "forbidden_named": forbidden}
+                     "forbidden_named": forbidden, "unsupported_claims": unsupported}
                 )  # fmt: skip
+            files = file_chat(client, seed)
+            for m in SMALL_TALK:
+                r = client.post(
+                    "/assist/chat",
+                    json={"message": m},
+                    headers={"X-Sandbox-User": "U01"},
+                )
+                small.append(
+                    {
+                        "message": m,
+                        "http": r.status_code,
+                        "status": r.json().get("status"),
+                    }
+                )
 
     summary = {
         "date": dt.date.today().isoformat(),
@@ -188,22 +295,57 @@ def main() -> int:
         "chat_composed": sum(c["composed"] for c in chats),
         "chat_leads_kept": sum(bool(c["lead"]) for c in chats),
         "chat_layout_lost_or_duplicated": sum(not c["each_once"] for c in chats),
+        "chat_unsupported_claims": sum(len(c["unsupported_claims"]) for c in chats),
+        "chat_yes_no_lead_not_direct": sum(
+            1
+            for c in chats
+            if c["yes_no"]
+            and c["lead"]
+            and not re.match(r"\s*(yes|no)\b", c["lead"], re.IGNORECASE)
+        ),  # fmt: skip
+        "small_talk_not_answered": sum(x["status"] != "chat" for x in small),
+        "file_chat_questions": len(files),
+        "file_chat_http_errors": sum(x["http"] != 200 for x in files),
+        "file_chat_written_replies": sum(bool(x["lead"]) for x in files),
+        "file_chat_unanswered": sum(not x["answered"] for x in files),
+        "file_chat_action_not_direct": sum(not x["direct"] for x in files if x["lead"]),
+        "file_chat_holder_wrong": sum(x["holder_wrong"] for x in files),
+        "file_chat_iso_dates": sum(x["iso_dates"] for x in files),
     }
     critical = (
         summary["intent_off_list"] + summary["chat_forbidden_records_named"]
         + summary["chat_layout_lost_or_duplicated"] + summary["chat_http_errors"]
+        + summary["chat_unsupported_claims"]
+        + summary["file_chat_http_errors"] + summary["file_chat_holder_wrong"]
+        + summary["file_chat_unanswered"] + summary["small_talk_not_answered"]
     )  # fmt: skip
     summary["critical_failures"] = critical
     name = f"{summary['date']}-conversation{'-' + a.label if a.label else ''}"
     REPORTS.mkdir(parents=True, exist_ok=True)
     (REPORTS / f"{name}.json").write_text(
-        json.dumps({"summary": summary, "intents": intents, "chats": chats}, indent=2), "utf-8"
+        json.dumps(
+            {
+                "summary": summary,
+                "intents": intents,
+                "chats": chats,
+                "file_chat": files,
+                "small_talk": small,
+            },
+            indent=2,
+        ),
+        "utf-8",
     )
-    lines = [f"# Conversation check (ADR-0067) — {summary['date']}", "", "SYNTHETIC data only.", ""]
+    lines = [
+        f"# Conversation check (ADR-0067) — {summary['date']}",
+        "",
+        "SYNTHETIC data only.",
+        "",
+    ]
     lines += [f"- {k}: {v}" for k, v in summary.items()]
     lines += ["", "| message | expected | model | rules |", "|---|---|---|---|"]
     lines += [
-        f"| {r['message']} | {r['expected']} | {r['model']} | {r['rules']} |" for r in intents
+        f"| {r['message']} | {r['expected']} | {r['model']} | {r['rules']} |"
+        for r in intents
     ]
     (REPORTS / f"{name}.md").write_text("\n".join(lines) + "\n", "utf-8")
     print(json.dumps(summary, indent=2))

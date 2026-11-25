@@ -429,7 +429,8 @@
     ],
     "forbidden_docs": [],
     "expected_ladder_level": "L1",
-    "answer_key": "Rs.1.00 crore under G.O.Ms.No.27/2024; G.O.Ms.No.14/2021 was superseded on 06-08-2024.",
+    "answer_key": "The records do not establish a limit for an Engineer-in-Chief: no record names that post. G.O.Ms.No.27/2024 gives the Chief Engineer up to Rs.75.00 lakhs and the Commissioner, Urban Services up to Rs.1.00 crore per work; the Commissioner's limit must never be attributed to the Engineer-in-Chief. [Key revised by the owner 25 Nov 2026: Q26 is kept as an unsupported-authority test; was 'Rs.1.00 crore under G.O.Ms.No.27/2024; G.O.Ms.No.14/2021 was superseded on 06-08-2024.']",
+    "forbidden_claims": ["Engineer-in-Chief[^.]*Rs\\.?\\s?1\\.00 crore", "Rs\\.?\\s?1\\.00 crore[^.]*Engineer-in-Chief"],
     "expected_conflicts": [],
     "answer_status": "answered"
   },

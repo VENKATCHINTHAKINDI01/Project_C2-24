@@ -815,3 +815,16 @@ input[type="checkbox"]:focus, input[type="radio"]:focus { box-shadow: none; }
 .chat .draft-checks { border: 1px solid var(--line); border-radius: var(--r); padding: 8px 10px; font-size: .86rem; background: var(--tint-2); }
 .chat .draft-checks.warn { border-color: var(--danger-line); background: var(--danger-bg); }
 .chat .draft-checks ul { margin: 6px 0 0; padding-left: 1.2em; }
+.chat .answer-conflicts { border: 1px solid var(--danger-line); background: var(--danger-bg); border-radius: var(--r); padding: 8px 10px; font-size: .86rem; }
+.chat .answer-conflicts h4 { margin: 0 0 4px; font-size: .86rem; }
+.chat .answer-conflicts ul { margin: 0; padding-left: 1.2em; display: flex; flex-direction: column; gap: 4px; }
+.chat .answer-conflicts .link { margin-left: 4px; font-size: .8rem; }
+/* File summary: the notes folded under the reply (25 Nov) */
+.chat .notes-full { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+.chat .note-full { border-left: 2px solid var(--line); padding-left: 8px; color: var(--ink-2); }
+.chat .note-full.last { border-left-color: var(--green); }
+.chat .note-full p { margin: 4px 0 0; white-space: pre-wrap; }
+.chat .chat-reply { margin: 0; white-space: pre-line; }
+.chat .summary-part { margin-top: 10px; }
+.chat .summary-part h5 { margin: 0 0 4px; font-size: .86rem; font-weight: 650; color: var(--ink); }
+.chat .summary-part .answer-points { margin-top: 0; }

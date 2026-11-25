@@ -91,6 +91,12 @@ export function AssistDock({ mode, setMode, autoOpen = false, general, children 
   const tabs = claimed?.tabs ?? [];
   const active = tabs.includes(tab) ? tab : tabs[0];
   const fileOpen = mode === "file" && tabs.length > 0;
+  // the file chat writes the file's summary when its panel is first shown (ChatPanel autoSummary)
+  useEffect(() => {
+    if (!fileOpen) return undefined;
+    const t = window.setTimeout(() => window.dispatchEvent(new Event("c2:file-panel-open")), 0);
+    return () => window.clearTimeout(t);
+  }, [fileOpen]);
   // left the file: its panel closes with it (the next file starts with just the button)
   useEffect(() => { if (!claimed && mode === "file") setMode(null); }, [claimed, mode, setMode]);
 

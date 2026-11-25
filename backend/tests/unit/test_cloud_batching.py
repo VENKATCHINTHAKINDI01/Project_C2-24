@@ -121,4 +121,4 @@ def test_profiler_is_off_unless_configured() -> None:
     from app.tracking.profiler import ProfileMiddleware
     from tests.unit.test_sandbox_api import APP
 
-    assert not any(m.cls is ProfileMiddleware for m in APP.user_middleware)
+    assert not any(getattr(m, "cls", None) is ProfileMiddleware for m in APP.user_middleware)

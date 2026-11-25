@@ -42,7 +42,11 @@ describe("questions in a file's chat (ADR-0064 addendum 1)", () => {
 describe("a draft for approval asked in the chat", () => {
   it("is written in the format the officer names", () => {
     expect(draftFormat("prepare a draft note for approval")).toBe("note_dfa");
-    expect(draftFormat("Draft for approval")).toBe("go_rt");
+    expect(draftFormat("Draft for approval")).toBe("auto"); // the file's stage decides
+    expect(draftFormat("prepare a draft for this file")).toBe("auto");
+    expect(draftFormat("draft the order for approval")).toBe("go_rt");
+    expect(which("prepare a draft for this file")).toBe("dfa");
+    expect(which("can you make a draft about this file")).toBe("dfa");
     expect(draftFormat("draft a G.O.Ms. on transfer guidelines")).toBe("go_ms");
     expect(draftFormat("draft a letter for approval to the Collector")).toBe("letter");
     expect(draftFormat("draft a circular memo for approval")).toBe("circular_memo");

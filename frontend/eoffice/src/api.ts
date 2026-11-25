@@ -70,7 +70,9 @@ export function createApi(userId: string | null, fetchFn: Fetch = (i, init) => f
     presend: (computerNo: string) => call<PresendReport>("/assist/presend", { computer_no: computerNo }),
     /** ADR-0067 addendum 4: the draft's inputs filled by the model from the file's notes */
     draftAutofill: (computerNo: string, formatId: string, request: string) =>
-      call<{ inputs: DraftInputs; sources: Record<string, number[]>; reason: string | null }>(
+      call<{ inputs: DraftInputs; sources: Record<string, number[]>; reason: string | null;
+        /** the format used; for "auto", chosen from the file's last direction, with why */
+        format_id?: string; format_reason?: string | null }>(
         "/assist/draft/autofill", { computer_no: computerNo, format_id: formatId, request }),
     fileSummary: (computerNo: string, request: string) =>
       call<FileSummary>("/assist/file-summary", { computer_no: computerNo, request }),

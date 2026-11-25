@@ -88,7 +88,7 @@ def bigquery_ids() -> set[str]:
     client = bigquery.Client(
         project="use-case-24-project",
         location="asia-south1",
-        credentials=google.oauth2.credentials.Credentials(token=token),
+        credentials=google.oauth2.credentials.Credentials(token=token),  # type: ignore[no-untyped-call,unused-ignore]
     )
     rows = client.query(
         "SELECT canonical_id FROM `use-case-24-project.c2_metadata.documents`"
@@ -211,7 +211,7 @@ def build_holdout(
                 adj[a].add(b)
                 copies[a].add(b)
     for r in relations:
-        u, v = r.get("from"), r.get("to")
+        u, v = str(r.get("from") or ""), str(r.get("to") or "")
         if r.get("type") in ("AMENDS", "SUPERSEDES", "REPEALS") and u in by_id and v in by_id:
             adj[u].add(v)
             adj[v].add(u)
@@ -278,7 +278,7 @@ def family_graph(
             adj[m["canonical_id"]].add(rid)
             adj[rid].add(m["canonical_id"])
     for r in relations:
-        u, v = r.get("from"), r.get("to")
+        u, v = str(r.get("from") or ""), str(r.get("to") or "")
         if r.get("type") in ("AMENDS", "SUPERSEDES", "REPEALS") and u in ids and v in ids:
             adj[u].add(v)
             adj[v].add(u)

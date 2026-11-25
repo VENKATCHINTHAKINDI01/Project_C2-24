@@ -145,11 +145,15 @@ export interface FileSoFar extends AssistMeta {
   computer_no: string; file_no: string; notes: SoFarNote[]; chain: string[];
   last_direction: number | null; gaps: [number, number][]; gap_message: string | null;
   pending_documents: number; pending_message: string | null;
+  /** What e-Office records about the file in words: state, holder, last direction (ADR-0067 addendum 2). */
+  facts?: string[];
 }
 /** ADR-0067 addendum: a written summary of the notes; each sentence names the notes it rests on
  *  (gated server side: no number, date or reference that those notes do not carry). */
+export type SummarySection = "about" | "history" | "decision" | "pending";
 export interface FileSummary extends FileSoFar {
-  summary: { lead: string | null; lead_notes: number[]; points: { text: string; notes: number[] }[] } | null;
+  /** a full summary's points carry a section (fixed headings, chosen by the UI) */
+  summary: { lead: string | null; lead_notes: number[]; points: { text: string; notes: number[]; section?: SummarySection }[] } | null;
 }
 
 export interface LinkSuggestion { file_no: string; rank: number; documents: DocOut[] }
@@ -277,14 +281,19 @@ export interface DraftNote { sections: { heading: string; lines: NoteLine[] }[];
 export interface ChatTurn extends AssistMeta {
   session_id: string; turn: number; from_cache: boolean; used_earlier_turn: boolean;
   request_id: string;
-  status: "answered" | "review_needed" | "no_answer" | "not_run" | "denied";
+  /** "chat": a fixed reply to a greeting, thanks or "what can you do"; nothing retrieved. */
+  status: "answered" | "review_needed" | "no_answer" | "not_run" | "denied" | "chat";
   statements: ChatStatement[]; review_needed: ChatStatement[]; removed: number;
   message: string | null; documents: string[]; notices: string[]; as_of: string;
   first_cut: (FirstCut & { note: DraftNote | null }) | null;
   /** ADR-0067: the checked statements laid out as an assistant answers (numbers are 1-based
    *  positions in `statements`); absent or null: shown as they are */
   composed?: { lead: string | null; lead_uses: number[]; sections: { heading: string | null; items: number[] }[] } | null;
+  /** owner, 25 Nov 2026: types B / G on the records the answer rests on (advisory; review needed) */
+  conflicts?: AnswerConflict[];
+  conflict_check?: "done" | "incomplete" | "not_run";
 }
+export interface AnswerConflict { type: string; cited: string; evidence_ids: string[]; explanation: string; certain: boolean }
 
 /** Streamed turn (ADR-0033): progress, then statements that already passed the citation check,
  *  then `done` with the full answer, which replaces what was streamed. */

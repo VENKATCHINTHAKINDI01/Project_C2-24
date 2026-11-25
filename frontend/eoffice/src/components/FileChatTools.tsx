@@ -1,3 +1,4 @@
+import { fmtDate } from "../format";
 import { useState, type ReactNode } from "react";
 import type { Api } from "../api";
 import { yellowNoteFrom } from "../presend";
@@ -15,7 +16,7 @@ import { insertAfterBody } from "./DraftStudio";
  *  Fixed rules choose the tool (plan §5.6: no model picks it); anything else goes to the scoped
  *  search with the file as context. Order matters: the first rule that matches answers. */
 export const FILE_ASKS = {
-  dfa: /\b(draft|prepare|write)\b.*\bfor approval\b|\bdfa\b|\bdraft (an? |the )?(order|letter|g\.?o\.?)\b/i,
+  dfa: /\b(draft|prepare|write)\b.*\bfor approval\b|\bdfa\b|\bdraft (an? |the )?(order|letter|g\.?o\.?)\b|\b(prepare|write|make|create|generate|give me)\b[^.?]*\bdraft\b(?![^.?]*\b(precedent|first[- ]cut)\b)/i,
   first_cut: /\bfirst[- ]cut\b/i,
   closing: /\bclosing remarks?\b|\bclose (this|the) file\b/i,
   presend: /\bpre-?send\b|\bcheck (this|the) (file|note|draft|noting)\b|\bbefore (i )?send(ing)?\b|\bany conflicts?\b/i,
@@ -75,8 +76,10 @@ export function fileTools({ api, computerNo, onInserted, onOpenDoc, records }: {
     // the order paragraphs; 3. the officer edits and saves. The chat message itself is never
     // put into the draft.
     dfa: async (asked) => {
-      const format_id = draftFormat(asked);
-      const filled = await api.draftAutofill(computerNo, format_id, asked).catch(() => null);
+      const asked_for = draftFormat(asked);
+      const filled = await api.draftAutofill(computerNo, asked_for, asked).catch(() => null);
+      // "auto": the server chose from the file's last direction; without it, a proposal note
+      const format_id = filled?.format_id ?? (asked_for === "auto" ? "note_proposal" : asked_for);
       const d = await api.prepareDraft({
         computer_no: computerNo, format_id, inputs: filled?.inputs ?? {},
         add_references: [], drop_references: [], suggest: true,
@@ -100,7 +103,8 @@ export function draftFormat(asked: string): string {
   if (/\bmemo\b/.test(q)) return "memo";
   if (/\bletter\b/.test(q)) return "letter";
   if (/\bms\b|g\.?o\.?\s*ms|policy|guidelines|rules\b/.test(q)) return "go_ms";
-  return "go_rt";
+  if (/\border\b|g\.?o\b|g\.?o\.?\s*rt|proceedings/.test(q)) return "go_rt";
+  return "auto"; // no kind named: the file's stage decides (server side)
 }
 
 /** A prepared draft in the chat: Gemini's suggested wording already put into the officer's gap
@@ -113,7 +117,7 @@ const FIELD: Record<string, string> = {
 
 function DraftChat({ api, computerNo, d, filled, onInserted }: {
   api: Api; computerNo: string; d: PreparedDraft; onInserted: () => void;
-  filled: { inputs: DraftInputs; sources: Record<string, number[]>; reason: string | null } | null;
+  filled: { inputs: DraftInputs; sources: Record<string, number[]>; reason: string | null; format_reason?: string | null } | null;
 }) {
   const got = Object.keys(filled?.inputs ?? {});
   const gaps = d.format.inputs.filter((f) => !got.includes(f) && f !== "subject");
@@ -130,6 +134,12 @@ function DraftChat({ api, computerNo, d, filled, onInserted }: {
   );
   return (
     <div className="assist draft-chat">
+      <p className="answer-lead">
+        I've prepared a {d.format.title.charAt(0).toLowerCase() + d.format.title.slice(1)} for this file.
+        {filled?.format_reason ? ` ${filled.format_reason}` : ""}
+        {gaps.length === 0 ? " It is filled from the notes; read it through, edit as needed and save." : " Check the marked gaps before saving."}
+      </p>
+      {filled?.format_reason && <p className="muted small">Need a different kind? Ask for a G.O., memo, letter, circular or note.</p>}
       <h4>{d.format.title} — draft</h4>
       {d.suggested?.fallback && <p className="muted small">The suggested wording is not available now ({d.suggested.reason ?? "model unavailable"}); the format is filled from the file and the gaps are marked for you.</p>}
       {d.suggested && d.suggested.removed > 0 && <p className="muted small">{d.suggested.removed} suggested line(s) were removed: not supported by the records.</p>}
@@ -165,21 +175,76 @@ function DraftChat({ api, computerNo, d, filled, onInserted }: {
 
 /** "Summarise this file": the written summary first (each point with the notes it rests on),
  *  the notes in full folded under it; without a summary, the notes as before. */
-function SummaryChat({ s }: { s: FileSummary }) {
+const SECTIONS: [string, string][] = [
+  ["about", "What this file is about"], ["history", "What happened"], ["decision", "Decisions and directions"],
+  ["status", "Where the file stands"], ["pending", "What is pending"], ["other", "Other details"],
+];
+
+export function SummaryChat({ s }: { s: FileSummary }) {
   if (!s.summary) return <SoFarCard s={s} />;
+  // note 0 is the e-Office record itself (state, holder, last direction), not a note
   const Notes = ({ nos }: { nos: number[] }) => (
-    <>{nos.map((n) => <sup key={n}><span className="cn note-ref" title={`Note #${n}`}>#{n}</span></sup>)}</>
+    <>{nos.map((n) => (
+      <sup key={n}><span className="cn note-ref" title={n === 0 ? "e-Office record" : `Note #${n}`}>
+        {n === 0 ? "record" : `#${n}`}
+      </span></sup>
+    ))}</>
   );
+  const facts = s.facts ?? [];
+  // a full summary comes in parts; where the file stands is e-Office's own record, never the model's
+  const structured = s.summary.points.some((p) => p.section);
+  const stands = facts.filter((t) => !/^(This file is about|Correspondence placed|No correspondence)/.test(t));
   return (
     <div className="file-summary">
-      {s.summary.lead && <p className="answer-lead">{s.summary.lead}<Notes nos={s.summary.lead_notes} /></p>}
-      <ul className="answer-points">
-        {s.summary.points.map((p, i) => <li key={i}>{p.text}<Notes nos={p.notes} /></li>)}
-      </ul>
+      {s.summary.lead
+        ? <p className="answer-lead">{s.summary.lead}<Notes nos={s.summary.lead_notes} /></p>
+        : facts.length > 0 && (
+          // the written reply did not pass the checks: what e-Office records, in plain sentences
+          <p className="answer-lead">{facts.slice(0, 4).join(" ")}<sup><span className="cn note-ref" title="e-Office record">record</span></sup></p>
+        )}
+      {structured ? (
+        <>
+          {SECTIONS.map(([key, title]) => {
+            if (key === "status") {
+              return stands.length > 0 && (
+                <section key={key} className="summary-part">
+                  <h5>{title}</h5>
+                  <ul className="answer-points">
+                    {stands.map((t) => <li key={t}>{t}<Notes nos={[0]} /></li>)}
+                  </ul>
+                </section>
+              );
+            }
+            const pts = s.summary!.points.filter((p) => (p.section ?? "other") === key);
+            return pts.length > 0 && (
+              <section key={key} className="summary-part">
+                <h5>{title}</h5>
+                <ul className="answer-points">
+                  {pts.map((p, i) => <li key={i}>{p.text}<Notes nos={p.notes} /></li>)}
+                </ul>
+              </section>
+            );
+          })}
+        </>
+      ) : s.summary.points.length > 0 && (
+        <ul className="answer-points">
+          {s.summary.points.map((p, i) => <li key={i}>{p.text}<Notes nos={p.notes} /></li>)}
+        </ul>
+      )}
       {s.pending_message && <p className="muted small">{s.pending_message}</p>}
       <details className="sources-list">
         <summary>The notes in full ({s.notes.length})</summary>
-        <SoFarCard s={s} />
+        <div className="notes-full">
+          {s.notes.map((n) => (
+            <div key={n.note_no} className={`note-full${n.note_no === s.last_direction ? " last" : ""}`}>
+              <strong>Note #{n.note_no}</strong> · {n.post ?? "post not stated"}
+              {n.signed_at && <>, {fmtDate(n.signed_at)}</>}
+              {n.note_no === s.last_direction && <span className="badge">last direction</span>}
+              <p>{n.text}</p>
+            </div>
+          ))}
+          {s.gap_message && <p className="muted small">{s.gap_message}</p>}
+        </div>
       </details>
     </div>
   );

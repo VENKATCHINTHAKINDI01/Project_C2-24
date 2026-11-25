@@ -25,7 +25,15 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from app.agents.answer import AskStatus, ask
 from app.agents.brief import approval_brief
-from app.agents.conversation import compose_answer, draft_inputs, route_intent, summarise_file
+from app.agents.conversation import (
+    choose_format,
+    compose_answer,
+    draft_inputs,
+    record_lines,
+    route_intent,
+    small_talk,
+    summarise_file,
+)
 from app.agents.dfa import ReadItem, draft_for_approval, governing_orders
 from app.agents.first_cut import first_cut_note
 from app.agents.intents import IntentSlots
@@ -62,7 +70,7 @@ from app.auth.store import AuthzStore
 from app.conflict.deterministic import ConflictFlag
 from app.conflict.facts import extract_proposal_facts
 from app.conflict.highlights import highlight_citations
-from app.conflict.judgment import Evidence, contradiction_flags, settled_pairs
+from app.conflict.judgment import Evidence, _terms, contradiction_flags, settled_pairs
 from app.conflict.presend import PreSendReport, presend_check
 from app.connectors.eoffice import (
     ConnectorError,
@@ -356,7 +364,7 @@ class Officer:
 
 
 def contradiction_check(
-    run: AssistRuntime,
+    run: AssistRuntime, budget_s: float | None = None
 ) -> Callable[[list[str], str], tuple[list[ConflictFlag], bool]]:
     """B / G (plan §6.5) on the cited records the officer may see: their indexed texts only,
     pairs joined by a supersession / amendment link left to A / F."""
@@ -378,7 +386,11 @@ def contradiction_check(
             if run.texts.get(c)
         ]
         linked = settled_pairs(run.stores.relations)
-        res = contradiction_flags(docs, llm, linked, context=note)
+        res = (
+            contradiction_flags(docs, llm, linked, context=note)
+            if budget_s is None
+            else contradiction_flags(docs, llm, linked, context=note, budget_s=budget_s)
+        )
         flags = list(res.flags)
         used = getattr(llm, "last_used", None)
         primary = getattr(getattr(llm, "primary", None), "name", None)
@@ -395,6 +407,54 @@ def contradiction_check(
         return flags, res.failed == 0
 
     return check
+
+
+ANSWER_CONFLICT_DOCS = 4  # records an answer's conflict check looks at (cited first): ≤ 6 pairs
+ANSWER_CONFLICT_MIN_SHARED = 5  # terms another record must share with the answer's own records
+ANSWER_CONFLICT_BUDGET_S = 20.0  # an answer is never held up long by its conflict check
+
+
+def answer_conflicts(
+    run: AssistRuntime, statements: list[dict[str, Any]], documents: list[str], question: str
+) -> dict[str, Any]:
+    """Types B / G on the records an answer rests on (owner, 25 Nov 2026: the hierarchy check runs
+    on every answer route, not only the pre-send check). The same grounded judgment as the
+    pre-send check (`conflict/judgment.py`): only records the officer may see (the answer's own),
+    pairs joined by a supersession / amendment link left out, a flag only when both quotes are in
+    the texts, B or G from the hierarchy levels, never a resolution ("which applies depends on
+    scope, dates and saving orders"). `conflict_check`: done | incomplete | not_run."""
+    if run.llm is None:
+        return {"conflicts": [], "conflict_check": "not_run"}
+    cited = [
+        str(c.get("canonical_id", "")).split("#", 1)[0]
+        for st in statements
+        for c in st.get("citations") or []
+    ]
+    cited = [c for c in dict.fromkeys(cited) if c]
+    # the other records found, closest to what the answer rests on first (the answer's list is
+    # alphabetical); a record sharing too little with it is not a candidate for the same point
+    focus = _terms(" ".join([question, *(run.texts.get(c, "")[:6000] for c in cited)]))
+    near = sorted(
+        (
+            (len(_terms(run.texts.get(d, "")[:6000]) & focus), d)
+            for d in dict.fromkeys(documents)
+            if d and d not in cited
+        ),
+        reverse=True,
+    )
+    others = [d for n, d in near if n >= ANSWER_CONFLICT_MIN_SHARED]
+    ids = [*cited, *others][:ANSWER_CONFLICT_DOCS]
+    if len(ids) < 2:
+        return {"conflicts": [], "conflict_check": "not_run"}
+    try:
+        flags, complete = contradiction_check(run, budget_s=ANSWER_CONFLICT_BUDGET_S)(ids, question)
+    except Exception as exc:  # noqa: BLE001 — the checked answer stands; the check says it did not finish
+        log.warning("answer conflict check failed: %s", type(exc).__name__)
+        return {"conflicts": [], "conflict_check": "incomplete"}
+    return {
+        "conflicts": [f.model_dump(mode="json") for f in flags],
+        "conflict_check": "done" if complete else "incomplete",
+    }
 
 
 def build_assist_router(
@@ -531,6 +591,26 @@ def build_assist_router(
             sessions.turns(o.ctx.user_id, sid)
         except SessionError:
             sid = uuid.uuid4().hex  # not this officer's session: start a new one, say nothing
+        if (reply := small_talk(body.message)) is not None:
+            # greetings, thanks, "what can you do": a fixed reply, nothing retrieved or generated
+            audit.record(o.request_id, o.ctx.user_id, "assist.chat", "small_talk", ids=())
+            return {
+                "request_id": o.request_id,
+                "session_id": sid,
+                "turn": 0,
+                "from_cache": False,
+                "used_earlier_turn": False,
+                "status": "chat",
+                "statements": [],
+                "review_needed": [],
+                "removed": 0,
+                "message": reply,
+                "documents": [],
+                "notices": [],
+                "as_of": dt.date.today().isoformat(),
+                "first_cut": None,
+                **meta(run),
+            }
         svc = TurnServices(
             officer=o.ctx,
             ctx=run.tool_context(o.ctx.user_id, store),
@@ -575,6 +655,11 @@ def build_assist_router(
             "first_cut": draft,
             **meta(run),
         }
+        if final.outcome != "denied":
+            payload |= answer_conflicts(
+                run, payload.get("statements") or [], list(payload.get("documents") or []),
+                body.message,
+            )  # fmt: skip
         if len(payload.get("statements") or []) >= 2:
             # laid out as an assistant answers (ADR-0067): a direct first line and grouped
             # points, over the CHECKED statements only; any failure shows them as they are
@@ -659,7 +744,12 @@ def build_assist_router(
             "ok" if ans.status is AskStatus.ANSWERED else ans.status.value,
             ids=ans.documents,
         )
-        return {**ans.model_dump(mode="json"), **meta(run)}
+        out = {**ans.model_dump(mode="json"), **meta(run)}
+        if ans.documents:  # the records found for this officer (none: nothing to compare)
+            out |= answer_conflicts(
+                run, out.get("statements") or [], list(ans.documents), body.question
+            )
+        return out
 
     @r.post("/reference")
     def reference(body: ReferenceIn, o: Annotated[Officer, Depends(officer)]) -> dict[str, Any]:
@@ -970,7 +1060,7 @@ def build_assist_router(
         out = so_far_for(FileIn(computer_no=body.computer_no), o, "assist.file_summary")
         run = rt(o, "assist.file_summary")
         try:
-            out["summary"] = summarise_file(run.llm, body.request, out["notes"])
+            out["summary"] = summarise_file(run.llm, body.request, out["notes"], out["facts"])
         except Exception:  # noqa: BLE001 — the notes are still shown as they are
             log.warning("file summary failed; notes shown as they are", exc_info=True)
             out["summary"] = None
@@ -985,11 +1075,16 @@ def build_assist_router(
         action = "assist.draft.autofill"
         out = so_far_for(FileIn(computer_no=body.computer_no), o, action)
         run = rt(o, action)
-        fmt = draft_formats.get(body.format_id) if draft_formats is not None else None
+        format_id, why = body.format_id, None
+        if format_id == "auto":  # "prepare a draft" with no kind named: decided from the record
+            state = "closed" if "The file is closed in e-Office." in out["facts"] else "open"
+            format_id, why = choose_format(out["notes"], out["last_direction"], state)
+        fmt = draft_formats.get(format_id) if draft_formats is not None else None
         if fmt is None:
             raise HTTPException(status_code=404, detail=NOT_AVAILABLE)
         result: dict[str, Any] = {"request_id": o.request_id, "inputs": {}, "sources": {},
-                                  "reason": None}  # fmt: skip
+                                  "reason": None, "format_id": format_id,
+                                  "format_reason": why}  # fmt: skip
         if run.llm is None:
             result["reason"] = "model not configured"
             return result
@@ -1037,6 +1132,7 @@ def build_assist_router(
         ]
         fs = file_so_far(docs)
         pending = sum(allowed(t) for t in run.held_by_file.get(fctx.file_no, []))
+        facts = record_lines(fctx, o.ctx.user_id, fs.last_direction)
         audit.record(
             o.request_id,
             o.ctx.user_id,
@@ -1060,6 +1156,7 @@ def build_assist_router(
                 for n in fs.notes
             ],
             "chain": list(fs.chain),
+            "facts": facts,
             "last_direction": fs.last_direction.note_no if fs.last_direction else None,
             "gaps": [list(g) for g in fs.gaps],
             "gap_message": (

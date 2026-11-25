@@ -260,9 +260,10 @@ def contradiction_flags(
             )  # lo = lower authority (higher level number)
             ctype = ConflictType.G
             explanation = (
-                f"Potential conflict — {lo.canonical_id} says “{_short(ql)}”, but the higher "
-                f"{hi.canonical_id} says “{_short(qh)}”. The higher instrument prevails unless "
-                "saved. Review recommended."
+                f"Potential conflict — {lo.canonical_id} says “{_short(ql)}”, while the "
+                f"higher-level {hi.canonical_id} says “{_short(qh)}” on the same point. Which "
+                "applies depends on their scope, dates and any saving or amending order; review "
+                "recommended."
             )
         flags.append(
             ConflictFlag(

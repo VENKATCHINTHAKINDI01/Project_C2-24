@@ -25,11 +25,12 @@ from collections.abc import Sequence
 from typing import Any
 
 from app.agents.llm import LLMClient, LLMError, load_prompt
+from app.connectors.eoffice import FileContext
 
 log = logging.getLogger(__name__)
 
-INTENT_PROMPT = "intent_route.v3"
-COMPOSE_PROMPT = "answer_compose.v1"
+INTENT_PROMPT = "intent_route.v4"
+COMPOSE_PROMPT = "answer_compose.v2"
 
 # the file's own tools, as the screen names them (FileChatTools.tsx); "search" = the scoped ladder
 FILE_TOOLS: tuple[str, ...] = (
@@ -82,6 +83,92 @@ def _content(text: str) -> set[str]:
     return {w.lower() for w in _WORD.findall(text)} - _STOP
 
 
+# What a written sentence may claim happened (meaning check, 25 Nov 2026): a sentence that says a
+# proposal was approved, an order issued, a file closed... must find that word in the records it
+# names, with the same polarity ("not approved" vs "approved").
+_CLAIMS = (
+    "approved", "agreed", "sanctioned", "issued", "rejected", "returned", "closed", "completed",
+    "cancell?ed", "withdrawn", "superseded", "rescinded", "disposed",
+)  # fmt: skip
+_NEG = re.compile(
+    # a negation up to three words before, in the same clause ("No. It is closed" is not one)
+    r"(?:\b(?:not|no|never|nor|without|yet to be)|n't)(?:[^\w.,;:!?]+\w+){0,3}?[^\w.,;:!?]+$",
+    re.IGNORECASE,
+)
+
+
+def _polarities(text: str, word: str) -> set[bool]:
+    """For each occurrence of `word`: True when said plainly, False when negated."""
+    out: set[bool] = set()
+    for m in re.finditer(rf"\b{word}\b", text, re.IGNORECASE):
+        before = text[max(0, m.start() - 40) : m.start()]
+        out.add(_NEG.search(before) is None)
+    return out
+
+
+def claims_supported(text: str, base: str) -> bool:
+    """Every claim word in `text` occurs in `base`, and a plain claim has a plain occurrence there
+    (a negated one, a negated one). Deterministic; never asks the model."""
+    for root in _CLAIMS:
+        said = _polarities(text, root)
+        if not said:
+            continue
+        found = _polarities(base, root)
+        if not found or not said <= found:
+            return False
+    return True
+
+
+_HELLO = (
+    r"^\s*(?:hi|hello|hey|namaste|namaskaram|good (?:morning|afternoon|evening))\b"
+    r"[\s,!.]*(?:there)?[\s,!.]*$"
+)
+_HELP = (
+    r"\b(?:what can you do|how can you help|what do you do|who are you|help me$|^help$"
+    r"|how (?:do|should) i use you)\b"
+)
+_THANKS = (
+    r"^\s*(?:thanks|thank you|thank u|ok(?:ay)?|got it|great|super|fine)\b[\s,!.]*"
+    r"(?:thanks|thank you)?[\s,!.]*$"
+)
+_SMALL_TALK: tuple[tuple[re.Pattern[str], str], ...] = (
+    (
+        re.compile(_HELLO, re.IGNORECASE),
+        "Hello! Ask me about the orders, circulars and files you have access to — for example "
+        '"is G.O.Ms.No.31 of 2025 still in force?" or "has a spouse-grounds transfer been '
+        'decided before?". On an open file, use the AI button there to ask about that file.',
+    ),
+    (
+        re.compile(_HELP, re.IGNORECASE),
+        "I answer from the records you are allowed to see, and every statement links to the order "
+        "or note it comes from. I can:\n"
+        "- find the orders, circulars and rules on a subject, and say whether they are still in "
+        "force;\n"
+        "- find how similar matters were decided before in other files;\n"
+        "- explain what an order says, and flag possible conflicts between records.\n"
+        "On an open file I can also summarise it, tell you where it is and what is pending, check "
+        "a note before you send it, and prepare a draft for approval. I only draft — you approve "
+        "and sign.",
+    ),
+    (
+        re.compile(_THANKS, re.IGNORECASE),
+        "You're welcome. Ask me anything else about your records or files.",
+    ),
+)
+
+
+def small_talk(message: str) -> str | None:
+    """A fixed reply for greetings, thanks and "what can you do" (ADR-0067 addendum 2): no
+    retrieval, no model, nothing from any record. None for every other message."""
+    msg = message.strip()
+    if len(msg) > 60:
+        return None
+    for rx, reply in _SMALL_TALK:
+        if rx.search(msg):
+            return reply
+    return None
+
+
 def _clean_heading(h: Any) -> str | None:
     if not isinstance(h, str):
         return None
@@ -105,6 +192,8 @@ def _clean_lead(lead: Any, uses: Any, texts: Sequence[str]) -> tuple[str, tuple[
     words = _content(lead)
     if words and len(words & _content(base)) / len(words) < 0.6:
         return None  # mostly its own words: not a summary of the statements
+    if not claims_supported(lead, base):
+        return None  # says something happened (or did not) that the statements do not say
     return lead, idx
 
 
@@ -172,12 +261,86 @@ def compose_answer(
     }
 
 
-SUMMARY_PROMPT = "file_summary.v2"
+SUMMARY_PROMPT = "file_summary.v4"
+# the parts of a full file summary, in reading order (headings are fixed words, never model text)
+SUMMARY_SECTIONS = ("about", "history", "decision", "pending")
+# "You approved …": the asking officer is never made the author of a note (the post that signed
+# it may have been held by someone else); notes are attributed to their post
+_YOU_AUTHOR = re.compile(
+    r"\byou(?:\s+(?:had|have|then))?\s+(?:approved|agreed|directed|ordered|signed|recommended|"
+    r"proposed|submitted|decided|sanctioned|rejected|returned|forwarded|instructed|noted|wrote)\b",
+    re.IGNORECASE,
+)
+FACTS_NO = 0  # the e-Office record lines are cited as "note 0"
+
+
+def _dmy(v: Any) -> str:
+    """dd-mm-yyyy, the way officers write dates; '' when there is none."""
+    if v is None:
+        return ""
+    if isinstance(v, str):
+        m = re.match(r"(\d{4})-(\d{2})-(\d{2})", v)
+        return f"{m.group(3)}-{m.group(2)}-{m.group(1)}" if m else v
+    return f"{v.day:02d}-{v.month:02d}-{v.year}"
+
+
+def record_lines(fctx: FileContext, user_id: str, last_direction: Any | None) -> list[str]:
+    """What e-Office itself records about the file, in words (ADR-0067 addendum 2): its state,
+    who holds it now and whether that is the asking officer, the last direction in the notes the
+    officer may read, and the pages placed on it. Deterministic; the summary cites it as note 0,
+    so an action question is answered from the records, never from the model's guess."""
+    out = [
+        f"This file is about {fctx.subject.rstrip('.')}.",
+        f"The file is {fctx.state} in e-Office.",
+    ]
+    if fctx.movements:
+        m = fctx.movements[-1]
+        out.append(
+            f"It is currently with the {m.to_post or m.to_user}, sent by the "
+            f"{m.from_post or m.from_user} on {_dmy(m.sent_at)}."
+        )
+        out.append(
+            "The file is with you now." if m.to_user == user_id else "The file is not with you now."
+        )
+        if m.due_on:
+            out.append(f"It is due on {_dmy(m.due_on)}.")
+    else:
+        out.append("The file has not been moved since it was created.")
+    if last_direction is not None:
+        out.append(
+            f"The last direction in the notes is Note #{last_direction.note_no} by the "
+            f"{last_direction.post or 'post not stated'} on {_dmy(last_direction.signed_at)}."
+        )
+    else:
+        out.append("No direction is recorded in the notes available to you.")
+    if fctx.pages:
+        titles = "; ".join(p.title for p in fctx.pages[-6:])
+        out.append(f"Correspondence placed on the file: {titles}.")
+    else:
+        out.append("No correspondence page is placed on the file.")
+    return out
+
+
 MAX_SUMMARY_INPUT = 12_000  # characters of note text sent; the latest notes are kept
 
 
+def holder_contradicts(text: str, record: str | bool) -> bool:
+    """Whether the sentence gets wrong who holds the file, against the e-Office record."""
+    if not isinstance(record, str):
+        return False
+    with_you = "The file is with you now." in record
+    low = text.lower()
+    if "with you" not in low:
+        return False
+    says_not = bool(re.search(r"\b(?:not|isn't|no longer)\b[^.]{0,30}\bwith you\b", low))
+    return with_you == says_not
+
+
 def summarise_file(
-    llm: LLMClient | None, request: str, notes: Sequence[dict[str, Any]]
+    llm: LLMClient | None,
+    request: str,
+    notes: Sequence[dict[str, Any]],
+    facts: Sequence[str] = (),
 ) -> dict[str, Any] | None:
     """A written summary of the file's notes (ADR-0067 addendum): {"lead", "lead_notes",
     "points": [{"text", "notes"}]}, or None (the notes are shown as they are).
@@ -193,7 +356,7 @@ def summarise_file(
     size = 0
     for n in reversed(usable):  # newest first, so the last direction is always included
         head = (
-            f"N{n['note_no']} · {n.get('post') or 'post not stated'} · {n.get('signed_at') or ''}"
+            f"N{n['note_no']} · {n.get('post') or 'post not stated'} · {_dmy(n.get('signed_at'))}"
         )
         b = f"{head}\n{n['text']}"
         if size + len(b) > MAX_SUMMARY_INPUT and blocks:
@@ -206,11 +369,15 @@ def summarise_file(
         for n in usable
         if n["note_no"] in sent
     }
+    record = ""
+    if facts:
+        by_no[FACTS_NO] = " ".join(facts)
+        record = f"<record>\nN{FACTS_NO} · e-Office record\n" + "\n".join(facts) + "\n</record>\n"
     try:
         out = llm.generate_json(
             prompt_id=SUMMARY_PROMPT,
             system=load_prompt(SUMMARY_PROMPT),
-            user=f"<request>{request[:300]}</request>\n<notes>\n"
+            user=f"<request>{request[:300]}</request>\n{record}<notes>\n"
             + "\n\n".join(reversed(blocks))
             + "\n</notes>",
             schema={
@@ -225,6 +392,7 @@ def summarise_file(
                             "properties": {
                                 "text": {"type": "string"},
                                 "notes": {"type": "array", "items": {"type": "integer"}},
+                                "section": {"type": "string", "enum": list(SUMMARY_SECTIONS)},
                             },
                             "required": ["text", "notes"],
                         },
@@ -256,16 +424,23 @@ def summarise_file(
         words = _content(text)
         if words and len(words & _content(base)) / len(words) < 0.5:
             return None
+        if not claims_supported(text, base):
+            return None  # approved / issued / closed ... that the cited records do not say
+        if _YOU_AUTHOR.search(text):
+            return None  # the officer asking is not the author of a note
+        if facts and holder_contradicts(text, FACTS_NO in by_no and by_no[FACTS_NO]):
+            return None  # "with you" when e-Office says it is not, or the other way round
         return text, nos
 
     points = [
         {"text": g[0], "notes": g[1]}
-        for p in (out.get("points") or [])[:6]
+        | ({"section": p["section"]} if p.get("section") in SUMMARY_SECTIONS else {})
+        for p in (out.get("points") or [])[:10]
         if isinstance(p, dict) and (g := gate(p.get("text"), p.get("notes"), 400))
     ]
-    if not points:
-        return None
     lead = gate(out.get("lead"), out.get("lead_notes"), 400)
+    if not points and not lead:
+        return None  # nothing passed the checks: the notes are shown as they are
     return {
         "lead": lead[0] if lead else None,
         "lead_notes": lead[1] if lead else [],
@@ -276,6 +451,42 @@ def summarise_file(
 DRAFT_INPUTS_PROMPT = "draft_inputs.v1"
 DRAFT_FIELDS = ("subject", "request", "facts", "proposal", "signatory", "addressees", "copy_to")
 _FIELD_MAX = {"subject": 500, "signatory": 200}
+
+
+_APPROVED = re.compile(
+    r"\b(?:approved|agreed|sanctioned|accepted"
+    r"|orders? may (?:be )?issue[sd]?|issue (?:the )?orders?)\b",
+    re.IGNORECASE,
+)
+
+
+def choose_format(
+    notes: Sequence[dict[str, Any]], last_direction: int | None, state: str
+) -> tuple[str, str]:
+    """Which draft a plain "prepare a draft" means on this file (25 Nov 2026), decided from the
+    record, never by the model: once the last direction approves, the order that carries it out
+    (G.O.Rt.); before that, the note that puts the proposal up. Returns (format id, why)."""
+    last = next((n for n in notes if n.get("note_no") == last_direction), None)
+    closed = (
+        " The file is closed in e-Office; it would have to be reopened first."
+        if state == "closed"
+        else ""
+    )
+    if last and _APPROVED.search(str(last.get("text") or "")):
+        who = last.get("post") or "the competent authority"
+        when = _dmy(last.get("signed_at"))
+        return (
+            "go_rt",
+            f"The {who} approved the proposal in Note #{last['note_no']}"
+            + (f" on {when}" if when else "")
+            + ", so this is the draft order that carries it out."
+            + closed,
+        )
+    return (
+        "note_proposal",
+        "No approval is recorded in the notes you can see, so this is a note putting the proposal"
+        " up for orders." + closed,
+    )
 
 
 def draft_inputs(
@@ -300,7 +511,7 @@ def draft_inputs(
 
     def head(n: dict[str, Any]) -> str:
         return (
-            f"N{n['note_no']} · {n.get('post') or 'post not stated'} · {n.get('signed_at') or ''}"
+            f"N{n['note_no']} · {n.get('post') or 'post not stated'} · {_dmy(n.get('signed_at'))}"
         )
 
     listing = "\n\n".join(f"{head(n)}\n{n['text']}" for n in usable)[:MAX_SUMMARY_INPUT]

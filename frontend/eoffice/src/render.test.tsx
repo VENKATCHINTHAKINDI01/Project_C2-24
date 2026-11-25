@@ -460,3 +460,21 @@ describe("file summary in the chat (ADR-0067 addendum)", () => {
     expect(html).toContain("The notes in full (1)");
   });
 });
+
+describe("conflicts between the records an answer used (owner, 25 Nov 2026)", () => {
+  it("shows a type G flag as advisory, never as a resolution", () => {
+    const turn = {
+      session_id: "a".repeat(32), turn: 1, from_cache: false, used_earlier_turn: false, request_id: "r1",
+      status: "answered", removed: 0, message: null, documents: [], notices: [], as_of: "2026-11-25", first_cut: null,
+      review_needed: [], statements: [],
+      conflicts: [{ type: "G", cited: "AP-USD01-CIRMEMO-USD01WRKS0-9-2023", certain: false,
+        evidence_ids: ["AP-USD01-CIRMEMO-USD01WRKS0-9-2023", "AP-USD01-GOMS-27-2024"],
+        explanation: "Potential conflict — the circular says Rs.1.50 crore, while the higher-level G.O. says Rs.1.00 crore on the same point. … review recommended." }],
+      conflict_check: "done",
+    } as unknown as ChatTurn;
+    const html = text(<ChatReply asked="Is Circular Memo No.9/2023 still valid?" reply={turn} />);
+    expect(html).toContain("Hierarchy (G)");
+    expect(html).toContain("Rs.1.50 crore");
+    expect(html).toContain("nothing has been decided for you");
+  });
+});

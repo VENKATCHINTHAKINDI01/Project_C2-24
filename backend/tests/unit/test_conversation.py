@@ -16,7 +16,8 @@ class Fake:
     name = "fake"
 
     def __init__(self, out: Any = None, fail: bool = False) -> None:
-        self.out, self.fail, self.calls = out, fail, []  # type: list[dict[str, Any]]
+        self.out, self.fail = out, fail
+        self.calls: list[dict[str, Any]] = []
 
     def generate_json(
         self, *, prompt_id: str, system: str, user: str, schema: dict[str, Any]
@@ -157,6 +158,45 @@ def test_a_file_summary_keeps_only_sentences_its_notes_support() -> None:
     assert summarise_file(Fake({"lead": "", "lead_notes": [], "points": []}), "x", NOTES) is None
 
 
+def test_an_action_question_is_answered_from_the_e_office_record() -> None:
+    """Regression (25 Nov): "do I have any actions on this file now" got a history retold with no
+    answer and ISO dates. The e-Office record (state, holder, last direction) is now note 0."""
+    import datetime as dt
+
+    from app.agents.conversation import record_lines, summarise_file
+    from app.connectors.eoffice import FileContext, MovementRef
+    from app.noting.chain import file_so_far
+
+    fctx = FileContext(
+        computer_no="1", file_no="F/1", subject="s", department="d", dealing_section="x",
+        classification="UNCLASSIFIED", movement_trail=("U02", "U01"), state="closed",
+        movements=(MovementRef(seq=1, from_user="U02", from_post="Section Officer", to_user="U05",
+                               to_post="Secretary to Government",
+                               sent_at=dt.datetime(2025, 4, 10, 11, 0)),),
+    )  # fmt: skip
+    last = file_so_far([]).last_direction
+    facts = record_lines(fctx, "U01", last)
+    assert facts[0] == "This file is about s." and facts[1] == "The file is closed in e-Office."
+    assert "with the Secretary to Government, sent by the Section Officer on 10-04-2025" in facts[2]
+    assert facts[3] == "The file is not with you now."
+    llm = Fake({
+        "lead": "No. The file is closed and is not with you now; the Secretary to Government approved "
+                "a preliminary enquiry on 18-04-2025.",
+        "lead_notes": [0, 3],
+        "points": [{"text": "The Secretary approved the preliminary enquiry on 18-04-2025.", "notes": [3]}],
+    })  # fmt: skip
+    out = summarise_file(llm, "do i have any actions to be done for this file now", NOTES, facts)
+    assert out is not None and out["lead"].startswith("No.") and out["lead_notes"] == [0, 3]
+    sent = llm.calls[0]["user"]
+    assert "N0 · e-Office record" in sent and "The file is not with you now." in sent
+    assert "18-04-2025" in sent and "2025-04-18" not in sent  # dates as officers write them
+    # a record line cannot carry a claim the record does not make
+    bad = Fake({"lead": "The file is with you and due on 30-04-2025.", "lead_notes": [0],
+                "points": [{"text": "The Secretary approved the enquiry.", "notes": [3]}]})  # fmt: skip
+    got = summarise_file(bad, "any action?", NOTES, facts)
+    assert got is not None and got["lead"] is None
+
+
 def test_draft_inputs_fill_only_the_formats_fields_the_notes_support() -> None:
     from app.agents.conversation import draft_inputs
 
@@ -188,3 +228,120 @@ def test_draft_inputs_fill_only_the_formats_fields_the_notes_support() -> None:
     )
     assert draft_inputs(Fake(fail=True), "x", fmt, NOTES) is None
     assert draft_inputs(None, "x", fmt, NOTES) is None
+
+
+@pytest.mark.parametrize(
+    ("text", "base", "ok"),
+    [
+        ("The Secretary approved the proposal.", "Approved. Order enquiry.", True),
+        ("The proposal was approved.", "Approval is solicited for the proposal.", False),
+        ("The proposal has not been approved yet.", "Approved.", False),
+        ("The proposal is not yet approved.", "It is not approved till date.", True),
+        ("The order was issued on 10-04-2025.", "Draft G.O. put up for approval.", False),
+        ("The file was closed.", "The file is closed in e-Office.", True),
+        (
+            "A preliminary enquiry was proposed.",
+            "It is proposed that an enquiry may be ordered.",
+            True,
+        ),
+        (
+            "The request was rejected and returned.",
+            "The request is returned to the section.",
+            False,
+        ),
+    ],
+)
+def test_a_sentence_may_not_claim_what_its_records_do_not_say(
+    text: str, base: str, ok: bool
+) -> None:
+    from app.agents.conversation import claims_supported
+
+    assert claims_supported(text, base) is ok
+
+
+def test_the_holder_must_match_the_e_office_record() -> None:
+    from app.agents.conversation import holder_contradicts
+
+    rec_no = "The file is open in e-Office. The file is not with you now."
+    rec_yes = "The file is open in e-Office. The file is with you now."
+    assert holder_contradicts("Yes, the file is with you now.", rec_no)
+    assert not holder_contradicts("No, the file is not with you.", rec_no)
+    assert holder_contradicts("No, it is not with you.", rec_yes)
+    assert not holder_contradicts("The Secretary approved it.", rec_yes)
+
+
+@pytest.mark.parametrize(
+    ("msg", "kind"),
+    [
+        ("hello", "hello"), ("Hi there!", "hello"), ("good morning", "hello"),
+        ("what can you do", "help"), ("how can you help me?", "help"), ("help", "help"),
+        ("thanks", "thanks"), ("ok thank you", "thanks"),
+        ("hello, is G.O.Ms.No.31 of 2025 still in force", None),
+        ("what are the rules on transfers", None), ("ok so who approved the transfer", None),
+    ],
+)  # fmt: skip
+def test_small_talk_gets_a_fixed_reply_and_questions_do_not(msg: str, kind: str | None) -> None:
+    from app.agents.conversation import small_talk
+
+    got = small_talk(msg)
+    want = {"hello": "Hello!", "help": "I answer from the records", "thanks": "You're welcome"}
+    assert (got is None) if kind is None else (got or "").startswith(want[kind])
+
+
+def test_the_officer_is_never_made_the_author_of_a_note() -> None:
+    """Regression (25 Nov, 17:01): "You approved the preliminary enquiry on 18-04-2025" — note #3
+    was signed by the Secretary to Government; the asking officer holds that post now."""
+    from app.agents.conversation import summarise_file
+
+    llm = Fake({
+        "lead": "This file is about a complaint on tender evaluation; the Secretary to Government approved a preliminary enquiry on 18-04-2025.",
+        "lead_notes": [1, 3],
+        "points": [
+            {"text": "You approved the preliminary enquiry on 18-04-2025.", "notes": [3]},
+            {"text": "The Secretary to Government approved the preliminary enquiry on 18-04-2025.", "notes": [3]},
+            {"text": "The file is with you now.", "notes": [0]},
+        ],
+    })  # fmt: skip
+    facts = ["This file is about tender complaint.", "The file is with you now."]
+    out = summarise_file(llm, "summarise the info about the file", NOTES, facts)
+    assert out is not None and out["lead"]
+    assert [p["text"][:7] for p in out["points"]] == ["The Sec", "The fil"]
+
+
+def test_a_reply_with_only_a_lead_is_kept() -> None:
+    """A direct answer needs no points (v3/v4 prompts); it used to be dropped for having none."""
+    from app.agents.conversation import summarise_file
+
+    llm = Fake({"lead": "No. The file is not with you now.", "lead_notes": [0], "points": []})
+    out = summarise_file(llm, "any action for me?", NOTES, ["The file is not with you now."])
+    assert out == {"lead": "No. The file is not with you now.", "lead_notes": [0], "points": []}
+
+
+def test_a_full_summary_keeps_its_sections_and_drops_unknown_ones() -> None:
+    from app.agents.conversation import summarise_file
+
+    llm = Fake({
+        "lead": "This file is about a complaint on tender evaluation.",
+        "lead_notes": [1],
+        "points": [
+            {"text": "A complaint alleged the technical evaluation of three tenders for drain works in 2024 was manipulated.", "notes": [1], "section": "about"},
+            {"text": "The Secretary to Government approved a preliminary enquiry on 18-04-2025.", "notes": [3], "section": "decision"},
+            {"text": "A preliminary enquiry was proposed with a report within 60 days.", "notes": [1], "section": "Advice"},
+        ],
+    })  # fmt: skip
+    out = summarise_file(llm, "summarise this file end to end", NOTES)
+    assert out is not None
+    assert [p.get("section") for p in out["points"]] == ["about", "decision", None]
+
+
+def test_a_plain_draft_request_follows_the_file_stage() -> None:
+    from app.agents.conversation import choose_format
+
+    fid, why = choose_format(NOTES, 3, "open")
+    assert (
+        fid == "go_rt"
+        and "Secretary to Government approved the proposal in Note #3 on 18-04-2025" in why
+    )
+    fid, why = choose_format(NOTES[:1], 1, "open")
+    assert fid == "note_proposal" and "No approval is recorded" in why
+    assert "closed in e-Office" in choose_format(NOTES, 3, "closed")[1]

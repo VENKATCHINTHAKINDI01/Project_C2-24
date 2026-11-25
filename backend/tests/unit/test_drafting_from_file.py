@@ -399,3 +399,16 @@ def test_a_replay_only_engine_keeps_the_recorded_request() -> None:
         finally:
             app.state.assist_runtime().llm = None
     assert "noting_draft.v2" in llm.calls and "noting_draft.v3" not in llm.calls
+
+
+def test_an_order_numbers_its_own_paragraphs_from_one(client: TestClient) -> None:
+    """A G.O. starts at para 1; only a note continues the file's numbering (owner, 25 Nov 2026)."""
+    for fmt in ("go_rt", "memo"):
+        r = _prepare(client, "U01", NAVEEN, fmt)
+        assert r.status_code == 200, r.text
+        nums = [
+            int(m.group(1))
+            for p in r.json()["draft"]["parts"]
+            if p["key"] != "read" and (m := re.match(r"(\d+)\. ", p["text"]))
+        ]
+        assert nums and nums[0] == 1 and nums == list(range(1, len(nums) + 1)), (fmt, nums)
