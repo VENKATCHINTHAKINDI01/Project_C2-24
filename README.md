@@ -530,27 +530,6 @@ Team records are kept on the team's machines and are not in this repository: the
 task ledger, architecture decision records (ADR-0001 onwards, cited by number in code comments),
 learnings, the agent contract, design PDFs and run reports.
 
----
-
-## Known limitations
-
-- Synthetic and public data only; department hierarchy, numbering and access rules are unconfirmed.
-- No live e-Office integration; the connector is exercised only by the mock.
-- L2 early exit is off until a calibration meets its bar.
-- Retrieval metrics are from the in-memory sandbox stores, not the cloud stores.
-- The RAGAS judge is from the same model family as the generator. Answer relevancy (0.735 on
-  25 Nov) is below the 19 Nov baseline (0.762) and golden question Q05 is not answered; both are
-  under investigation.
-- Only `gemini-3.5-flash` and `gemini-3.5-flash-lite` are served in `asia-south1` (checked
-  25 Nov); the Gemini 4 models are not, and the system does not call models outside the region.
-- A scan confirmed in the OCR review screen is searchable at once on the running service, but
-  reaches the BigQuery passages table and the cloud graph only at the next batch job.
-- Live drafts send 61–95 BigQuery queries (38–69 s) since 25 Nov; the request log now names the
-  step behind each query, to batch it.
-- The live model's intent accuracy is measured by `conversation_check.py --live`; the fixed rules
-  alone route 32 of 39 test phrasings correctly.
-- Chat history, OCR review decisions made in the app and per-officer daily model limits are in
-  memory unless PostgreSQL state is configured, so they reset when the service restarts.
 
 ---
 
