@@ -851,3 +851,25 @@ input[type="checkbox"]:focus, input[type="radio"]:focus { box-shadow: none; }
 .received-line { margin: 12px 32px 0; padding: 8px 12px; border-radius: var(--r-sm); background: var(--paper); border: 1px solid var(--line); }
 .received-line.back { border-left: 3px solid var(--amber, #c88a00); }
 .return-line { margin: 8px 0 0; font-size: .86rem; }
+
+/* ADR-0072: suggested notes and Polish in the note editor */
+.note-sugs { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
+.note-sugs p { margin: 0; }
+.note-sug-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.note-sug { border: 1px solid var(--primary-line); background: var(--paper); color: var(--primary); border-radius: 16px; padding: 4px 12px; min-height: 30px; font-size: 13px; }
+.note-sug:hover, .note-sug:focus-visible { background: var(--primary-wash); }
+.note-sug-preview { margin: 0; padding: 6px 10px; border-left: 3px solid var(--primary); background: var(--tint); font-size: 13.5px; white-space: pre-wrap; }
+.polish-panel { margin-top: 10px; border: 1px solid var(--primary-line); border-radius: 8px; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; background: var(--paper); }
+.polish-head { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; }
+.polish-modes { display: flex; flex-wrap: wrap; gap: 6px; }
+.polish-modes .chip { border: 1px solid var(--line); background: var(--paper); border-radius: 14px; padding: 2px 10px; min-height: 28px; font-size: 12.5px; }
+.polish-modes .chip[aria-pressed="true"] { border-color: var(--primary); background: var(--primary-wash); color: var(--primary); font-weight: 600; }
+.polish-diff { white-space: pre-wrap; line-height: 1.6; font-size: 14px; }
+.polish-diff del { color: var(--danger); text-decoration: line-through; }
+.polish-diff ins { color: var(--ok); text-decoration: none; background: var(--ok-bg); border-radius: 2px; }
+.polish-checks { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 2px; }
+.polish-checks .ok-text { color: var(--ok); }
+.polish-checks .warn-text { color: var(--amber-ink); }
+.polish-custom { display: flex; gap: 6px; }
+.polish-custom input { flex: 1; min-width: 0; }
+.write-note .actions { align-items: center; flex-wrap: wrap; }

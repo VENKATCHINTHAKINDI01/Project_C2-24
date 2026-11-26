@@ -61,11 +61,11 @@ of Andhra Pradesh).
 | Temporal reasoning | Deterministic in-force / superseded status and as-of-date answers from the supersession and amendment chain, never a model guess. |
 | Conflict detection | Seven advisory types: **A** superseded reference · **B** direct contradiction · **C** wrong authority or procedure · **D** precedent inconsistency (review only) · **E** missing authority · **F** temporal mismatch · **G** hierarchy conflict. Deterministic where facts exist; the model only for grounded judgment. |
 | File assistant | One chat per file that opens with a structured, end-to-end summary of the file, then takes follow-up questions in plain words: next action, movements, records, approval brief, changes since the decision, pre-send check, related files, first-cut note, drafts, closing remarks, references to earlier notes and order status. |
-| Noting and drafting | First-cut Yellow Notes and drafts in e-Office formats (note, G.O.Ms., G.O.Rt., memo, circular, letter). "Prepare a draft" with no kind named picks the draft from the file's stage. Fields are filled from the notes with citations; gaps are marked; saved only on the officer's click. |
+| Noting and drafting | First-cut Yellow Notes, suggested notes and **Polish** in the note editor (Secretariat-style rewrite, Formal, Shorten, Add facts from the file, or custom instruction with diff preview; ADR-0072), and drafts in e-Office formats (note, G.O.Ms., G.O.Rt., memo, circular, letter). "Prepare a draft" with no kind named picks the draft from the file's stage. Fields are filled from the notes with citations; gaps are marked; saved only on the officer's click. |
 | e-Office workflow | eFile menu (Receipt inbox; File inbox, Sent, Created, Closed, Create new). Only the officer holding a file notes or sends it, within its department; drafts are put up to a chosen approver, who issues them. The monitoring officer sees the monitoring pad only. |
 | e-Office touchpoints | All 20 touchpoints of plan §11.5 in the sandbox: receipt diarisation, pre-send check, reference matching, handover brief, return with remarks, draft revision and more. |
 | Human review | OCR confidence gate and review screen, relation confirmation, feedback captured as evaluation data. |
-| General chat | "Ask AI" in the top bar: cited answers over every record the officer may open; yes/no questions answered first; greetings and "what can you do" answered without any search. |
+| General chat | "Office AI" in the top bar: cited answers over every record the officer may open; yes/no questions answered first; greetings and "what can you do" answered without any search. |
 | Chat history | Each officer's conversations are kept by the server and can be reopened, or deleted one by one or all at once in Settings. |
 
 ---
@@ -87,8 +87,8 @@ of Andhra Pradesh).
    inbox** and appears under **Sent**. The file goes up the chain, is approved, and comes back.
 5. **Put up for approval.** A draft order (DFA) is put up to an approving officer the author
    chooses; only that officer sees it, and **Approve, sign and issue** numbers and issues it. The
-   assistant never sends, signs, approves or issues. See [docs/DEMO_SCENARIO.md](docs/DEMO_SCENARIO.md).
-6. **Ask AI** (speech-bubble mark, top bar) is the general chat over every file and record the
+   assistant never sends, signs, approves or issues.
+6. **Office AI** (speech-bubble mark, top bar) is the general chat over every file and record the
    officer may open; **File AI** (page mark, bottom right of a file) works on that file only.
 
 ---
@@ -255,7 +255,13 @@ flowchart TD
    authority, temporal mismatch, and B/G conflicts with the orders it reads.
 5. **Wording.** Suggested wording from the evidence only; each line checked, removed lines
    counted. A daily per-officer limit applies.
-6. **Saving.** Nothing is saved until the officer clicks *Insert as Yellow Note* or *Create DFA
+6. **Writing a note** (ADR-0072): once the officer holding the file starts a note, up to three
+   suggested notes appear, built from the last direction and the notes it rests on (hover to
+   preview, click to place). **Polish** (12+ words, Alt+P) rewrites the officer's own text in
+   Secretariat style — Polish, More formal, Shorten, Add facts from the file, or their own
+   instruction — and shows each change. Every name, date and figure must survive unchanged;
+   facts added from the file carry their note number; otherwise only a basic clean-up is offered.
+7. **Saving.** Nothing is saved until the officer clicks *Insert as Yellow Note* or *Create DFA
    draft*. The assistant never signs, approves, sends or closes.
 
 ### 5. Conflict detection

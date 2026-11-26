@@ -4,7 +4,7 @@ import { ChatPanel, type FileTool } from "./ChatPanel";
 import { fileAsk, fileTools, type FileAsk } from "./FileChatTools";
 import { DocumentViewer } from "./Citations";
 
-/** Ask AI: the general conversation in the assistant panel (on a file, the file fills its own Ask
+/** Office AI: the general conversation in the assistant panel (on a file, the file fills its own Ask
  *  tab). Answers come only from records the officer may see, each line with its source, checked
  *  before it is shown; a file or order the officer may not see is "not available", exactly like
  *  one that does not exist. The conversation stays while the officer moves between screens,

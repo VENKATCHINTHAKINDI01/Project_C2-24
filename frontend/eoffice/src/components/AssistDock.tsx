@@ -9,7 +9,7 @@ import { FileAiIcon, GeneralAiIcon } from "./AiIcons";
  *  - on a file (or receipt), a floating AI button at the bottom right opens a small chat panel
  *    about THAT file: Ask · Check · Draft. The page fills the tabs through portals, so its tools
  *    keep their state while the panel is closed;
- *  - Ask AI in the top bar opens the general chat over every file and record the officer may see.
+ *  - Office AI in the top bar opens the general chat over every file and record the officer may see.
  *  Neither takes a column of the page; one panel is open at a time. */
 export type DockTab = "ask" | "check" | "draft";
 export type AiMode = "file" | "general" | null;
@@ -70,7 +70,7 @@ export function AssistDock({ mode, setMode, autoOpen = false, general, children 
   mode: AiMode; setMode: (m: AiMode) => void;
   /** open the file panel as soon as a file opens (Settings › When a file opens) */
   autoOpen?: boolean;
-  /** the general conversation (top bar Ask AI): every file and record the officer may see */
+  /** the general conversation (top bar Office AI): every file and record the officer may see */
   general: ReactNode;
   children: ReactNode;
 }) {
@@ -165,8 +165,8 @@ export function AssistDock({ mode, setMode, autoOpen = false, general, children 
         </aside>
       )}
       {/* the general chat: kept mounted, so the conversation stays until sign-out */}
-      <aside className="ai-panel general" role="dialog" aria-modal="false" aria-label="Ask AI about all your files" hidden={mode !== "general"}>
-        <PanelHead title="Ask AI" about="All files and records you may open" close={() => setMode(null)} />
+      <aside className="ai-panel general" role="dialog" aria-modal="false" aria-label="Office AI about all your files" hidden={mode !== "general"}>
+        <PanelHead title="Office AI" about="All files and records you may open" close={() => setMode(null)} />
         <div className="dock-panes"><div className="dock-pane active">{general}</div></div>
       </aside>
     </DockContext.Provider>

@@ -971,6 +971,23 @@ class MockEOfficeAdapter:
     def notes(self, computer_no: str) -> list[Note]:
         return [n for n in self._notes if n.computer_no == computer_no]
 
+    def note_sheet(self, computer_no: str, user_id: str) -> list[dict[str, object]]:
+        """The note sheet as the file page shows it to this officer (ADR-0072): signed (green)
+        notes with their text, post and date, oldest first. Same reach as `open_file`."""
+        self.open_file(computer_no, user_id)
+        return [
+            {
+                "note_no": n.note_no,
+                "post": n.author_post,
+                "date": (n.confirmed_at or n.versions[-1].saved_at).strftime("%d-%m-%Y")
+                if (n.confirmed_at or n.versions)
+                else "",
+                "text": n.versions[-1].text,
+            }
+            for n in self.notes(computer_no)
+            if n.state is NoteState.GREEN and n.versions and n.versions[-1].text
+        ]
+
     def correspondence(self, computer_no: str) -> list[Correspondence]:
         return [c for c in self._correspondence if c.computer_no == computer_no]
 

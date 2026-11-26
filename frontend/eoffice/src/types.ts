@@ -527,3 +527,13 @@ export interface ChatHistoryTurn {
   answer: ChatTurn | null; withheld: boolean;
 }
 export interface ChatConversation { conversation_id: string; place: string; title: string; turns: ChatHistoryTurn[] }
+
+/** ADR-0072: suggested notes and Polish in the note editor */
+export interface NoteSuggestion { label: string; text: string; sources: number[] }
+export interface NoteSuggestions { suggestions: NoteSuggestion[]; reason: string | null; withheld?: number; engine?: string | null }
+export type PolishMode = "polish" | "formal" | "short" | "elaborate";
+export interface PolishResult {
+  text: string; mode: PolishMode; added: { sentence: string; note_no: number }[]; kept: string[];
+  /** null = the model's version passed every check; otherwise why the rule-based clean-up is shown */
+  reason: string | null; withheld: string[]; engine?: string | null;
+}

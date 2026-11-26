@@ -1,7 +1,7 @@
 // Thin client for the sandbox + assist API. Sign-in is SIMULATED with a header (sandbox only,
 // ADR-0012). Errors keep the server's neutral wording; nothing is retried with less scope.
 import type {
-  Movement,
+  Movement, NoteSuggestions, PolishMode, PolishResult,
   ChatConversation, ChatConversationRow, FileSummary,
   Brief, ChatTurn, DraftWorkspace, FileRecords, ClosingRemarks, Diarise, Handover, Movements, PreviousRefs, SinceDecision, DfaPreview, DocumentInfo, Highlights, OcrReviewDetail, OcrReviewItem, OcrReviewResult, ChatEvent, Digest, DraftReceipt, MonitorData, PassageContext, FeedbackIn, FilePage, FileRow, FileSoFar, FirstCut, LinkSuggestions, Me, Preferences, NoteReferenceSuggestion, NoteReferences, Notices, PresendReport, Profile, ReceiptReview, ReceiptRow, ReferenceResult, SearchResult, DraftFormats, DraftInputs, PreparedDraft } from "./types";
 
@@ -218,6 +218,12 @@ export function createApi(userId: string | null, fetchFn: Fetch = (i, init) => f
         `${approvalPath(computerNo, draftId)}/return`,
         remarks ? { remarks } : {},
       ),
+    /** Suggested notes for the holder (ADR-0072): from the note sheet, each with its notes. */
+    noteSuggestions: (computerNo: string) =>
+      call<NoteSuggestions>("/assist/note/suggestions", { computer_no: computerNo }),
+    /** Polish the officer's own note (ADR-0072): nothing saved; figures kept or the rule-based clean-up. */
+    polishNote: (computerNo: string, text: string, mode: PolishMode, instruction = "") =>
+      call<PolishResult>("/assist/note/polish", { computer_no: computerNo, text, mode, instruction }),
     reviseDraft: (computerNo: string, draftId: string | undefined, currentText: string, reviewRemarks: string) =>
       call<{ revised_text: string; changes_summary: string; engine?: string | null; fallback?: boolean; reason?: string | null }>(
         "/assist/draft/revise",

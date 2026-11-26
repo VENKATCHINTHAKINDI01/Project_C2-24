@@ -125,6 +125,18 @@ from app.noting.drafter import PROMPT_ID_FILE as NOTE_PROMPT_FILE
 from app.noting.drafter import DraftNote, draft_note
 from app.noting.file_facts import FileFacts, file_facts
 from app.noting.movements import MovementSummary, movement_summary
+from app.noting.note_assist import (
+    MIN_POLISH_WORDS,
+    POLISH_PROMPT,
+    SUGGEST_PROMPT,
+    SuggestResult,
+    polish_note,
+    suggest_notes,
+    word_count,
+)
+from app.noting.note_assist import (
+    MODES as POLISH_MODES,
+)
 from app.noting.references import suggest_references
 from app.noting.workspace import (
     NEW_MATTER,
@@ -218,6 +230,13 @@ class AutofillIn(_In):
     computer_no: str = Field(pattern=r"^\d{4,12}$")
     format_id: str = Field(pattern=r"^[a-z][a-z0-9_]{1,40}$")
     request: str = Field(default="Prepare the draft", max_length=300)
+
+
+class NotePolishIn(_In):
+    computer_no: str = Field(pattern=r"^\d{4,12}$")
+    text: str = Field(min_length=1, max_length=5000)
+    mode: str = Field(default="polish", pattern=r"^[a-z]{3,12}$")
+    instruction: str = Field(default="", max_length=200)
 
 
 class FileSummaryIn(_In):
@@ -1124,6 +1143,193 @@ def build_assist_router(
         audit.record(o.request_id, o.ctx.user_id, action, "ok",
                      ids=(body.computer_no,), detail=f"fields={len(result['inputs'])}")  # fmt: skip
         return result
+
+    # --- suggested notes and Polish in the note editor (ADR-0072) -----------------------------
+
+    suggested: dict[tuple[str, str, int, int], SuggestResult] = {}  # one model call per note sheet
+
+    def note_sheet(o: Officer, computer_no: str, action: str) -> list[dict[str, Any]]:
+        """The notes the officer sees on the file page (e-Office), else the ingested ones."""
+        sheet = getattr(connector, "note_sheet", None)
+        if sheet is not None:
+            try:
+                got = sheet(computer_no, o.ctx.user_id)
+            except ConnectorError:
+                raise HTTPException(status_code=404, detail=NOT_AVAILABLE) from None
+            if got:
+                return list(got)
+        out = so_far_for(FileIn(computer_no=computer_no), o, action)
+        return [
+            {
+                "note_no": n["note_no"],
+                "post": n["post"],
+                "date": n["signed_at"] or "",
+                "text": n["text"],
+            }
+            for n in out["notes"]
+        ]
+
+    def spend(
+        o: Officer,
+        run: AssistRuntime,
+        computer_no: str,
+        what: str,
+        outcome: str,
+        engine: str | None,
+        prompt: str,
+        kept: int,
+        removed: int,
+    ) -> None:
+        if wording_quota is None or run.llm is None:
+            return
+        try:
+            wording_quota.log(
+                UsageEntry(
+                    at=dt.datetime.now(dt.UTC),
+                    request_id=o.request_id,
+                    user_id=o.ctx.user_id,
+                    action=what,
+                    outcome=outcome,
+                    engine=engine,
+                    prompt_id=prompt if engine else None,
+                    target=computer_no,
+                    kept=kept,
+                    removed=removed,
+                )
+            )
+        except Exception as exc:  # counted already; the log row is not essential
+            log.warning("model usage log not written: %s", type(exc).__name__)
+
+    def quota_left(o: Officer, run: AssistRuntime) -> str | None:
+        """None when the model may be asked; else why not (counted before the call)."""
+        if run.llm is None or wording_quota is None:
+            return None
+        try:
+            return None if wording_quota.take(o.ctx.user_id) is not None else "daily limit reached"
+        except UsageUnavailableError:
+            return "usage count unavailable"
+
+    @r.post("/note/suggestions")
+    def note_suggestions(body: FileIn, o: Annotated[Officer, Depends(officer)]) -> dict[str, Any]:
+        """Up to three notes the holder could write next, from the note sheet (mainly the last
+        direction), each with the notes it rests on and gated against them. Only for the officer
+        holding the file; one model call per note sheet (cached), counted against the daily
+        wording limit. Nothing is saved."""
+        action = "assist.note.suggest"
+        run = rt(o, action)
+        fctx = open_file(o, run, body.computer_no, action)
+        holder = getattr(connector, "holder", None)
+        if holder is not None and holder(body.computer_no) != o.ctx.user_id:
+            return {
+                "request_id": o.request_id,
+                "suggestions": [],
+                "reason": "the file is not with you",
+            }
+        notes = note_sheet(o, body.computer_no, action)
+        post_of = getattr(connector, "post_of", None)
+        me_post = post_of(o.ctx.user_id) if post_of is not None else None
+        last = notes[-1] if notes else {}
+        key = (o.ctx.user_id, body.computer_no, len(notes), hash(str(last.get("text"))))
+        res = suggested.get(key)
+        if res is None:
+            why = quota_left(o, run)
+            res = suggest_notes(
+                None if why else run.llm, subject=fctx.subject, notes=notes, me_post=me_post
+            )
+            if why:
+                res = SuggestResult(res.suggestions, reason=why)
+            else:
+                spend(
+                    o,
+                    run,
+                    body.computer_no,
+                    "note.suggest",
+                    res.reason or "ok",
+                    res.engine,
+                    SUGGEST_PROMPT,
+                    len(res.suggestions),
+                    res.withheld,
+                )
+            if len(suggested) > 500:
+                suggested.clear()
+            suggested[key] = res
+        audit.record(
+            o.request_id,
+            o.ctx.user_id,
+            action,
+            "ok" if res.suggestions else "no_answer",
+            ids=(body.computer_no,),
+            detail=f"suggestions={len(res.suggestions)}",
+        )
+        return {
+            "request_id": o.request_id,
+            "suggestions": [
+                {"label": s.label, "text": s.text, "sources": list(s.sources)}
+                for s in res.suggestions
+            ],
+            "reason": res.reason,
+            "withheld": res.withheld,
+            "engine": res.engine,
+        }
+
+    @r.post("/note/polish")
+    def note_polish(body: NotePolishIn, o: Annotated[Officer, Depends(officer)]) -> dict[str, Any]:
+        """The officer's note rewritten in Secretariat style (Polish, More formal, Shorten, Add
+        facts from the file, or their own instruction). Every number, date and reference must come
+        out unchanged and nothing new is added unless tagged with the note it comes from; else the
+        rule-based clean-up is returned. Counts against the daily wording limit. Nothing is
+        saved."""
+        action = "assist.note.polish"
+        if body.mode not in POLISH_MODES:
+            raise HTTPException(status_code=422, detail="unknown mode")
+        if word_count(body.text) < MIN_POLISH_WORDS:
+            raise HTTPException(
+                status_code=422, detail=f"Polish needs at least {MIN_POLISH_WORDS} words."
+            )
+        run = rt(o, action)
+        fctx = open_file(o, run, body.computer_no, action)
+        wants_notes = body.mode == "elaborate" or bool(body.instruction.strip())
+        notes = note_sheet(o, body.computer_no, action) if wants_notes else []
+        why = quota_left(o, run)
+        res = polish_note(
+            None if why else run.llm,
+            text=body.text,
+            mode=body.mode,
+            instruction=body.instruction,
+            subject=fctx.subject,
+            notes=notes,
+        )
+        if not why:
+            spend(
+                o,
+                run,
+                body.computer_no,
+                "note.polish",
+                res.reason or "ok",
+                res.engine,
+                POLISH_PROMPT,
+                0 if res.reason else 1,
+                len(res.withheld),
+            )
+        reason = why or res.reason
+        audit.record(
+            o.request_id,
+            o.ctx.user_id,
+            action,
+            "ok" if reason is None else "fallback",
+            ids=(body.computer_no,),
+            detail=f"mode={body.mode}",
+        )
+        return {
+            "request_id": o.request_id,
+            "text": res.text,
+            "mode": res.mode,
+            "added": [{"sentence": a, "note_no": n} for a, n in res.added],
+            "kept": list(res.kept),
+            "reason": reason,
+            "withheld": list(res.withheld),
+            "engine": res.engine,
+        }
 
     @r.post("/file-so-far")
     def so_far(body: FileIn, o: Annotated[Officer, Depends(officer)]) -> dict[str, Any]:

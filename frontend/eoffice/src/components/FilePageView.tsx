@@ -3,6 +3,7 @@ import { fmtDateTime } from "../format";
 import type { Api } from "../api";
 import type { DfaRow, DraftRow, FilePage, FileRecords, Highlight, Standing } from "../types";
 import { usePrefs } from "../prefs";
+import { MIN_POLISH_WORDS, PolishPanel, SuggestedNotes, wordCount } from "./NoteAssist";
 import { FileText, FolderCheck, Keyboard, Lock, Mails, NotebookPen, Paperclip, PenLine, Route, Send, Sparkles, type LucideIcon } from "lucide-react";
 import { fileTools } from "./FileChatTools";
 import { DockSlot, useDock } from "./AssistDock";
@@ -56,7 +57,7 @@ export function FilePageView({ api, computerNo, open, draft }: {
     if (!file) return;
     setAttaching(`Attaching ${file.name}…`);
     api.attach(computerNo, file)
-      .then(() => { setAttaching(`${file.name} attached. Ask AI "Records on this file" to see where it stands.`); load(); })
+      .then(() => { setAttaching(`${file.name} attached. ask File AI "Records on this file" to see where it stands.`); load(); })
       .catch((e: Error) => setAttaching(`Not attached: ${e.message}`));
   };
   useEffect(load, [load]);
@@ -371,20 +372,35 @@ function WriteNote({ api, computerNo, onSaved }: { api: Api; computerNo: string;
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [started, setStarted] = useState(false); // suggestions are asked for once you start writing
+  const [polishing, setPolishing] = useState<string | null>(null); // the text being polished
+  const words = wordCount(text);
   const save = () => {
     setBusy(true); setError(null);
-    api.writeNote(computerNo, text).then(() => { setText(""); onSaved(); })
+    api.writeNote(computerNo, text).then(() => { setText(""); setPolishing(null); onSaved(); })
       .catch((e: Error) => setError(e.message)).finally(() => setBusy(false));
   };
+  const polish = () => { if (words >= MIN_POLISH_WORDS) setPolishing(text); };
   return (
     <article className="note write-note">
       <h4>Write a note</h4>
+      <SuggestedNotes api={api} computerNo={computerNo} active={started} onPick={(t) => { setText(t); setPolishing(null); }} />
       <textarea aria-label="Note text" rows={4} value={text} onChange={(e) => setText(e.target.value)}
+        onFocus={() => setStarted(true)}
+        onKeyDown={(e) => { if (e.altKey && e.code === "KeyP") { e.preventDefault(); polish(); } }}
         placeholder="Type your note. It is saved as your Yellow Note and signed when you confirm it or send the file." />
       {error && <p className="error">{error}</p>}
       <div className="actions">
+        <span className="muted small">{words} words{words > 0 && words < MIN_POLISH_WORDS ? ` · Polish from ${MIN_POLISH_WORDS} words` : ""}</span>
+        <button type="button" disabled={words < MIN_POLISH_WORDS || busy} onClick={polish} title="Alt+P">
+          <Sparkles size={16} aria-hidden="true" />Polish
+        </button>
         <button className="primary" disabled={!text.trim() || busy} onClick={save}><PenLine size={16} aria-hidden="true" />Save note</button>
       </div>
+      {polishing !== null && (
+        <PolishPanel key={polishing} api={api} computerNo={computerNo} original={polishing}
+          onUse={(t) => { setText(t); setPolishing(null); }} onClose={() => setPolishing(null)} />
+      )}
     </article>
   );
 }

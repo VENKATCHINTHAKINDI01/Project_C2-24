@@ -1,6 +1,6 @@
 /** The two assistants' marks (owner, 25 Nov 2026). Drawn here, not taken from an icon set, so
  *  they read as AI and cannot be mistaken for a document or chat option elsewhere in e-Office.
- *  - Ask AI (all records): a speech bubble holding a gold four-point spark, with a small
+ *  - Office AI (all records): a speech bubble holding a gold four-point spark, with a small
  *    companion spark — a conversation about everything the officer may open.
  *  - File AI (the open file): a page with a large gold spark breaking out of its corner — the
  *    assistant working on this document. The spark is cut out of the page by `--ai-cut`

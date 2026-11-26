@@ -39,7 +39,7 @@ export function ChatPanel({ api, computerNo, onInserted, onOpenDoc, suggestions 
   onOpenDoc?: (canonicalId: string) => void;
   /** Questions this file invites (ADR-0034): one click asks them. */
   suggestions?: string[];
-  /** false inside a panel that has its own heading (Ask AI) */
+  /** false inside a panel that has its own heading (Office AI) */
   titled?: boolean;
   /** the open file's own answers (ADR-0064 addendum 1); asked by chip or by a matching question */
   tools?: FileTool[];

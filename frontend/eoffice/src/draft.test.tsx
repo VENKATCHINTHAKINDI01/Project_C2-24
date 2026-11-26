@@ -44,11 +44,11 @@ describe("draft workspace (ADR-0044)", () => {
     expect(studio).not.toMatch(/<select|Choose a file/);
   });
 
-  it("Ask AI is in the top bar on every screen, and says where its answers come from", () => {
+  it("Office AI is in the top bar on every screen, and says where its answers come from", () => {
     const me = { user_id: "U01", name: "Officer A", post: "Section Officer (Estt.I)" };
     const bar = text(<TopBar me={me} signOut={() => {}} ask={() => {}} />);
-    expect(bar).toMatch(/<button class="ask-ai"[^>]*>(?:(?!<\/button>).)*<span>Ask AI<\/span><\/button>/);
-    expect(text(<TopBar me={me} signOut={() => {}} />)).not.toContain("Ask AI");
+    expect(bar).toMatch(/<button class="ask-ai"[^>]*>(?:(?!<\/button>).)*<span>Office AI<\/span><\/button>/);
+    expect(text(<TopBar me={me} signOut={() => {}} />)).not.toContain("Office AI");
     const api = { chat: () => new Promise(() => {}) } as unknown as Api;
     const panel = text(<AskAi api={api} open onClose={() => {}} computerNo="1771342" fileNo="USD01-12/31/2022-ESTT.I" />);
     expect(panel).toContain("About file <strong>USD01-12/31/2022-ESTT.I</strong>");

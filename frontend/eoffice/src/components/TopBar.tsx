@@ -46,7 +46,7 @@ export function TopBar({ me, signOut, files = [], open, dark = false, toggleThem
         {ask && (
           <button className="ask-ai" onClick={ask} aria-expanded={asking}
             title="Ask about files and records you may see; every answer shows its sources">
-            <GeneralAiIcon size={19} /><span>Ask AI</span>
+            <GeneralAiIcon size={19} /><span>Office AI</span>
           </button>
         )}
         {toggleTheme && (

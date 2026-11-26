@@ -85,7 +85,7 @@ export function App() {
     api.savePreferences(next).catch(() => { /* kept for this sign-in; Settings shows the saved value */ });
   };
   // The assistant (ADR-0064 addendum 1): on a file or receipt, a floating AI button opens a chat
-  // about that file; Ask AI in the top bar opens the general chat over every file the officer may
+  // about that file; Office AI in the top bar opens the general chat over every file the officer may
   // open. One panel at a time; neither takes a column of the page.
   const [aiMode, setAiMode] = useState<AiMode>(null);
   // the menu: full, or icons only (kept for this sign-in)
