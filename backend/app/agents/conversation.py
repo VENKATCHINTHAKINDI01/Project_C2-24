@@ -478,7 +478,7 @@ def summarise_file(
     }
 
 
-DRAFT_INPUTS_PROMPT = "draft_inputs.v1"
+DRAFT_INPUTS_PROMPT = "draft_inputs.v2"
 DRAFT_FIELDS = ("subject", "request", "facts", "proposal", "signatory", "addressees", "copy_to")
 _FIELD_MAX = {"subject": 500, "signatory": 200}
 

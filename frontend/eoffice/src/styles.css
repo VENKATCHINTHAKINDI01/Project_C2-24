@@ -831,13 +831,13 @@ input[type="checkbox"]:focus, input[type="radio"]:focus { box-shadow: none; }
 /* e-Office movement (25 Nov) */
 .with-pill { margin-left: 8px; padding: 2px 8px; border-radius: 999px; font-size: .78rem; background: var(--paper); border: 1px solid var(--line); color: var(--muted); }
 .with-pill.mine { color: var(--green); border-color: var(--green); }
-.send-panel { margin: 10px 0; padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--r-sm); background: var(--paper); }
+.send-panel { margin: 12px 32px; padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--r-sm); background: var(--paper); }
 .send-panel h3 { margin: 0 0 8px; font-size: 1rem; }
 .send-grid { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 10px; }
 .send-panel label { display: flex; flex-direction: column; gap: 4px; font-size: .86rem; }
 .send-remarks { margin-top: 8px; }
 .send-panel textarea, .write-note textarea { width: 100%; box-sizing: border-box; }
-.ok-line { color: var(--green); margin: 8px 0; }
+.ok-line { color: var(--green); margin: 8px 32px; }
 @media (max-width: 640px) { .send-grid { grid-template-columns: 1fr; } }
 .approver-pick { display: inline-flex; gap: 6px; align-items: center; flex-wrap: wrap; }
 .chat .extracts ul { margin: 6px 0; padding-left: 1.2em; display: flex; flex-direction: column; gap: 8px; } .chat .extracts .quote { font-style: italic; }
@@ -848,3 +848,6 @@ input[type="checkbox"]:focus, input[type="radio"]:focus { box-shadow: none; }
 .ai-fab:hover:not(:disabled) { background: radial-gradient(circle at 30% 25%, #3a7ccc, var(--primary) 70%); box-shadow: 0 8px 24px var(--shadow), 0 0 0 4px #f5b70055; }
 .ai-mark { width: 34px; height: 34px; --ai-cut: var(--primary); }
 .topbar .ask-ai { --ai-cut: var(--on-chrome); gap: 8px; }
+.received-line { margin: 12px 32px 0; padding: 8px 12px; border-radius: var(--r-sm); background: var(--paper); border: 1px solid var(--line); }
+.received-line.back { border-left: 3px solid var(--amber, #c88a00); }
+.return-line { margin: 8px 0 0; font-size: .86rem; }

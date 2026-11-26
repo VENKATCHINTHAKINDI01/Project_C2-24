@@ -3,7 +3,7 @@ import { fmtDateTime } from "../format";
 import type { Api } from "../api";
 import type { DfaRow, DraftRow, FilePage, FileRecords, Highlight, Standing } from "../types";
 import { usePrefs } from "../prefs";
-import { FileText, Keyboard, Lock, Mails, NotebookPen, Paperclip, PenLine, Route, Send, Sparkles, type LucideIcon } from "lucide-react";
+import { FileText, FolderCheck, Keyboard, Lock, Mails, NotebookPen, Paperclip, PenLine, Route, Send, Sparkles, type LucideIcon } from "lucide-react";
 import { fileTools } from "./FileChatTools";
 import { DockSlot, useDock } from "./AssistDock";
 import { ChatPanel } from "./ChatPanel";
@@ -23,6 +23,7 @@ export function FilePageView({ api, computerNo, open, draft }: {
   const [viewing, setViewing] = useState<string | null>(null);
   const [help, setHelp] = useState(false);
   const [sending, setSending] = useState(false);
+  const [closing, setClosing] = useState(false);
   const [sentTo, setSentTo] = useState<string | null>(null);
   const prefs = usePrefs();
   // one chat for the file (24 Nov 2026): every Check and Draft tool is asked in it, by chip or in words
@@ -84,6 +85,9 @@ export function FilePageView({ api, computerNo, open, draft }: {
       onOpenFile={(no) => { const c = files.get(no); if (c && open) open(c); }} fileNos={open ? fileNos : new Set()} />
   );
   const withMe = !!f.with_me;
+  // the move that brought the file to this officer: who sent it, with what remarks
+  const moves = page.movements ?? [];
+  const lastIn = withMe && moves.length ? moves[moves.length - 1] : null;
 
 
   const notesCount = page.notes.length + page.drafts.length + (page.awaiting_approval ?? []).length + (page.submitted ?? []).length;
@@ -119,6 +123,10 @@ export function FilePageView({ api, computerNo, open, draft }: {
         <button onClick={() => setSending((x) => !x)} disabled={!withMe}
           title={withMe ? "Send the file to another officer, with remarks" : `The file is with ${f.holder_post ?? "another officer"}`}>
           <Send size={16} aria-hidden="true" />Send</button>
+        {withMe && !closed && (
+          <button onClick={() => setClosing((x) => !x)} title="Close the file with closing remarks (e-Office Close File)">
+            <FolderCheck size={16} aria-hidden="true" />Close file</button>
+        )}
         {draft && <button onClick={draft} title="Prepare a note or an order in a chosen format"><PenLine size={16} aria-hidden="true" />Draft</button>}
         {!closed && (
           <label className="button-like" title="Attach a paper (PDF, Word, text or image). It is read and added to the records; a scan waits for OCR review.">
@@ -140,9 +148,20 @@ export function FilePageView({ api, computerNo, open, draft }: {
           </button>
         ))}
       </div>
+      {lastIn && lastIn.remarks && (
+        <p className={`received-line${lastIn.sent_back ? " back" : ""}`} role="note">
+          {lastIn.sent_back ? "Sent back to you" : "Received"} from <strong>{lastIn.from_post ?? lastIn.from_user}</strong>
+          {lastIn.sent_at && <> on {fmtDateTime(lastIn.sent_at)}</>}: “{lastIn.remarks}”
+        </p>
+      )}
       {sending && withMe && (
         <SendPanel api={api} computerNo={computerNo} check={() => askTool("presend")}
+          sender={lastIn ? { user_id: lastIn.from_user, post: lastIn.from_post ?? lastIn.from_user } : null}
           done={(to) => { setSending(false); setSentTo(to); load(); }} cancel={() => setSending(false)} />
+      )}
+      {closing && withMe && (
+        <CloseFilePanel api={api} computerNo={computerNo} issued={(page.issued ?? []).map((d) => d.issued_as ?? "").filter(Boolean)}
+          done={() => { setClosing(false); load(); }} cancel={() => setClosing(false)} />
       )}
       {sentTo && <p className="ok-line" role="status">File sent to {sentTo}. It is now in their Inbox and under Sent in yours.</p>}
       {attaching && <p className="busy" role="status">{attaching}</p>}
@@ -254,8 +273,10 @@ const STANDING_TEXT: Record<Standing, string> = {
  *  particulars, attached papers, confirmed notes, issued orders), and what still waits. */
 /** e-Office "Send": the officer the file is with marks it to another officer of the department,
  *  with remarks, priority and a due date. Their own Yellow Notes are signed on sending. */
-function SendPanel({ api, computerNo, check, done, cancel }: {
+function SendPanel({ api, computerNo, check, done, cancel, sender }: {
   api: Api; computerNo: string; check: () => void; done: (toPost: string) => void; cancel: () => void;
+  /** who sent the file here: "Return to sender" picks them */
+  sender: { user_id: string; post: string } | null;
 }) {
   const [options, setOptions] = useState<{ user_id: string; post: string; name: string }[] | null>(null);
   const [to, setTo] = useState("");
@@ -290,6 +311,12 @@ function SendPanel({ api, computerNo, check, done, cancel }: {
         </label>
         <label>Due date <input type="date" value={due} onChange={(e) => setDue(e.target.value)} /></label>
       </div>
+      {sender && (options ?? []).some((o) => o.user_id === sender.user_id) && (
+        <p className="return-line">
+          <button className="link" onClick={() => { setTo(sender.user_id); if (!remarks) setRemarks("Returned with remarks: "); }}>
+            Return to sender ({sender.post})</button> — write what should be changed in the remarks.
+        </p>
+      )}
       <label className="send-remarks">Remarks
         <textarea rows={2} value={remarks} onChange={(e) => setRemarks(e.target.value)} placeholder="For orders, please." />
       </label>
@@ -298,6 +325,40 @@ function SendPanel({ api, computerNo, check, done, cancel }: {
       <div className="actions">
         <button className="primary" disabled={!to || busy} onClick={submit}><Send size={16} aria-hidden="true" />Send</button>
         <button onClick={check} disabled={busy}>Check before sending</button>
+        <button onClick={cancel} disabled={busy}>Cancel</button>
+      </div>
+    </section>
+  );
+}
+
+/** e-Office "Close File": the officer the file is with closes it with closing remarks (signed as
+ *  the last note). Once an order is issued the remarks are prefilled with it; the decided file
+ *  then joins the records the assistant searches (precedents). */
+function CloseFilePanel({ api, computerNo, issued, done, cancel }: {
+  api: Api; computerNo: string; issued: string[]; done: () => void; cancel: () => void;
+}) {
+  const [text, setText] = useState(
+    issued.length
+      ? `Orders issued vide ${issued.join(", ")}. Nothing further remains to be done. The file may be closed.`
+      : "",
+  );
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const submit = () => {
+    setBusy(true); setError(null);
+    api.closeFile(computerNo, text).then(done).catch((e: Error) => setError(e.message)).finally(() => setBusy(false));
+  };
+  return (
+    <section className="send-panel" aria-label="Close file">
+      <h3>Close file</h3>
+      <label className="send-remarks">Closing remarks
+        <textarea rows={3} value={text} onChange={(e) => setText(e.target.value)}
+          placeholder="What was decided and that nothing further remains." />
+      </label>
+      {!issued.length && <p className="muted small">No order has been issued on this file. Close it only if nothing further remains.</p>}
+      {error && <p className="error">{error}</p>}
+      <div className="actions">
+        <button className="primary" disabled={busy || text.trim().length < 5} onClick={submit}><FolderCheck size={16} aria-hidden="true" />Close file</button>
         <button onClick={cancel} disabled={busy}>Cancel</button>
       </div>
     </section>

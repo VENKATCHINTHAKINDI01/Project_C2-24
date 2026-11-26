@@ -75,6 +75,28 @@ class DraftRevisionResult(BaseModel):
     unsupported: tuple[str, ...] = ()  # what the model added that no source holds (withheld)
 
 
+# the blank number line of an order ("G.O.Rt.No.____  Dated: ____"): filled only on issue
+_BLANK_NUMBER = re.compile(r"^[^\n]*No\.\s*_{2,}[^\n]*Dated\s*:?\s*_{2,}[^\n]*$", re.MULTILINE)
+_ANY_NUMBER = re.compile(r"^[^\n]*\bNo\.[^\n]{0,40}\bDated\b[^\n]*$", re.MULTILINE)
+
+
+def keep_number_line(before: str, after: str) -> str:
+    """A revision never fills or drops the order's blank number line (26 Nov 2026: a revised
+    draft could not be put up). If the draft had one and the revision lost or filled it, the
+    original line is put back where the revision wrote its own, else where it stood."""
+    m = _BLANK_NUMBER.search(before)
+    if m is None or _BLANK_NUMBER.search(after):
+        return after
+    line = m.group(0)
+    got = _ANY_NUMBER.search(after)
+    if got:
+        return after[: got.start()] + line + after[got.end() :]
+    lines = after.split("\n")
+    at = before[: m.start()].count("\n")
+    lines.insert(min(at, len(lines)), line)
+    return "\n".join(lines)
+
+
 def suggest_revision(
     *,
     current_text: str,
@@ -157,6 +179,7 @@ def suggest_revision(
             unsupported=tuple(added),
         )
 
+    revised = keep_number_line(clean_text, revised)
     used = str(getattr(llm, "last_used", None) or llm.name)
     primary = getattr(getattr(llm, "primary", None), "name", None)
     on_fallback = bool(primary and used != primary)

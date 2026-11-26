@@ -12,7 +12,11 @@ replays:
 # may approve, sign (simulated click) and issue a draft for approval put up to them. The author never
 # approves their own draft. Issued orders get SYNTHETIC numbers from 9001 (ADR-0045).
 order_approval:
-  approver_posts: ["Assistant Secretary", "Deputy Secretary", "Secretary to Government"]
+  # posts that may approve and issue a draft put up to them (mock hierarchy, [To confirm]); 26 Nov
+  # 2026: Joint and Principal Secretaries added, so Finance and School Education (seed v2) have an
+  # approval chain like Urban Services
+  approver_posts: ["Assistant Secretary", "Deputy Secretary", "Joint Secretary",
+                   "Secretary to Government", "Principal Secretary to Government"]
 retrieval:
   l2_top_k: 10
   l2_rerank_min_score: 1.0

@@ -31,6 +31,13 @@ fi
 # the answering model (default in code: gemini-3.5-flash). Change it only after a MODE=all evaluation
 # with GEMINI_MODEL set the same way (32_eval_job.sh) has passed the release bar
 [[ -n "${GEMINI_MODEL:-}" ]] && ENV="${ENV},C2_GEMINI_MODEL=${GEMINI_MODEL}"
+# ADR-0071: keep the officers' sandbox actions across restarts and deploys (Cloud SQL table
+# sandbox_journal; run 12_cloudsql_schema.py first). JOURNAL=none turns it off.
+ENV="${ENV},C2_SANDBOX_JOURNAL=${JOURNAL:-postgres}"
+# ADR-0071 addition: application state in Cloud SQL — OCR review queue and decisions, confirmed OCR
+# text, audit trail, chat history, conversation memory, draft workspaces, model usage — so none of it
+# is lost on a restart or deploy. STATE=memory turns it off (sandbox-only, lost on restart).
+ENV="${ENV},C2_STATE_STORE=${STATE:-postgres}"
 [[ -n "${EMBEDDING_MODEL:-}" ]] && ENV="${ENV},C2_EMBEDDING_MODEL=${EMBEDDING_MODEL},C2_EMBEDDING_DIMENSIONS=${EMBEDDING_DIMENSIONS:-768}"
 # L2 early exit (ADR-0061): unset = cloud L2 never ends the ladder on its own. L2_MIN_SCORE alone
 # sets a score that is listed but never trusted to end the ladder. L2_CALIBRATION=<file written by

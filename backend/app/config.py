@@ -37,6 +37,10 @@ class Settings(BaseSettings):
     # Which synthetic sandbox data to load (ADR-0020): "v1" mock corpus, "v2" the 201-file set on
     # real public G.O.s, or "both". v2 needs the public orders in the data root, outside the repo.
     sandbox_seed: Literal["v1", "v2", "both"] = "v1"
+    # ADR-0071: keep the officers' sandbox actions across restarts — "file" (local JSON lines at
+    # sandbox_journal_path) or "postgres" (Cloud SQL table sandbox_journal); "none" = in memory
+    sandbox_journal: Literal["none", "file", "postgres"] = "none"
+    sandbox_journal_path: Path = REPO_ROOT / ".sandbox" / "journal.jsonl"
     sandbox_v2_dir: Path = REPO_ROOT / "data" / "synthetic" / "mock_v1" / "efiles_v2" / "eoffice"
     sandbox_public_corpus_dir: Path | None = (
         None  # data root holding staging/rule-library (ADR-0006)

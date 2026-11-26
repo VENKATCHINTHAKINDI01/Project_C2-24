@@ -94,3 +94,6 @@ playwright-report/
 # Corpus archives and unpacked corpora live outside the repository (ADR-0006)
 *.zip
 c2-24-corpus*/
+
+# Sandbox journal (ADR-0071): local replay of officer actions in the mock e-Office
+.sandbox/

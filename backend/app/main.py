@@ -257,6 +257,17 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         arrivals=arrivals,
         approver_posts=(sandbox_cfg.get("order_approval") or {}).get("approver_posts", []),
     )
+    if settings.sandbox_journal != "none":
+        from app.eoffice_mock.journal import FileJournal, PostgresJournal, attach_journal
+        from app.pg import pg_from_settings as _pg
+
+        if settings.sandbox_journal == "file":
+            journal: Any = FileJournal(settings.sandbox_journal_path)
+        else:
+            jpg = _pg(settings.model_copy(update={"state_store": "postgres"}))
+            assert jpg is not None  # noqa: S101 — pg_from_settings raises on bad config
+            journal = PostgresJournal(jpg)
+        attach_journal(adapter, journal)  # replays earlier actions, then records new ones
     app.state.adapter = adapter
 
     def known_login(uid: str) -> str | None:

@@ -712,7 +712,8 @@ class MockEOfficeAdapter:
     def return_draft(
         self, computer_no: str, draft_id: str, user_id: str, remarks: str | None = None
     ) -> Draft:
-        """The approver sends the DFA back to its author, who can edit and put it up again."""
+        """The approver sends the DFA back to its author, who can edit and put it up again; the
+        file goes back to the author with the remarks."""
         d = self._awaiting(computer_no, draft_id, user_id)
         clean_remarks = remarks.strip() if remarks and remarks.strip() else None
         back = d.model_copy(
@@ -722,9 +723,21 @@ class MockEOfficeAdapter:
                 "review_remarks": clean_remarks,
                 "returned_by": user_id,
                 "returned_at": self._clock(),
+                "submitted_to": None,
             }
         )
         self.drafts[draft_id] = back
+        # e-Office: the file goes back to the author with the remarks, so they can revise the
+        # draft and put it up again (only when the approver holds the file)
+        author = d.requested_by
+        if (
+            author
+            and self.holder(computer_no) == user_id
+            and author in {x.user_id for x in self.send_options(computer_no, user_id)}
+        ):
+            self.send_file(
+                computer_no, user_id, author, f"Draft returned for changes: {clean_remarks or ''}"
+            )
         return back
 
     def approve_and_issue(self, computer_no: str, draft_id: str, user_id: str) -> Draft:
@@ -739,7 +752,8 @@ class MockEOfficeAdapter:
         m = _NUMBER_LINE.search(text)
         if m is None:
             raise ValueError("the draft has no number line to fill (… No.____ Dated: ____)")
-        label = m.group("label")
+        raw = m.group("label")  # written as e-Office prints it: "G.O.Rt.No.", "Memo No."
+        label = re.sub(r"\s+", "", raw) if raw.startswith("G.") else re.sub(r"\s+", " ", raw)
         day = self._office_date or now.astimezone(dt.timezone(dt.timedelta(hours=5, minutes=30)))
         key = (f.department, label, day.year)
         n = self._issued_no.get(key, 9000) + 1
@@ -775,6 +789,18 @@ class MockEOfficeAdapter:
         )
         self.drafts[draft_id] = done
         self._emit(EventKind.DRAFT_DISPATCHED, f, draft_id, art)
+        # e-Office: the issued file goes back to the officer who put the draft up, for dispatch
+        # and closing (26 Nov 2026, owner: "close the file once it is signed")
+        author = d.requested_by
+        if (
+            author
+            and author != user_id
+            and self.holder(computer_no) == user_id
+            and author in {x.user_id for x in self.send_options(computer_no, user_id)}
+        ):
+            self.send_file(
+                computer_no, user_id, author, f"Orders issued: {label}{number} Dated: {dated}."
+            )
         return done
 
     # --- Moving the file (e-Office "Send"; sandbox, simulated) -------------------------------
@@ -1090,9 +1116,12 @@ class MockEOfficeAdapter:
         )
 
 
+# the number line of an outgoing draft, filled on issue. Tolerant of what an edit or a model
+# revision does to it (26 Nov 2026): spaces inside the label, any run of underscores, "Dated"
+# with or without the colon
 _NUMBER_LINE = re.compile(
-    r"(?P<label>G\.O\.Ms\.No\.|G\.O\.Rt\.No\.|Circular Memo No\.|Memo No\.|Letter No\.)____"
-    r"(?P<gap>\s+)Dated:\s*____"
+    r"(?P<label>G\.\s*O\.\s*Ms\.\s*No\.|G\.\s*O\.\s*Rt\.\s*No\.|Circular\s+Memo\s+No\.|Memo\s+No\."
+    r"|Letter\s+No\.)\s*_{2,}(?P<gap>\s+)Dated\s*:?\s*_{2,}"
 )
 _GAP = re.compile(r"\[[^\]\n]{2,120}\]")
 _OPEN_POINTS = re.compile(r"\n?— Open points for the approving officer[\s\S]*$")
@@ -1112,7 +1141,11 @@ def _check_issuable(text: str) -> None:
             f"(the first is {gaps[0]})."
         )
     if _NUMBER_LINE.search(_issuable_text(text)) is None:
-        raise ValueError("Keep the number line (… No.____ Dated: ____): it is filled on issue.")
+        raise ValueError(
+            "The order's number line is missing or was changed. Put back the line with the blank "
+            'number and date (for example "G.O.Rt.No.____  Dated: ____") — the number and date '
+            "are filled only when the approving officer issues it."
+        )
 
 
 def load_seed(path: Path) -> Seed:
