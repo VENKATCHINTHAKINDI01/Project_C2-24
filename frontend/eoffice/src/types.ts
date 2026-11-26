@@ -537,3 +537,8 @@ export interface PolishResult {
   /** null = the model's version passed every check; otherwise why the rule-based clean-up is shown */
   reason: string | null; withheld: string[]; engine?: string | null;
 }
+export type NoteAssistEvent =
+  | { type: "suggestion"; suggestion: NoteSuggestion }
+  | { type: "sentence"; text: string; note_no: number | null; new_paragraph: boolean }
+  | { type: "done"; result: unknown }
+  | { type: "error"; message: string };

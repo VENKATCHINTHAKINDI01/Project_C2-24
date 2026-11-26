@@ -873,3 +873,6 @@ input[type="checkbox"]:focus, input[type="radio"]:focus { box-shadow: none; }
 .polish-custom { display: flex; gap: 6px; }
 .polish-custom input { flex: 1; min-width: 0; }
 .write-note .actions { align-items: center; flex-wrap: wrap; }
+.polish-live { white-space: pre-wrap; line-height: 1.6; font-size: 14px; min-height: 1.6em; }
+.polish-caret { display: inline-block; width: 7px; height: 1em; margin-left: 2px; vertical-align: text-bottom; background: var(--primary); }
+@media (prefers-reduced-motion: no-preference) { .polish-caret { animation: polish-blink 1s steps(2) infinite; } @keyframes polish-blink { 50% { opacity: 0; } } }

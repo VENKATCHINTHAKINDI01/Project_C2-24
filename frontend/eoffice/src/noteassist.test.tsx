@@ -23,3 +23,26 @@ describe("Polish and suggested notes (ADR-0072)", () => {
     expect(asked).toBe(0);
   });
 });
+
+describe("Polish streams sentence by sentence (ADR-0072)", () => {
+  it("shows each checked sentence as it arrives and returns the final result", async () => {
+    const { createApi } = await import("./api");
+    const final = { text: "One. Two.", mode: "polish", added: [], kept: [], reason: null, withheld: [] };
+    const sse = [
+      { type: "sentence", text: "One.", note_no: null, new_paragraph: false },
+      { type: "sentence", text: "Two.", note_no: null, new_paragraph: false },
+      { type: "done", result: final },
+    ].map((e) => `event: ${e.type}\ndata: ${JSON.stringify(e)}\n\n`).join("");
+    const bytes = new TextEncoder().encode(sse);
+    const body = new ReadableStream<Uint8Array>({
+      start(c) { for (let i = 0; i < bytes.length; i += 7) c.enqueue(bytes.slice(i, i + 7)); c.close(); },
+    });
+    let url = "";
+    const api = createApi("U01", async (u) => { url = String(u); return new Response(body, { status: 200 }); });
+    const seen: string[] = [];
+    const got = await api.polishNoteStream("1001", "typed note", "polish", "", (e) => { if (e.type === "sentence") seen.push(e.text); });
+    expect(url).toBe("/assist/note/polish/stream");
+    expect(seen).toEqual(["One.", "Two."]);
+    expect(got).toEqual(final);
+  });
+});

@@ -78,40 +78,87 @@ def test_suggestions_fall_back_to_an_acknowledgement_without_the_model() -> None
         assert res.reason
 
 
+def _sents(*parts: tuple[str, int] | str) -> dict[str, Any]:
+    out = []
+    for p in parts:
+        text, no = (p, 0) if isinstance(p, str) else p
+        out.append({"text": text, "from_note": no, "new_paragraph": text.startswith("Submitted")})
+    return {"sentences": out}
+
+
+OK = (
+    "As ordered by the Deputy Secretary at N3, a draft G.O.Rt. has been prepared for the transfer of Sri P. Ravi, Assistant Engineer, from Kurnool to Guntur.",
+    "The condition of relief by the Head of Department has been included.",
+    "Submitted for approval, please.",
+)
+
+
 def test_polish_keeps_every_figure_and_reference() -> None:
-    ok = "As ordered by the Deputy Secretary at N3, a draft G.O.Rt. has been prepared for the transfer of Sri P. Ravi, Assistant Engineer, from Kurnool to Guntur. The condition of relief by the Head of Department has been included. Submitted for approval, please."
-    res = polish_note(Fake({"text": ok}), text=ROUGH)
-    assert res.reason is None and res.text == ok
+    res = polish_note(Fake(_sents(*OK)), text=ROUGH, notes=NOTES)
+    assert res.reason is None
+    assert res.text == OK[0] + " " + OK[1] + "\n" + OK[2]
     # a version that adds a date the officer never wrote is withheld: rule-based clean-up instead
-    bad = ok.replace("Guntur.", "Guntur with effect from 01-12-2026.")
-    res = polish_note(Fake({"text": bad}), text=ROUGH)
+    bad = (OK[0].replace("Guntur.", "Guntur with effect from 01-12-2026."), OK[1], OK[2])
+    res = polish_note(Fake(_sents(*bad)), text=ROUGH, notes=NOTES)
     assert res.reason == "changed what the note says" and "01-12-2026" in res.withheld
     assert res.text == rule_polish(ROUGH)
 
 
+def test_a_typed_note_in_plain_words_is_polished() -> None:
+    """Owner report 26 Nov: Polish worked on suggested notes but not on a note typed by hand."""
+    typed = "the representation of sri p ravi for transfer to guntur on spouse ground was examined and vacancy is available there. hod report received. may be placed before DS for orders"
+    out = (
+        "The representation of Sri P. Ravi for transfer to Guntur on spouse ground has been examined, and a vacancy is available there.",
+        "The report of the Head of Department has been received.",
+        "The file may be placed before the Deputy Secretary for orders.",
+    )
+    res = polish_note(Fake(_sents(*out)), text=typed, notes=NOTES)
+    assert res.reason is None, res.withheld
+
+
 def test_polish_never_drops_a_date_even_when_shortening() -> None:
     text = "the representation dated 03-11-2026 of p ravi was examined and the vacancy position verified with the HoD. put up for orders"
-    short = "Representation of Sri P. Ravi examined; vacancy verified with the Head of Department. Submitted for orders."
-    res = polish_note(Fake({"text": short}), text=text, mode="short")
+    short = _sents(
+        "Representation of Sri P. Ravi examined; vacancy verified with the Head of Department.",
+        "Submitted for orders.",
+    )
+    res = polish_note(Fake(short), text=text, mode="short")
     assert res.reason == "changed what the note says" and "03-11-2026" in res.withheld
 
 
-def test_elaborate_adds_only_tagged_facts_that_their_note_carries() -> None:
-    base = "As ordered by the Deputy Secretary at N3, a draft G.O.Rt. has been prepared for the transfer of Sri P. Ravi, Assistant Engineer, from Kurnool to Guntur."
-    out = (
-        base
-        + " He joined Kurnool on 01-06-2023 and no disciplinary case is pending [N2]. Submitted for approval, please."
-    )
-    res = polish_note(Fake({"text": out}), text=ROUGH, mode="elaborate", notes=NOTES)
+def test_elaborate_adds_only_facts_that_their_note_carries() -> None:
+    fact = ("He joined Kurnool on 01-06-2023 and no disciplinary case is pending.", 2)
+    res = polish_note(Fake(_sents(OK[0], fact, OK[2])), text=ROUGH, mode="elaborate", notes=NOTES)
     assert res.reason is None
-    assert res.added == (
-        ("He joined Kurnool on 01-06-2023 and no disciplinary case is pending.", 2),
-    )
-    assert "[N2]" not in res.text
-    wrong_note = out.replace("[N2]", "[N1]")  # N1 does not say this
-    assert polish_note(Fake({"text": wrong_note}), text=ROUGH, mode="elaborate", notes=NOTES).reason
-    plain_mode = polish_note(Fake({"text": out}), text=ROUGH, mode="polish", notes=NOTES)
+    assert res.added == (fact,)
+    wrong_note = (fact[0], 1)  # N1 does not say this
+    assert polish_note(
+        Fake(_sents(OK[0], wrong_note)), text=ROUGH, mode="elaborate", notes=NOTES
+    ).reason
+    plain_mode = polish_note(Fake(_sents(OK[0], fact)), text=ROUGH, mode="polish", notes=NOTES)
     assert plain_mode.reason  # adding facts needs "elaborate" or an instruction
+
+
+def test_polish_and_suggestions_stream_only_checked_pieces() -> None:
+    events: list[dict[str, Any]] = []
+    bad = "It is hereby sanctioned with effect from 01-12-2026."
+    res = polish_note(Fake(_sents(OK[0], bad, OK[2])), text=ROUGH, notes=NOTES, emit=events.append)
+    assert [e["text"] for e in events] == [OK[0], OK[2]]  # the unchecked sentence never shown
+    assert res.reason == "changed what the note says"  # and the whole is withheld at the end
+    events.clear()
+    good = {
+        "label": "Put up the draft G.O.Rt.",
+        "sources": [3],
+        "text": "As ordered at N3, a draft G.O.Rt. transferring Sri P. Ravi to Guntur Circle, subject to his relief by the Head of Department, is placed below. Submitted for orders.",
+    }
+    suggest_notes(
+        Fake({"suggestions": [good]}),
+        subject="s",
+        notes=NOTES,
+        me_post="Section Officer",
+        emit=events.append,
+    )
+    assert [e["type"] for e in events] == ["suggestion"]
 
 
 def test_rule_polish_expands_and_closes_sentences() -> None:
@@ -145,6 +192,10 @@ def test_note_assist_api_holder_only_and_nothing_saved(c: TestClient) -> None:
     assert p.status_code == 200
     body = p.json()
     assert body["text"].startswith("As per Deputy Secretary orders at N3")
+    st = c.post(
+        "/assist/note/polish/stream", json={"computer_no": cno, "text": ROUGH}, headers=_h("U01")
+    )
+    assert st.status_code == 200 and '"type": "done"' in st.text
     assert body["reason"]  # no model in tests: the rule-based clean-up, said so
     after = c.get(f"/sandbox/files/{cno}", headers=_h("U01")).json()
     assert after["notes"] == before["notes"] and after["drafts"] == before["drafts"]

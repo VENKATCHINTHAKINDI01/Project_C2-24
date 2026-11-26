@@ -1,7 +1,7 @@
 // Thin client for the sandbox + assist API. Sign-in is SIMULATED with a header (sandbox only,
 // ADR-0012). Errors keep the server's neutral wording; nothing is retried with less scope.
 import type {
-  Movement, NoteSuggestions, PolishMode, PolishResult,
+  Movement, NoteAssistEvent, NoteSuggestions, PolishMode, PolishResult,
   ChatConversation, ChatConversationRow, FileSummary,
   Brief, ChatTurn, DraftWorkspace, FileRecords, ClosingRemarks, Diarise, Handover, Movements, PreviousRefs, SinceDecision, DfaPreview, DocumentInfo, Highlights, OcrReviewDetail, OcrReviewItem, OcrReviewResult, ChatEvent, Digest, DraftReceipt, MonitorData, PassageContext, FeedbackIn, FilePage, FileRow, FileSoFar, FirstCut, LinkSuggestions, Me, Preferences, NoteReferenceSuggestion, NoteReferences, Notices, PresendReport, Profile, ReceiptReview, ReceiptRow, ReferenceResult, SearchResult, DraftFormats, DraftInputs, PreparedDraft } from "./types";
 
@@ -21,6 +21,37 @@ export function headersFor(userId: string | null, json = false): Record<string, 
 }
 
 export function createApi(userId: string | null, fetchFn: Fetch = (i, init) => fetch(i, init)) {
+  /** A streamed turn (as `chatStream`): calls `onEvent` for each event and resolves with the
+   *  `done` event's result, which replaces what was streamed. */
+  async function streamCall<T>(path: string, body: unknown, onEvent: (e: NoteAssistEvent) => void,
+    signal?: AbortSignal): Promise<T> {
+    const res = await fetchFn(path, { method: "POST", signal, headers: headersFor(userId, true), body: JSON.stringify(body) });
+    if (!res.ok || !res.body) {
+      let detail = res.statusText || "Request failed";
+      try { detail = ((await res.json()) as { detail?: string }).detail ?? detail; } catch { /* keep */ }
+      throw new ApiError(res.status, detail);
+    }
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = "";
+    for (;;) {
+      const { value, done } = await reader.read();
+      buf += decoder.decode(value ?? new Uint8Array(), { stream: !done });
+      let cut: number;
+      while ((cut = buf.indexOf("\n\n")) >= 0) {
+        const block = buf.slice(0, cut);
+        buf = buf.slice(cut + 2);
+        const data = block.split("\n").find((l) => l.startsWith("data: "));
+        if (!data) continue;
+        const e = JSON.parse(data.slice(6)) as NoteAssistEvent;
+        if (e.type === "done") return e.result as T;
+        if (e.type === "error") throw new ApiError(503, e.message);
+        onEvent(e);
+      }
+      if (done) throw new ApiError(502, "The answer stopped before it was complete.");
+    }
+  }
+
   async function call<T>(path: string, body?: unknown): Promise<T> {
     const res = await fetchFn(path, {
       method: body === undefined ? "GET" : "POST",
@@ -218,6 +249,13 @@ export function createApi(userId: string | null, fetchFn: Fetch = (i, init) => f
         `${approvalPath(computerNo, draftId)}/return`,
         remarks ? { remarks } : {},
       ),
+    /** Suggested notes, streamed (ADR-0072): each one as soon as it passed its check. */
+    noteSuggestionsStream: (computerNo: string, onEvent: (e: NoteAssistEvent) => void, signal?: AbortSignal) =>
+      streamCall<NoteSuggestions>("/assist/note/suggestions/stream", { computer_no: computerNo }, onEvent, signal),
+    /** Polish, streamed sentence by sentence (each one only after it passed its check). */
+    polishNoteStream: (computerNo: string, text: string, mode: PolishMode, instruction: string,
+      onEvent: (e: NoteAssistEvent) => void, signal?: AbortSignal) =>
+      streamCall<PolishResult>("/assist/note/polish/stream", { computer_no: computerNo, text, mode, instruction }, onEvent, signal),
     /** Suggested notes for the holder (ADR-0072): from the note sheet, each with its notes. */
     noteSuggestions: (computerNo: string) =>
       call<NoteSuggestions>("/assist/note/suggestions", { computer_no: computerNo }),

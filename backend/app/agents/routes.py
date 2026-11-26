@@ -1209,15 +1209,16 @@ def build_assist_router(
         except UsageUnavailableError:
             return "usage count unavailable"
 
-    @r.post("/note/suggestions")
-    def note_suggestions(body: FileIn, o: Annotated[Officer, Depends(officer)]) -> dict[str, Any]:
-        """Up to three notes the holder could write next, from the note sheet (mainly the last
-        direction), each with the notes it rests on and gated against them. Only for the officer
-        holding the file; one model call per note sheet (cached), counted against the daily
-        wording limit. Nothing is saved."""
+    def suggest_ready(body: FileIn, o: Officer) -> tuple[AssistRuntime, FileContext]:
         action = "assist.note.suggest"
         run = rt(o, action)
-        fctx = open_file(o, run, body.computer_no, action)
+        return run, open_file(o, run, body.computer_no, action)
+
+    def suggest_turn(body: FileIn, o: Officer, emit: Emit | None = None) -> dict[str, Any]:
+        """Up to three notes the holder could write next (ADR-0072), each streamed to `emit`
+        once it passed its check."""
+        action = "assist.note.suggest"
+        run, fctx = suggest_ready(body, o)
         holder = getattr(connector, "holder", None)
         if holder is not None and holder(body.computer_no) != o.ctx.user_id:
             return {
@@ -1234,7 +1235,11 @@ def build_assist_router(
         if res is None:
             why = quota_left(o, run)
             res = suggest_notes(
-                None if why else run.llm, subject=fctx.subject, notes=notes, me_post=me_post
+                None if why else run.llm,
+                subject=fctx.subject,
+                notes=notes,
+                me_post=me_post,
+                emit=emit,
             )
             if why:
                 res = SuggestResult(res.suggestions, reason=why)
@@ -1259,7 +1264,7 @@ def build_assist_router(
             action,
             "ok" if res.suggestions else "no_answer",
             ids=(body.computer_no,),
-            detail=f"suggestions={len(res.suggestions)}",
+            detail=f"suggestions={len(res.suggestions)};{res.reason or 'model'}",
         )
         return {
             "request_id": o.request_id,
@@ -1272,13 +1277,8 @@ def build_assist_router(
             "engine": res.engine,
         }
 
-    @r.post("/note/polish")
-    def note_polish(body: NotePolishIn, o: Annotated[Officer, Depends(officer)]) -> dict[str, Any]:
-        """The officer's note rewritten in Secretariat style (Polish, More formal, Shorten, Add
-        facts from the file, or their own instruction). Every number, date and reference must come
-        out unchanged and nothing new is added unless tagged with the note it comes from; else the
-        rule-based clean-up is returned. Counts against the daily wording limit. Nothing is
-        saved."""
+    def polish_ready(body: NotePolishIn, o: Officer) -> tuple[AssistRuntime, FileContext]:
+        """Checks that answer with an HTTP error, before any stream opens."""
         action = "assist.note.polish"
         if body.mode not in POLISH_MODES:
             raise HTTPException(status_code=422, detail="unknown mode")
@@ -1287,9 +1287,16 @@ def build_assist_router(
                 status_code=422, detail=f"Polish needs at least {MIN_POLISH_WORDS} words."
             )
         run = rt(o, action)
-        fctx = open_file(o, run, body.computer_no, action)
-        wants_notes = body.mode == "elaborate" or bool(body.instruction.strip())
-        notes = note_sheet(o, body.computer_no, action) if wants_notes else []
+        return run, open_file(o, run, body.computer_no, action)
+
+    def polish_turn(body: NotePolishIn, o: Officer, emit: Emit | None = None) -> dict[str, Any]:
+        """The officer's note rewritten (ADR-0072); each sentence streamed to `emit` once it
+        passed its check; the whole checked again at the end."""
+        action = "assist.note.polish"
+        run, fctx = polish_ready(body, o)
+        # the note sheet gives the words a rewrite may use (designations, places) and, for
+        # "Add facts from the file" or an instruction, the facts it may add
+        notes = note_sheet(o, body.computer_no, action)
         why = quota_left(o, run)
         res = polish_note(
             None if why else run.llm,
@@ -1298,6 +1305,7 @@ def build_assist_router(
             instruction=body.instruction,
             subject=fctx.subject,
             notes=notes,
+            emit=emit,
         )
         if not why:
             spend(
@@ -1318,7 +1326,7 @@ def build_assist_router(
             action,
             "ok" if reason is None else "fallback",
             ids=(body.computer_no,),
-            detail=f"mode={body.mode}",
+            detail=f"mode={body.mode};{reason or 'model'}",
         )
         return {
             "request_id": o.request_id,
@@ -1330,6 +1338,64 @@ def build_assist_router(
             "withheld": list(res.withheld),
             "engine": res.engine,
         }
+
+    def streamed(turn: Callable[[Emit], dict[str, Any]]) -> StreamingResponse:
+        """A turn as Server-Sent Events (as `/chat/stream`): checked pieces as they come, then
+        `done` with exactly the non-streamed answer; a failure ends with a neutral `error`."""
+        events: queue.Queue[Event | None] = queue.Queue()
+
+        def work() -> None:
+            try:
+                events.put({"type": "done", "result": turn(events.put)})
+            except Exception as exc:  # noqa: BLE001 — fail closed with the neutral message
+                log.error("note assist stream failed: %s", type(exc).__name__)
+                events.put({"type": "error", "message": NEUTRAL_FAILURE})
+            finally:
+                events.put(None)
+
+        def stream() -> Iterator[str]:
+            threading.Thread(target=work, daemon=True).start()
+            while (e := events.get()) is not None:
+                yield sse(e)
+
+        return StreamingResponse(
+            stream(),
+            media_type="text/event-stream",
+            headers={"cache-control": "no-cache", "x-accel-buffering": "no"},
+        )
+
+    @r.post("/note/suggestions")
+    def note_suggestions(body: FileIn, o: Annotated[Officer, Depends(officer)]) -> dict[str, Any]:
+        """Up to three notes the holder could write next, from the note sheet (mainly the last
+        direction), each with the notes it rests on and gated against them. Only for the officer
+        holding the file; one model call per note sheet (cached), counted against the daily
+        wording limit. Nothing is saved."""
+        return suggest_turn(body, o)
+
+    @r.post("/note/suggestions/stream")
+    def note_suggestions_stream(
+        body: FileIn, o: Annotated[Officer, Depends(officer)]
+    ) -> StreamingResponse:
+        """The same, streamed: each suggestion as soon as it passed its check."""
+        suggest_ready(body, o)  # access checked before the stream opens
+        return streamed(lambda emit: suggest_turn(body, o, emit))
+
+    @r.post("/note/polish")
+    def note_polish(body: NotePolishIn, o: Annotated[Officer, Depends(officer)]) -> dict[str, Any]:
+        """The officer's note rewritten in Secretariat style (Polish, More formal, Shorten, Add
+        facts from the file, or their own instruction). Every number, date and reference must come
+        out unchanged and nothing new is added unless it names the note it comes from; else the
+        rule-based clean-up is returned. Counts against the daily wording limit. Nothing is
+        saved."""
+        return polish_turn(body, o)
+
+    @r.post("/note/polish/stream")
+    def note_polish_stream(
+        body: NotePolishIn, o: Annotated[Officer, Depends(officer)]
+    ) -> StreamingResponse:
+        """The same, streamed sentence by sentence (each one only after it passed its check)."""
+        polish_ready(body, o)  # bad input and access answered before the stream opens
+        return streamed(lambda emit: polish_turn(body, o, emit))
 
     @r.post("/file-so-far")
     def so_far(body: FileIn, o: Annotated[Officer, Depends(officer)]) -> dict[str, Any]:

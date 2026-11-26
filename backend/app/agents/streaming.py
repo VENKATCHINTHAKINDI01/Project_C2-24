@@ -21,7 +21,8 @@ class StatementStream:
     """Finds each complete object of the top-level `"statements": [...]` array in JSON text that
     arrives in pieces. Strings and escapes are tracked, so braces inside text do not count."""
 
-    def __init__(self) -> None:
+    def __init__(self, key: str = "statements") -> None:
+        self._key = f'"{key}"'  # the array to read (ADR-0072: also "sentences", "suggestions")
         self._buf = ""
         self._pos = 0  # next character to scan
         self._in_array = False
@@ -52,11 +53,11 @@ class StatementStream:
                 continue
             if not self._in_array:
                 if not self._key_seen:
-                    k = b.find('"statements"', i)
+                    k = b.find(self._key, i)
                     if k < 0:
-                        i = max(i, len(b) - len('"statements"'))  # keep a partial key
+                        i = max(i, len(b) - len(self._key))  # keep a partial key
                         break
-                    self._key_seen, i = True, k + len('"statements"')
+                    self._key_seen, i = True, k + len(self._key)
                     continue
                 if ch == "[":
                     self._in_array = True

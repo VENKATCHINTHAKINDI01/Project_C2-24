@@ -58,16 +58,20 @@ export function SuggestedNotes({ api, computerNo, active, onPick }: {
   const [items, setItems] = useState<NoteSuggestion[] | null>(null);
   const [reason, setReason] = useState<string | null>(null);
   const [preview, setPreview] = useState<NoteSuggestion | null>(null);
+  const [done, setDone] = useState(false);
   const asked = useRef(false);
   useEffect(() => {
     if (!active || asked.current) return;
     asked.current = true;
-    api.noteSuggestions(computerNo)
-      .then((r) => { setItems(r.suggestions); setReason(r.reason); })
-      .catch(() => setItems([]));
+    // streamed: each suggestion appears as soon as it passed its check; `done` replaces them
+    api.noteSuggestionsStream(computerNo, (e) => {
+      if (e.type === "suggestion") setItems((cur) => [...(cur ?? []), e.suggestion]);
+    })
+      .then((r) => { setItems(r.suggestions); setReason(r.reason); setDone(true); })
+      .catch(() => { setItems((cur) => cur ?? []); setDone(true); });
   }, [active, api, computerNo]);
   if (!active) return null;
-  if (items === null) return <p className="muted small note-sugs-wait">Looking at the notes on this file for suggestions…</p>;
+  if (items === null || (items.length === 0 && !done)) return <p className="muted small note-sugs-wait">Looking at the notes on this file for suggestions…</p>;
   if (items.length === 0) return null;
   return (
     <div className="note-sugs">
@@ -92,9 +96,12 @@ export function PolishPanel({ api, computerNo, original, onUse, onClose }: {
   const [res, setRes] = useState<PolishResult | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [live, setLive] = useState(""); // the checked sentences so far, while it is written
   const run = useCallback((m: PolishMode, ins = "") => {
-    setMode(m); setBusy(true); setError(null);
-    api.polishNote(computerNo, original, m, ins)
+    setMode(m); setBusy(true); setError(null); setRes(null); setLive("");
+    api.polishNoteStream(computerNo, original, m, ins, (e) => {
+      if (e.type === "sentence") setLive((cur) => cur + (e.new_paragraph ? "\n" : cur ? " " : "") + e.text);
+    })
       .then(setRes).catch((e: Error) => setError(e.message)).finally(() => setBusy(false));
   }, [api, computerNo, original]);
   useEffect(() => { run("polish"); }, [run]);
@@ -110,7 +117,11 @@ export function PolishPanel({ api, computerNo, original, onUse, onClose }: {
           ))}
         </div>
       </div>
-      {busy && <p className="muted small">Rewriting…</p>}
+      {busy && (
+        <div className="polish-live" aria-live="polite">
+          {live ? <>{live}<span className="polish-caret" aria-hidden="true" /></> : <span className="muted small">Rewriting your note…</span>}
+        </div>
+      )}
       {error && <p className="error">{error}</p>}
       {res && !busy && (
         <>
@@ -120,7 +131,9 @@ export function PolishPanel({ api, computerNo, original, onUse, onClose }: {
                 : p.kind === "del" ? <del key={k}>{p.text}</del> : <ins key={k}>{p.text}</ins>)}
           </div>
           <ul className="polish-checks small">
-            {res.reason
+            {res.reason && res.text.trim() === original.trim()
+              ? <li className="warn-text">No changes to suggest. {FALLBACK_TEXT[res.reason] ?? res.reason}</li>
+              : res.reason
               ? <li className="warn-text">{FALLBACK_TEXT[res.reason] ?? res.reason}{res.withheld.length > 0 && ` (${res.withheld.join(", ")})`}</li>
               : <li className="ok-text">✓ {res.kept.length ? `All ${res.kept.length} dates, numbers and references kept unchanged` : "Nothing in your note changed meaning"}</li>}
             {added.size > 0 && [...added].map(([s, n]) => <li key={s} className="ok-text">✓ Added from N{n}: “{s}”</li>)}
