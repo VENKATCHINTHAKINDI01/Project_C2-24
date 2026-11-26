@@ -35,7 +35,7 @@ from app.agents.conversation import (
     small_talk,
     summarise_file,
 )
-from app.agents.dfa import ReadItem, draft_for_approval, governing_orders
+from app.agents.dfa import ReadItem, action_in_words, draft_for_approval, governing_orders
 from app.agents.first_cut import first_cut_note
 from app.agents.intents import IntentSlots
 from app.agents.local_reference import local_reference
@@ -987,7 +987,8 @@ def build_assist_router(
             subject=fctx.subject,
             draft_note=note_id,
             meta=meta_,
-            action=facts.facts.action if facts and facts.facts else None,
+            action=(facts.facts.action if facts and facts.facts else None)
+            or action_in_words(fctx.subject, text, earlier),
             flags=rep.flags if rep else (),
             precedents=[
                 *(
@@ -1043,7 +1044,8 @@ def build_assist_router(
             subject=fctx.subject,
             draft_note=note_id,
             meta=meta_,
-            action=facts.facts.action if facts and facts.facts else None,
+            action=(facts.facts.action if facts and facts.facts else None)
+            or action_in_words(fctx.subject, text, earlier),
             flags=rep.flags if rep else (),
             awaiting_review=tuple(run.stores.awaiting.values()),
         )
@@ -1088,9 +1090,11 @@ def build_assist_router(
         out = so_far_for(FileIn(computer_no=body.computer_no), o, action)
         run = rt(o, action)
         format_id, why = body.format_id, None
-        if format_id == "auto":  # "prepare a draft" with no kind named: decided from the record
+        if format_id in ("auto", "auto_note"):  # no kind named: decided from the record
             state = "closed" if "The file is closed in e-Office." in out["facts"] else "open"
-            format_id, why = choose_format(out["notes"], out["last_direction"], state)
+            format_id, why = choose_format(
+                out["notes"], out["last_direction"], state, note=format_id == "auto_note"
+            )
         fmt = draft_formats.get(format_id) if draft_formats is not None else None
         if fmt is None:
             raise HTTPException(status_code=404, detail=NOT_AVAILABLE)
@@ -2634,8 +2638,10 @@ def build_assist_router(
             extract_proposal_facts(text, meta_, run.rules, note_id) if note_id and meta_ else None
         )
         own_facts = extract_proposal_facts(own_text, own_meta, run.rules, "draft:new")
-        act = (facts.facts.action if facts and facts.facts else None) or (
-            own_facts.facts.action if own_facts.facts else None
+        act = (
+            (facts.facts.action if facts and facts.facts else None)
+            or (own_facts.facts.action if own_facts.facts else None)
+            or action_in_words(fctx.subject if fctx else "", inputs.subject, own_text, text)
         )
         governing, left = governing_orders(ctx, meta_, act)
         typed, left_typed = governing_orders(ctx, own_meta, None)

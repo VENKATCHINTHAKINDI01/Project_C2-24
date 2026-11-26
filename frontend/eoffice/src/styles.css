@@ -118,7 +118,7 @@ abbr { text-decoration: none; border-bottom: 1px dotted var(--muted); cursor: he
 .topbar .icon-btn.on-chrome:hover:not(:disabled) { color: var(--on-chrome); background: #ffffff1a; }
 .topbar-end { margin-left: auto; display: flex; align-items: center; gap: 6px; }
 .topbar .ask-ai { background: var(--on-chrome); color: var(--chrome); border-color: var(--on-chrome); font-weight: 600; padding: 6px 14px; }
-.topbar .ask-ai:hover:not(:disabled) { background: #e6edf6; border-color: #e6edf6; }
+.topbar .ask-ai:hover:not(:disabled):not([aria-expanded="true"]) { background: #e6edf6; border-color: #e6edf6; }
 .topbar .ask-ai[aria-expanded="true"] { background: #ffffff1f; color: var(--on-chrome); border-color: var(--on-chrome-line); }
 .topbar .ask-ai:focus-visible, .topbar .icon-btn:focus-visible { outline: 2px solid var(--on-chrome); outline-offset: 2px; }
 .topbar .divider { width: 1px; height: 28px; background: var(--on-chrome-line); margin: 0 6px; }
@@ -842,3 +842,9 @@ input[type="checkbox"]:focus, input[type="radio"]:focus { box-shadow: none; }
 .approver-pick { display: inline-flex; gap: 6px; align-items: center; flex-wrap: wrap; }
 .chat .extracts ul { margin: 6px 0; padding-left: 1.2em; display: flex; flex-direction: column; gap: 8px; } .chat .extracts .quote { font-style: italic; }
 .note.issued { border-left: 3px solid var(--green); }
+/* the two assistants, told apart by their own marks (25 Nov; components/AiIcons.tsx) */
+.ai-icon { display: block; flex: none; }
+.ai-fab { width: 62px; height: 62px; min-height: 62px; background: radial-gradient(circle at 30% 25%, #2f6fbf, var(--primary) 70%); --ai-cut: #23589c; box-shadow: 0 6px 20px var(--shadow), 0 0 0 3px #f5b70033; }
+.ai-fab:hover:not(:disabled) { background: radial-gradient(circle at 30% 25%, #3a7ccc, var(--primary) 70%); box-shadow: 0 8px 24px var(--shadow), 0 0 0 4px #f5b70055; }
+.ai-mark { width: 34px; height: 34px; --ai-cut: var(--primary); }
+.topbar .ask-ai { --ai-cut: var(--on-chrome); gap: 8px; }

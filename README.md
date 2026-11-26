@@ -63,6 +63,7 @@ of Andhra Pradesh).
 | Conflict detection | Seven advisory types: **A** superseded reference · **B** direct contradiction · **C** wrong authority or procedure · **D** precedent inconsistency (review only) · **E** missing authority · **F** temporal mismatch · **G** hierarchy conflict. Deterministic where facts exist; the model only for grounded judgment. |
 | File assistant | One chat per file that opens with a structured, end-to-end summary of the file, then takes follow-up questions in plain words: next action, movements, records, approval brief, changes since the decision, pre-send check, related files, first-cut note, drafts, closing remarks, references to earlier notes and order status. |
 | Noting and drafting | First-cut Yellow Notes and drafts in e-Office formats (note, G.O.Ms., G.O.Rt., memo, circular, letter). "Prepare a draft" with no kind named picks the draft from the file's stage. Fields are filled from the notes with citations; gaps are marked; saved only on the officer's click. |
+| e-Office workflow | eFile menu (Receipt inbox; File inbox, Sent, Created, Closed, Create new). Only the officer holding a file notes or sends it, within its department; drafts are put up to a chosen approver, who issues them. The monitoring officer sees the monitoring pad only. |
 | e-Office touchpoints | All 20 touchpoints of plan §11.5 in the sandbox: receipt diarisation, pre-send check, reference matching, handover brief, return with remarks, draft revision and more. |
 | Human review | OCR confidence gate and review screen, relation confirmation, feedback captured as evaluation data. |
 | General chat | "Ask AI" in the top bar: cited answers over every record the officer may open; yes/no questions answered first; greetings and "what can you do" answered without any search. |
@@ -81,8 +82,15 @@ of Andhra Pradesh).
 3. **Ask follow-ups in plain words** — "do I have any action on this file?", "has this been
    decided before?", "prepare a draft". The assistant works out what is meant, answers directly
    with sources, and offers drafts the officer can edit and save.
-4. **Send** runs the pre-send check in the chat; nothing is ever sent by the assistant.
-5. **Ask AI** in the top bar is the general chat over every file and record the officer may open.
+4. **Write a note and Send.** The officer holding the file writes a note and sends the file to an
+   officer of the department, with remarks, priority and a due date (*Check before sending* runs
+   the pre-send check). The note is signed on sending; the file moves to the receiver's **File
+   inbox** and appears under **Sent**. The file goes up the chain, is approved, and comes back.
+5. **Put up for approval.** A draft order (DFA) is put up to an approving officer the author
+   chooses; only that officer sees it, and **Approve, sign and issue** numbers and issues it. The
+   assistant never sends, signs, approves or issues. See [docs/DEMO_SCENARIO.md](docs/DEMO_SCENARIO.md).
+6. **Ask AI** (speech-bubble mark, top bar) is the general chat over every file and record the
+   officer may open; **File AI** (page mark, bottom right of a file) works on that file only.
 
 ---
 

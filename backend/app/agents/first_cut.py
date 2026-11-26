@@ -126,6 +126,9 @@ def ground_of(subject: str) -> str | None:
     return m.group(1).lower() if m else None
 
 
+MAX_QUOTE = 600  # characters of an order paragraph quoted in a note (the rest: open the order)
+
+
 def _points(order: str, text: str, ground: str | None) -> list[CitedPoint]:
     topics = list(TOPICS)
     if ground:
@@ -142,7 +145,13 @@ def _points(order: str, text: str, ground: str | None) -> list[CitedPoint]:
         for name, pat in topics:
             if pat.search(body):
                 try:
-                    out.append(CitedPoint(topic=name, clause_id=clause_id(order, loc), text=body))
+                    # a long paragraph is quoted up to a word boundary, marked as cut
+                    quote = (
+                        body
+                        if len(body) <= MAX_QUOTE
+                        else body[:MAX_QUOTE].rsplit(" ", 1)[0] + " …"
+                    )
+                    out.append(CitedPoint(topic=name, clause_id=clause_id(order, loc), text=quote))
                 except InvalidCanonicalIdError:
                     pass
                 seen.add(loc)

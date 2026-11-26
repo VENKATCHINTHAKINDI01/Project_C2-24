@@ -2,9 +2,9 @@ import { fmtDate } from "../format";
 import { useState, type ReactNode } from "react";
 import type { Api } from "../api";
 import { yellowNoteFrom } from "../presend";
-import type { DraftInputs, FileRecords, FileSummary, PreparedDraft, FirstCut, LinkSuggestions, NoteReferences, PresendReport } from "../types";
+import type { DraftInputs, FileRecords, FileSummary, PreparedDraft, LinkSuggestions, NoteReferences, PresendReport } from "../types";
 import {
-  BriefCard, ClosingCard, FirstCutCard, LinkCard, MovementsCard, NoteReferenceCard, PresendCard,
+  BriefCard, ClosingCard, LinkCard, MovementsCard, NoteReferenceCard, PresendCard,
   ReferenceCard, SinceCard, SoFarCard,
 } from "./AssistPanel";
 import type { FileTool } from "./ChatPanel";
@@ -67,7 +67,19 @@ export function fileTools({ api, computerNo, onInserted, onOpenDoc, records }: {
     since: () => api.sinceDecision(computerNo).then((s) => <SinceCard s={s} onOpenDoc={onOpenDoc} />),
     presend: () => api.presend(computerNo).then((r) => <PresendChat api={api} computerNo={computerNo} report={r} onInserted={onInserted} onOpenDoc={onOpenDoc} />),
     related: () => api.linkSuggestions(computerNo).then((s) => <LinkChat api={api} computerNo={computerNo} s={s} onInserted={onInserted} />),
-    first_cut: () => api.firstCut(computerNo).then((c) => <FirstCutChat api={api} computerNo={computerNo} c={c} onInserted={onInserted} />),
+    // a first-cut note written end to end (owner, 26 Nov): the same pipeline as a draft, in a note
+    // format chosen from the file's stage (a proposal note; after approval, the note putting up
+    // the draft orders) — fields filled from the file's notes, orders that apply, earlier
+    // decisions, the pre-send check and checked wording; inserted as a Yellow Note on click
+    first_cut: async (asked) => {
+      const filled = await api.draftAutofill(computerNo, "auto_note", asked).catch(() => null);
+      const format_id = filled?.format_id ?? "note_proposal";
+      const d = await api.prepareDraft({
+        computer_no: computerNo, format_id, inputs: filled?.inputs ?? {},
+        add_references: [], drop_references: [], suggest: true,
+      });
+      return <DraftChat api={api} computerNo={computerNo} d={d} filled={filled} onInserted={onInserted} />;
+    },
     // a draft for approval written in the chosen e-Office format, with Gemini's wording for the
     // officer's gaps (Draft workspace, ADR-0060): the same prepare call as the Draft button
     // end to end (ADR-0067 addendum 4): 1. the model fills the format's inputs from the file's
@@ -128,8 +140,12 @@ function DraftChat({ api, computerNo, d, filled, onInserted }: {
   const [body, setBody] = useState(wording ? insertAfterBody(d.draft.text, wording) : d.draft.text);
   const [made, setMade] = useState<string | null>(null);
   const yellow = d.draft.saves_as === "yellow_note";
+  // e-Office's limits on a draft (the server refuses more): said plainly before trying
+  const tooLong = body.length > 20000 || d.draft.citations.length > 50;
   const save = () => void act(
-    () => (yellow ? api.insertYellowNote : api.createDfa)(computerNo, body, d.draft.citations, d.request_id),
+    () => (tooLong
+      ? Promise.reject(new Error(`This draft is too long to insert (${body.length.toLocaleString()} characters, ${d.draft.citations.length} sources; the limit is 20,000 characters and 50 sources). Shorten it, then insert.`))
+      : (yellow ? api.insertYellowNote : api.createDfa)(computerNo, body, d.draft.citations, d.request_id)),
     (r) => { setMade(r.draft_id); onInserted(); },
   );
   return (
@@ -155,7 +171,8 @@ function DraftChat({ api, computerNo, d, filled, onInserted }: {
         <button className="primary" disabled={busy || !!made} onClick={save}>{yellow ? "Insert as Yellow Note" : "Create DFA draft"}</button>
         <a className="button-like" href={`#/draft/${encodeURIComponent(computerNo)}/${d.format.id}`}>Open in the draft workspace</a>
       </div>
-      {made && <p className="ok">Saved as draft {made}. It is yours to edit and sign.</p>}
+      {made && <p className="ok">Saved as draft {made}. It is in the Notes tab as your Yellow Note: edit, then sign it or send the file.</p>}
+      <Err e={error} />
       <div className={`draft-checks${flags.length ? " warn" : ""}`}>
         <strong>{flags.length ? `${flags.length} point(s) to check before putting up` : "No conflict found in the records you may see"}</strong>
         {flags.length > 0 && <ul>{flags.map((f, i) => <li key={i}><b>{f.type}</b> {f.explanation}</li>)}</ul>}
@@ -168,7 +185,6 @@ function DraftChat({ api, computerNo, d, filled, onInserted }: {
           <span key={p.computer_no}>{i > 0 && " · "}<a href={`#/file/${encodeURIComponent(p.computer_no)}`}>{p.file_no}</a></span>
         ))}</p>
       )}
-      <Err e={error} />
     </div>
   );
 }
@@ -276,18 +292,6 @@ function PresendChat({ api, computerNo, report, onInserted, onOpenDoc }: {
   return <div className="assist"><PresendCard api={api} computerNo={computerNo} report={report} busy={busy} inserted={inserted} onInsert={insert} onOpenDoc={onOpenDoc} /><Err e={error} /></div>;
 }
 
-function FirstCutChat({ api, computerNo, c, onInserted }: { api: Api; computerNo: string; c: FirstCut; onInserted: () => void }) {
-  const { busy, error, act } = useAct();
-  const [body, setBody] = useState(c.body);
-  const [made, setMade] = useState<string | null>(null);
-  return (
-    <div className="assist">
-      <FirstCutCard c={c} body={body} made={made} busy={busy} onEdit={setBody}
-        onInsert={() => void act(() => api.insertYellowNote(computerNo, body, c.citations, c.request_id), (r) => { setMade(r.draft_id); onInserted(); })} />
-      <Err e={error} />
-    </div>
-  );
-}
 
 function LinkChat({ api, computerNo, s, onInserted }: { api: Api; computerNo: string; s: LinkSuggestions; onInserted: () => void }) {
   const { busy, error, act } = useAct();

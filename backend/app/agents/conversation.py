@@ -491,7 +491,7 @@ _APPROVED = re.compile(
 
 
 def choose_format(
-    notes: Sequence[dict[str, Any]], last_direction: int | None, state: str
+    notes: Sequence[dict[str, Any]], last_direction: int | None, state: str, note: bool = False
 ) -> tuple[str, str]:
     """Which draft a plain "prepare a draft" means on this file (25 Nov 2026), decided from the
     record, never by the model: once the last direction approves, the order that carries it out
@@ -505,6 +505,14 @@ def choose_format(
     if last and _APPROVED.search(str(last.get("text") or "")):
         who = last.get("post") or "the competent authority"
         when = _dmy(last.get("signed_at"))
+        if note:  # a note after approval: the one that puts the draft orders up (DFA)
+            return (
+                "note_dfa",
+                f"The {who} approved the proposal in Note #{last['note_no']}"
+                + (f" on {when}" if when else "")
+                + ", so this note puts up the draft orders for approval."
+                + closed,
+            )
         return (
             "go_rt",
             f"The {who} approved the proposal in Note #{last['note_no']}"

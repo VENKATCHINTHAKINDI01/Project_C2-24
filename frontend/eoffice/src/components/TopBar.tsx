@@ -2,8 +2,9 @@ import type { ReactNode } from "react";
 import {
   Activity, ArrowRightLeft, FileSearch, FolderCheck,
   FolderPen, FolderPlus, Inbox, Landmark, LogOut, Mail, Moon, PanelLeft, ScanText, Send,
-  Settings, Sparkles, Sun, type LucideIcon,
+  Settings, Sun, type LucideIcon,
 } from "lucide-react";
+import { GeneralAiIcon } from "./AssistDock";
 import { GoTo } from "./GoTo";
 import type { FileRow, Profile } from "../types";
 
@@ -45,7 +46,7 @@ export function TopBar({ me, signOut, files = [], open, dark = false, toggleThem
         {ask && (
           <button className="ask-ai" onClick={ask} aria-expanded={asking}
             title="Ask about files and records you may see; every answer shows its sources">
-            <Sparkles size={16} aria-hidden="true" /><span>Ask AI</span>
+            <GeneralAiIcon size={19} /><span>Ask AI</span>
           </button>
         )}
         {toggleTheme && (

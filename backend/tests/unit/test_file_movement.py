@@ -128,3 +128,25 @@ def test_an_officer_outside_the_trail_cannot_send_or_note(c: TestClient) -> None
         _note(c, cno, "U01", "   ").status_code == 422
         or _note(c, cno, "U01", "   ").status_code == 409
     )
+
+
+def test_a_first_cut_on_a_new_matter_finds_the_orders_from_its_subject(c: TestClient) -> None:
+    """26 Nov 2026: a new transfer file with a plain request note gave "Orders that apply:" empty;
+    the action is now read from the file's own words (deterministic), so its orders are found."""
+    from app.agents.dfa import Action, action_in_words
+
+    assert action_in_words("Request for transfer on spouse grounds") is Action.TRANSFER
+    assert action_in_words("Leave sanction") is None
+    f = c.post(
+        "/sandbox/files",
+        json={"subject": "Establishment – Sri P. Ravi, Junior Assistant – Request for transfer on "
+              "spouse grounds – Reg.", "previous_references": []},
+        headers=_h("U01"),
+    ).json()["file"]  # fmt: skip
+    cno = f["computer_no"]
+    _note(c, cno, "U01", "1. Sri P. Ravi requests transfer to Rajahmundry on spouse grounds.")
+    d = c.get(f"/sandbox/files/{cno}", headers=_h("U01")).json()["drafts"][0]["draft_id"]
+    c.post(f"/sandbox/files/{cno}/drafts/{d}/confirm", headers=_h("U01"))
+    fc = c.post("/assist/first-cut", json={"computer_no": cno}, headers=_h("U01")).json()
+    assert fc["orders"], fc["body"]
+    assert "Orders that apply:\n1. AP-" in fc["body"]

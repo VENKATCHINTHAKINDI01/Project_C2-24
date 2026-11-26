@@ -48,6 +48,27 @@ SUBJECT_TERMS: dict[Action, tuple[str, ...]] = {
     Action.WORKS_SANCTION: ("works",),
     Action.OUTSOURCING: ("outsourcing",),
 }
+
+
+def action_in_words(*texts: str) -> Action | None:
+    """The action a matter is about, read from its own words (file subject, notes) when the
+    proposal reader found none (26 Nov 2026: "Request for transfer on spouse grounds" with a
+    plain request note gave no orders). Same fixed terms as SUBJECT_TERMS; never a model."""
+    words = " ".join(t.lower() for t in texts if t)
+    hits = [
+        a for a, terms in SUBJECT_TERMS.items() if any(re.search(rf"\b{t}", words) for t in terms)
+    ]
+    return hits[0] if len(hits) == 1 else None
+
+
+# Orders found by subject (not cited in the note): at most this many, from the file's own
+# department (first) or a department whose orders apply across departments, then the most
+# relevant. 26 Nov 2026: on the
+# cloud corpus "transfer" matched 68 orders (School Education teacher rules among them), the draft
+# passed the 20,000-character limit and could not be inserted. Mock values [To confirm].
+MAX_SUBJECT_ORDERS = 5
+GENERAL_ORDER_DEPARTMENTS = ("FIN01", "GAD01")
+
 ORDER_PARAGRAPHS_PENDING = (
     "[Order paragraphs: to be written by the officer. Model drafting (Gemini) is not available "
     "in this sandbox.]"
@@ -229,6 +250,8 @@ def governing_orders(
 
     inst, rels = visible_facts(ctx, set(found))
     items: dict[str, ReadItem] = {}
+    dept: dict[str, str] = {}
+    rank: dict[str, int] = {}  # latest version → its best position among the orders found
     cited_ids = {c for _, c in cited}
     for cid in dict.fromkeys(found):
         here, reason = _walk(ctx, cid, inst, rels)
@@ -239,6 +262,8 @@ def governing_orders(
         doc = visible_document(ctx, here)
         if doc is None:
             continue
+        dept[here] = doc.tags.department
+        rank.setdefault(here, len(rank))
         prev = items.get(here)
         replaced = (cid,) if (cid != here and cid in cited_ids) else ()
         items[here] = ReadItem(
@@ -250,6 +275,18 @@ def governing_orders(
             cited_in_note=(here in cited_ids) or bool(prev and prev.cited_in_note),
             status_confirmed=status_covered(ctx, doc),
         )
+    home = meta.department if meta else None
+    by_subject = sorted(
+        (
+            c
+            for c, i in items.items()
+            if not i.cited_in_note
+            and (dept.get(c) == home or dept.get(c) in GENERAL_ORDER_DEPARTMENTS)
+        ),
+        # the department's own orders first, then the ladder's own order (most relevant first)
+        key=lambda c: (dept.get(c) != home, rank.get(c, len(rank))),
+    )[:MAX_SUBJECT_ORDERS]
+    items = {c: i for c, i in items.items() if i.cited_in_note or c in by_subject}
     read_list = tuple(
         sorted(items.values(), key=lambda i: (i.issue_date or dt.date.min, i.canonical_id))
     )

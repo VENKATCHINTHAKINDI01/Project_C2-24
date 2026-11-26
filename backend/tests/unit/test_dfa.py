@@ -95,3 +95,17 @@ def test_an_order_the_officer_cannot_see_is_never_listed() -> None:
     assert "D11" not in _docs(pv)
     h = _harness()
     assert all(h.visible("U03", i.canonical_id) for i in pv.read_list)
+
+
+def test_orders_found_by_subject_are_few_and_from_the_right_departments() -> None:
+    """26 Nov 2026: on the cloud corpus "transfer" matched 68 orders (School Education teacher
+    rules among them); the draft passed the insert limit. Uncited orders are now capped and come
+    from the file's department or a department whose orders apply across departments."""
+    from app.agents.dfa import GENERAL_ORDER_DEPARTMENTS, MAX_SUBJECT_ORDERS
+
+    pv = _preview("U02")
+    uncited = [i for i in pv.read_list if not i.cited_in_note]
+    assert len(uncited) <= MAX_SUBJECT_ORDERS
+    assert all(
+        i.canonical_id.split("-")[1] in (*GENERAL_ORDER_DEPARTMENTS, "USD01") for i in uncited
+    )

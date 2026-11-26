@@ -1,6 +1,9 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { MessageSquare, PenLine, ShieldCheck, Sparkles, X, type LucideIcon } from "lucide-react";
+import { MessageSquare, PenLine, ShieldCheck, X, type LucideIcon } from "lucide-react";
+
+export { FileAiIcon, GeneralAiIcon } from "./AiIcons";
+import { FileAiIcon, GeneralAiIcon } from "./AiIcons";
 
 /** The assistant (mentor review, 24 Nov 2026; ADR-0064 addendum 1). Two entry points:
  *  - on a file (or receipt), a floating AI button at the bottom right opens a small chat panel
@@ -48,10 +51,10 @@ export function DockSlot({ tab, children }: { tab: DockTab; children: ReactNode 
   return el ? createPortal(children, el) : null;
 }
 
-function PanelHead({ title, about, close }: { title: string; about: ReactNode; close: () => void }) {
+function PanelHead({ title, about, close, file = false }: { title: string; about: ReactNode; close: () => void; file?: boolean }) {
   return (
     <header className="dock-head">
-      <span className="ai-mark" aria-hidden="true"><Sparkles size={16} /></span>
+      <span className={`ai-mark${file ? " file" : ""}`} aria-hidden="true">{file ? <FileAiIcon size={18} /> : <GeneralAiIcon size={18} />}</span>
       <div className="dock-title">
         <h2>{title}</h2>
         <p>{about}</p>
@@ -133,14 +136,14 @@ export function AssistDock({ mode, setMode, autoOpen = false, general, children 
       {children}
       {tabs.length > 0 && !fileOpen && (
         <button className="ai-fab" onClick={() => show(tabs.includes("ask") ? "ask" : tabs[0])}
-          aria-label="Ask AI about this file (Ctrl+K)" title="Ask AI about this file (Ctrl+K)">
-          <Sparkles size={22} aria-hidden="true" />
+          aria-label="AI for this file (Ctrl+K)" title="AI for this file — summary, actions, drafts (Ctrl+K)">
+          <FileAiIcon size={34} />
         </button>
       )}
       {/* the file's own panel: mounted while the page claims it, so its tools keep their state */}
       {tabs.length > 0 && (
         <aside className="ai-panel" role="dialog" aria-modal="false" aria-label="AI assistant for this file" hidden={!fileOpen}>
-          <PanelHead title="Ask AI" about={claimed?.about} close={() => setMode(null)} />
+          <PanelHead title="File AI" about={claimed?.about} close={() => setMode(null)} file />
           {tabs.length > 1 && (
             <div className="dock-tabs" role="tablist" aria-label="Assistant tools">
               {tabs.map((t) => {

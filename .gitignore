@@ -73,6 +73,7 @@ docs/decisions/
 docs/LEARNINGS.md
 docs/*.pdf
 docs/data_collection/
+docs/DEMO_SCENARIO.md
 evaluation/reports/
 
 # RAGAS judge cache (evaluation/ragas_score.py): reruns are free; never committed
