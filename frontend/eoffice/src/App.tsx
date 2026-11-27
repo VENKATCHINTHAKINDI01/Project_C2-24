@@ -17,7 +17,7 @@ import { SignIn } from "./components/SignIn";
 import { SideNav, TopBar, type View } from "./components/TopBar";
 import { setDateStyle } from "./format";
 import { currentHash, fromHash, HOME, toHash } from "./nav";
-import { applyDisplay, PrefsContext, resolveTheme } from "./prefs";
+import { applyDisplay, PrefsContext, resolveTheme, storeTextSize, storedTextSize } from "./prefs";
 import { DEFAULT_PREFERENCES, type FileRow, type Preferences, type Profile } from "./types";
 
 const LANDING: Record<Preferences["landing"], View> = {
@@ -55,13 +55,13 @@ export function App() {
   }, []);
   useEffect(() => {
     setMonitoring(false);
-    if (!me) { applyPreferences(DEFAULT_PREFERENCES); return; }
+    if (!me) { applyPreferences({ ...DEFAULT_PREFERENCES, text_size: storedTextSize() ?? DEFAULT_PREFERENCES.text_size }); return; }
     Promise.all([
       api.roles().catch(() => ({ monitoring: false })),
       api.preferences().catch(() => DEFAULT_PREFERENCES),
     ]).then(([r, p]) => {
       setMonitoring(r.monitoring);
-      applyPreferences(p);
+      applyPreferences({ ...p, text_size: storedTextSize() ?? p.text_size }); // the size chosen on this browser wins
       const named = asked.current;
       let target = named ?? (r.monitoring ? LANDING.monitor : LANDING[p.landing]);
       if (target.kind === "monitor" && !r.monitoring) target = HOME;
@@ -83,6 +83,13 @@ export function App() {
     const next: Preferences = { ...prefs, theme: dark ? "light" : "dark" };
     applyPreferences(next);
     api.savePreferences(next).catch(() => { /* kept for this sign-in; Settings shows the saved value */ });
+  };
+  // text size, top right of every page: applied now, kept in this browser, and saved to the officer's settings once signed in
+  const setTextSize = (t: Preferences["text_size"]) => {
+    const next: Preferences = { ...prefs, text_size: t };
+    storeTextSize(t);
+    applyPreferences(next);
+    if (me) api.savePreferences(next).catch(() => { /* kept in this browser; Settings shows the saved value */ });
   };
   // The assistant (ADR-0064 addendum 1): on a file or receipt, a floating AI button opens a chat
   // about that file; Office AI in the top bar opens the general chat over every file the officer may
@@ -121,7 +128,7 @@ export function App() {
     <div className="app">
       <Banner />
       {!me ? (
-        <SignIn api={api} onSignIn={(p) => {
+        <SignIn api={api} size={prefs.text_size} onSize={setTextSize} onSignIn={(p) => {
           const named = fromHash(currentHash());
           // the default inbox address is where everyone starts, not a screen the officer asked for
           asked.current = named && toHash(named) !== toHash(HOME) ? named : null;
@@ -131,7 +138,7 @@ export function App() {
         <>
           <TopBar me={me} signOut={() => { setMe(null); setRecentNos([]); setAiMode(null); go(HOME, true); }}
             files={files} open={monitoring ? undefined : openFile} dark={dark} toggleTheme={toggleTheme}
-            ask={monitoring ? undefined : () => setAiMode(aiMode === "general" ? null : "general")} asking={aiMode === "general"} toggleNav={() => setNavMini((m) => !m)} />
+            ask={monitoring ? undefined : () => setAiMode(aiMode === "general" ? null : "general")} asking={aiMode === "general"} toggleNav={() => setNavMini((m) => !m)} textSize={prefs.text_size} setTextSize={setTextSize} />
           <div className={`shell${navMini ? " nav-mini" : ""}`}>
             <SideNav view={view} go={go} monitoring={monitoring} counts={counts} recent={recent} />
             <AssistDock key={me.user_id} mode={aiMode} setMode={setAiMode} autoOpen={prefs.assistant_panel === "open"}
@@ -153,7 +160,7 @@ export function App() {
               {view.kind === "search" && <SearchPage api={api} />}
               {view.kind === "receipts" && <ReceiptInbox api={api} open={(c) => go({ kind: "receipt", computerNo: c })} />}
               {view.kind === "review" && <OcrReview api={api} />}
-              {view.kind === "settings" && <SettingsPage api={api} prefs={prefs} monitoring={monitoring} onSaved={applyPreferences} />}
+              {view.kind === "settings" && <SettingsPage api={api} prefs={prefs} monitoring={monitoring} onSaved={(p) => { storeTextSize(p.text_size); applyPreferences(p); }} />}
               {view.kind === "receipt" && <ReceiptView key={view.computerNo} api={api} computerNo={view.computerNo} />}
             </div>
             </AssistDock>

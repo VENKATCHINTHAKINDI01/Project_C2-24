@@ -1,7 +1,8 @@
-import { ChevronRight, Landmark, Lock, Search, ShieldCheck } from "lucide-react";
+import { FileText, Landmark, Lock, Quote, Search, ShieldCheck } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import type { Api } from "../api";
-import type { Profile } from "../types";
+import type { Preferences, Profile } from "../types";
+import { DisplayControls } from "./DisplayControls";
 
 const CLEARANCE: Record<string, string> = {
   UNCLASSIFIED: "Unclassified", RESTRICTED: "Restricted", CONFIDENTIAL: "Confidential", SECRET: "Secret",
@@ -35,14 +36,18 @@ function departmentName(code: string, ps: Profile[]): string {
 
 interface Group { key: string; title: string; code: string | null; officers: Profile[] }
 
-/** Simulated sign-in (no Parichay, no password; ADR-0012): pick a mock officer. Grouped by
- *  department in the order of the sandbox seed (junior to senior), each with the post, section,
- *  clearance and search scope that decide what they will see. */
-export function SignIn({ api, onSignIn }: { api: Api; onSignIn: (p: Profile) => void }) {
+/** Simulated sign-in (no Parichay, no password; ADR-0012, redesigned ADR-0073): choose a department,
+ *  select an officer, sign in. Lists every officer the sandbox returns, in seed order (junior to
+ *  senior); each shows the post, section, clearance and search scope that decide what they see. */
+export function SignIn({ api, onSignIn, size, onSize }: {
+  api: Api; onSignIn: (p: Profile) => void;
+  size: Preferences["text_size"]; onSize: (s: Preferences["text_size"]) => void;
+}) {
   const [profiles, setProfiles] = useState<Profile[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [find, setFind] = useState("");
   const [only, setOnly] = useState<string>("all");
+  const [pick, setPick] = useState<string | null>(null);
   useEffect(() => {
     api.profiles().then((r) => setProfiles(r.profiles)).catch((e: Error) => setError(e.message));
   }, [api]);
@@ -68,70 +73,86 @@ export function SignIn({ api, onSignIn }: { api: Api; onSignIn: (p: Profile) => 
     .map((g) => ({ ...g, officers: g.officers.filter(matches) }))
     .filter((g) => g.officers.length > 0);
   const total = (profiles ?? []).length;
+  const chosen = (profiles ?? []).find((p) => p.user_id === pick) ?? null;
 
   return (
-    <main className="signin">
-      <div className="signin-brand">
-        <span className="brand-mark" aria-hidden="true"><Landmark size={22} /></span>
-        <span><strong>eFile</strong> sandbox<span className="muted"> · C2-24 assistant</span></span>
+    <div className="si">
+      <div className="si-util">
+        <a className="si-skip" href="#si-main">Skip to main content</a>
+        <DisplayControls size={size} onSize={onSize} />
       </div>
-      <h1>Sign in to the eFile sandbox</h1>
-      <p className="lede">
-        Choose a mock officer. Their post, section, clearance and search scope decide which files and
-        records they see, and so what the assistant can use for them. All data here is synthetic.
-      </p>
-      {error && <p className="error">The sandbox service is not answering ({error}). Start it with <code>make run</code> and reload.</p>}
-      {!profiles && !error && <p className="muted">Loading officers…</p>}
-      {profiles && (
-        <div className="signin-tools">
-          <label className="signin-find">
-            <Search size={16} aria-hidden="true" />
-            <span className="sr-only">Find an officer</span>
-            <input value={find} onChange={(e) => setFind(e.target.value)} placeholder="Find by name, post or section" />
-          </label>
-          <div className="segmented signin-depts" role="radiogroup" aria-label="Department">
-            {[{ key: "all", title: "All", n: total }, ...groups.map((g) => ({ key: g.key, title: g.title.replace(/ Department$/, ""), n: g.officers.length }))].map((o) => (
-              <label key={o.key} className={only === o.key ? "on" : undefined}>
-                <input type="radio" name="dept" checked={only === o.key} onChange={() => setOnly(o.key)} />
-                {o.title} <span className="seg-count">{o.n}</span>
-              </label>
-            ))}
-          </div>
-        </div>
-      )}
-      {profiles && shown.length === 0 && <p className="muted">No officer matches “{find}”.</p>}
-      {shown.map((g) => (
-        <section key={g.key} aria-label={g.title} className="signin-group">
-          <h2>
-            {g.title}
-            {g.code && <span className="dept-code">{g.code}</span>}
-            <span className="dept-n">{g.officers.length} {g.officers.length === 1 ? "officer" : "officers"}</span>
-          </h2>
-          <ul className="profiles">
-            {g.officers.map((p) => (
-              <li key={p.user_id}>
-                <button onClick={() => onSignIn(p)}>
-                  <span className="p-avatar" aria-hidden="true">{initials(p)}</span>
-                  <span className="p-name">{shortName(p)}</span>
-                  <span className="p-post">{p.post}</span>
-                  <span className="p-meta">
-                    {p.section && <span className="p-chip">Section {p.section}</span>}
-                    <span className={`p-chip clr ${(p.clearance ?? "").toLowerCase()}`}>
-                      <Lock size={11} aria-hidden="true" />{CLEARANCE[p.clearance ?? ""] ?? p.clearance} clearance
-                    </span>
-                    {(p.search_scopes ?? []).map((s) => (
-                      <span key={s} className="p-chip scope" title="How far this officer's e-Office search reaches">
-                        <ShieldCheck size={11} aria-hidden="true" />{SCOPE[s] ?? s}
-                      </span>
-                    ))}
-                  </span>
-                  <ChevronRight className="p-go" size={18} aria-hidden="true" />
-                </button>
-              </li>
-            ))}
+      <header className="si-head">
+        <span className="brand-mark" aria-hidden="true"><Landmark size={22} /></span>
+        <span className="si-title"><strong>eFile Sandbox</strong><span>Secretariat file movement and noting · C2-24 assistant</span></span>
+      </header>
+      <main id="si-main" className="si-main">
+        <section className="si-brand" aria-label="About">
+          <h1>Notes, movement and approval of every file, in one place</h1>
+          <p>Create a file, write the note, send it up for orders and close it once the order is issued. The assistant reads only what your post may open.</p>
+          <ul>
+            <li><FileText size={18} aria-hidden="true" /><span><strong>File and note sheet</strong>Yellow and Green notes, drafts and issued orders</span></li>
+            <li><ShieldCheck size={18} aria-hidden="true" /><span><strong>Access by post</strong>Department, section and clearance decide what you see</span></li>
+            <li><Quote size={18} aria-hidden="true" /><span><strong>Answers with sources</strong>Every line points to the order or note it came from</span></li>
           </ul>
+          <p className="si-sim"><strong>Simulated sign-in.</strong> No password, DSC, eSign or Parichay is used. Pick an officer to see what that post can open.</p>
         </section>
-      ))}
-    </main>
+        <section className="si-card" aria-labelledby="si-h">
+          <h2 id="si-h">Sign in</h2>
+          <p className="muted">Choose your department, then your post.</p>
+          {error && <p className="error">The sandbox service is not answering ({error}). Start it with <code>make run</code> and reload.</p>}
+          {!profiles && !error && <p className="muted">Loading officers…</p>}
+          {profiles && (
+            <>
+              <div className="si-tabs" role="radiogroup" aria-label="Department">
+                {[{ key: "all", title: "All", n: total }, ...groups.map((g) => ({ key: g.key, title: g.title.replace(/ Department$/, ""), n: g.officers.length }))].map((o) => (
+                  <label key={o.key} className={only === o.key ? "on" : undefined}>
+                    <input type="radio" name="dept" checked={only === o.key} onChange={() => setOnly(o.key)} />
+                    {o.title} <span className="seg-count">{o.n}</span>
+                  </label>
+                ))}
+              </div>
+              <label className="signin-find">
+                <Search size={16} aria-hidden="true" />
+                <span className="sr-only">Find an officer</span>
+                <input value={find} onChange={(e) => setFind(e.target.value)} placeholder="Find by name, post or section" />
+              </label>
+              {shown.length === 0 && <p className="muted">{`No officer matches “${find}”.`}</p>}
+              <div className="si-list" role="radiogroup" aria-label="Officer">
+                {shown.map((g) => (
+                  <div key={g.key} className="si-group">
+                    <h3>{g.title}{g.code && <span className="dept-code">{g.code}</span>}<span className="dept-n">{`${g.officers.length} ${g.officers.length === 1 ? "officer" : "officers"}`}</span></h3>
+                    {g.officers.map((p) => (
+                      <label key={p.user_id} className={`si-off${pick === p.user_id ? " on" : ""}`}>
+                        <input type="radio" name="officer" checked={pick === p.user_id} onChange={() => setPick(p.user_id)}
+                          onDoubleClick={() => onSignIn(p)} />
+                        <span className="p-avatar" aria-hidden="true">{initials(p)}</span>
+                        <span className="si-off-text">
+                          <span className="p-name">{shortName(p)}</span>
+                          <span className="p-post">{p.post}</span>
+                          <span className="p-meta">
+                            {p.section && <span className="p-chip">{`Section ${p.section}`}</span>}
+                            <span className={`p-chip clr ${(p.clearance ?? "").toLowerCase()}`}>
+                              <Lock size={11} aria-hidden="true" />{`${CLEARANCE[p.clearance ?? ""] ?? p.clearance} clearance`}
+                            </span>
+                            {(p.search_scopes ?? []).map((sc) => (
+                              <span key={sc} className="p-chip scope" title="How far this officer's e-Office search reaches">
+                                <ShieldCheck size={11} aria-hidden="true" />{SCOPE[sc] ?? sc}
+                              </span>
+                            ))}
+                          </span>
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                ))}
+              </div>
+              <button type="button" className="primary si-go" disabled={!chosen} onClick={() => chosen && onSignIn(chosen)}>
+                {chosen ? `Sign in as ${shortName(chosen)}` : "Select an officer to continue"}
+              </button>
+            </>
+          )}
+        </section>
+      </main>
+    </div>
   );
 }

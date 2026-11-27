@@ -6,7 +6,8 @@ import {
 } from "lucide-react";
 import { GeneralAiIcon } from "./AssistDock";
 import { GoTo } from "./GoTo";
-import type { FileRow, Profile } from "../types";
+import type { FileRow, Preferences, Profile } from "../types";
+import { DisplayControls } from "./DisplayControls";
 
 export type Folder = "inbox" | "sent" | "created" | "closed" | "all";
 export type View =
@@ -20,13 +21,15 @@ const initials = (name: string) =>
   name.replace(/^(Sri|Smt|Dr|Shri)\.?\s+/i, "").split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join("").toUpperCase();
 
 /** The header: product, Go to file, the assistant, light / dark, the signed-in officer, sign out. */
-export function TopBar({ me, signOut, files = [], open, dark = false, toggleTheme, ask, asking = false, toggleNav }: {
+export function TopBar({ me, signOut, files = [], open, dark = false, toggleTheme, ask, asking = false, toggleNav, textSize, setTextSize }: {
   me: Profile; signOut: () => void; files?: FileRow[]; open?: (computerNo: string) => void;
   dark?: boolean; toggleTheme?: () => void;
   /** the assistant panel, on every screen */
   ask?: () => void; asking?: boolean;
   /** show or hide the menu labels */
   toggleNav?: () => void;
+  /** text size and language, top right */
+  textSize?: Preferences["text_size"]; setTextSize?: (s: Preferences["text_size"]) => void;
 }) {
   const name = me.name.split(" — ")[0];
   return (
@@ -43,6 +46,7 @@ export function TopBar({ me, signOut, files = [], open, dark = false, toggleThem
       </span>
       {open && <GoTo files={files} open={open} />}
       <div className="topbar-end">
+        {textSize && setTextSize && <DisplayControls size={textSize} onSize={setTextSize} />}
         {ask && (
           <button className="ask-ai" onClick={ask} aria-expanded={asking}
             title="Ask about files and records you may see; every answer shows its sources">

@@ -22,3 +22,16 @@ export function applyDisplay(p: Preferences): void {
   d.motion = p.reduce_motion ? "reduce" : "full";
   d.noteFont = p.note_font;
 }
+
+/** Text size is also kept in this browser, so the sign-in page (before any settings are loaded) and
+ *  every later page open at the size the person last chose (ADR-0073). */
+const SIZE_KEY = "c2.textSize";
+export function storedTextSize(): Preferences["text_size"] | null {
+  try {
+    const v = typeof localStorage !== "undefined" ? localStorage.getItem(SIZE_KEY) : null;
+    return v === "normal" || v === "large" || v === "larger" ? v : null;
+  } catch { return null; }
+}
+export function storeTextSize(t: Preferences["text_size"]): void {
+  try { localStorage.setItem(SIZE_KEY, t); } catch { /* kept for this visit only */ }
+}
