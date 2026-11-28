@@ -32,6 +32,8 @@ class EdgeKind(StrEnum):
     REFERENCES = "REFERENCES"
     CITES = "CITES"
     SAME_FILE = "SAME_FILE"
+    RELATED_TO = "RELATED_TO"
+    APPLIES_TO = "APPLIES_TO"
     CONFLICTS_WITH = "CONFLICTS_WITH"
 
 
@@ -51,6 +53,9 @@ class GraphEdge(_Frozen):
     kind: EdgeKind
     target: str
     confirmed: bool = True  # explicit in text or confirmed by an officer (plan §7.3)
+    state: str | None = None
+    score: int = 0
+    evidence: str | None = None
 
 
 class GraphHit(_Frozen):
@@ -103,6 +108,10 @@ class GraphRepository(Protocol):
     def upsert_node(self, node: GraphNode) -> None: ...
 
     def upsert_edge(self, edge: GraphEdge) -> None: ...
+
+    def edges(self) -> list[GraphEdge]: ...
+
+    def node(self, canonical_id: str) -> GraphNode | None: ...
 
     def walk(
         self,

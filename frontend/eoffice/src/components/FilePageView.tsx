@@ -8,6 +8,7 @@ import { FileText, FolderCheck, Keyboard, Lock, Mails, NotebookPen, Paperclip, P
 import { fileTools } from "./FileChatTools";
 import { DockSlot, useDock } from "./AssistDock";
 import { ChatPanel } from "./ChatPanel";
+import { RelatedOrders } from "./RelatedOrders";
 import { CitationLegend, DocumentViewer, HighlightedText } from "./Citations";
 
 /** File inner page (plan §11.2): noting panel · correspondence · C2-24 Assist. */
@@ -98,7 +99,7 @@ export function FilePageView({ api, computerNo, open, draft }: {
   ];
   // the file's chat: every tool of the Check and Draft tabs, by chip or in the officer's words
   const tools = fileTools({ api, computerNo, onInserted: load, onOpenDoc: setViewing,
-    records: (r) => <RecordsTab records={r} attachments={page.attachments ?? []} view={setViewing} /> });
+    records: (r) => <RecordsTab api={api} records={r} attachments={page.attachments ?? []} view={setViewing} /> });
   const closed = f.state === "closed";
 
   return (
@@ -405,10 +406,11 @@ function WriteNote({ api, computerNo, onSaved }: { api: Api; computerNo: string;
   );
 }
 
-function RecordsTab({ records, attachments, view }: {
-  records: FileRecords | null; attachments: { attachment_id: string; filename: string; uploaded_by_post: string | null; uploaded_at: string }[];
+function RecordsTab({ api, records, attachments, view }: {
+  api: Api; records: FileRecords | null; attachments: { attachment_id: string; filename: string; uploaded_by_post: string | null; uploaded_at: string }[];
   view: (cid: string) => void;
 }) {
+  const [linksOf, setLinksOf] = useState<string | null>(null);
   if (!records) return <p className="muted">Not available.</p>;
   return (
     <div className="records">
@@ -416,14 +418,21 @@ function RecordsTab({ records, attachments, view }: {
       <table className="grid">
         <thead><tr><th>Record</th><th>Status</th><th>History</th><th /></tr></thead>
         <tbody>
-          {records.records.map((r) => (
+          {records.records.map((r) => [
             <tr key={r.canonical_id}>
               <td><strong>{r.doc_type}</strong><br /><span className="muted small">{r.subject}</span></td>
               <td>{STANDING_TEXT[r.standing] && <span className={`pill ${r.standing === "in_force" ? "ok" : "bad"}`}>{STANDING_TEXT[r.standing]}</span>}</td>
               <td className="small">{r.versions > 1 ? `${r.versions} versions · ` : ""}{r.last_event ? EVENT[r.last_event] ?? r.last_event : ""}</td>
-              <td><button className="link" onClick={() => view(r.canonical_id)}>Preview</button></td>
-            </tr>
-          ))}
+              <td>
+                <button className="link" onClick={() => view(r.canonical_id)}>Preview</button>{" "}
+                <button className="link" aria-expanded={linksOf === r.canonical_id}
+                  onClick={() => setLinksOf(linksOf === r.canonical_id ? null : r.canonical_id)}>Related orders</button>
+              </td>
+            </tr>,
+            linksOf === r.canonical_id && (
+              <tr key={`${r.canonical_id}-links`} className="links-row"><td colSpan={4}><RelatedOrders api={api} canonicalId={r.canonical_id} /></td></tr>
+            ),
+          ])}
           {records.records.length === 0 && <tr><td colSpan={4} className="muted">Nothing of this file is in the records yet.</td></tr>}
         </tbody>
       </table>

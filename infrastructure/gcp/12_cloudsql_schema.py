@@ -92,6 +92,11 @@ def grants(api: str, ingest: str, me: str) -> list[str]:
         f"GRANT SELECT, INSERT ON sandbox_journal TO {ident(api)}",
         f"GRANT USAGE ON SEQUENCE sandbox_journal_seq_seq TO {ident(api)}",
     ]
+    # link learning (ADR-0074): officers' signals and decisions on links, append-only for the API
+    out += [
+        f"GRANT SELECT, INSERT ON link_signals, link_decisions TO {ident(api)}",
+        f"GRANT USAGE ON SEQUENCE link_signals_id_seq, link_decisions_id_seq TO {ident(api)}",
+    ]
     # model usage (ADR-0060 addendum): the API counts and logs optional model calls; the log is
     # append-only for it (no UPDATE / DELETE), the daily count is updated in place
     out += [

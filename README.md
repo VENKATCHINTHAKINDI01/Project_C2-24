@@ -62,8 +62,9 @@ of Andhra Pradesh).
 | Conflict detection | Seven advisory types: **A** superseded reference · **B** direct contradiction · **C** wrong authority or procedure · **D** precedent inconsistency (review only) · **E** missing authority · **F** temporal mismatch · **G** hierarchy conflict. Deterministic where facts exist; the model only for grounded judgment. |
 | File assistant | One chat per file that opens with a structured, end-to-end summary of the file, then takes follow-up questions in plain words: next action, movements, records, approval brief, changes since the decision, pre-send check, related files, first-cut note, drafts, closing remarks, references to earlier notes and order status. |
 | Noting and drafting | First-cut Yellow Notes, suggested notes and **Polish** in the note editor (Secretariat-style rewrite, Formal, Shorten, Add facts from the file, or custom instruction with diff preview; ADR-0072), and drafts in e-Office formats (note, G.O.Ms., G.O.Rt., memo, circular, letter). "Prepare a draft" with no kind named picks the draft from the file's stage. Fields are filled from the notes with citations; gaps are marked; saved only on the officer's click. |
-| e-Office workflow | eFile menu (Receipt inbox; File inbox, Sent, Created, Closed, Create new). Only the officer holding a file notes or sends it, within its department; drafts are put up to a chosen approver, who issues them. The monitoring officer sees the monitoring pad only. |
+| e-Office workflow | eFile menu (Receipt inbox; File inbox, Sent, Created, Closed, Create new). **Create new** supports subject, file Context (with icon-only PDF/image text extraction and AI Polish), preview/download of suggested Previous References, and file attachments. Only the officer holding a file notes or sends it, within its department; drafts are put up to a chosen approver, who issues them. The monitoring officer sees the monitoring pad only. |
 | e-Office touchpoints | All 20 touchpoints of plan §11.5 in the sandbox: receipt diarisation, pre-send check, reference matching, handover brief, return with remarks, draft revision and more. |
+| Link learning | Learns order-to-order and file-to-order/file links (`CITES`, `RELATED_TO`, `APPLIES_TO`) from officers' work (notes, drafts, pre-send, conflict flags, file references, receipts, and Useful/Not right feedback; ADR-0074) under both-ends access control. Operational support never validates; legal validation requires an issued order or authenticated human decision. Nightly roll-up updates Cloud SQL/Spanner `graph_edges`, audits state transitions, invalidates affected caches, and surfaces **Link changes** with evidence in the Monitoring pad. |
 | Human review | OCR confidence gate and review screen, relation confirmation, feedback captured as evaluation data. |
 | General chat | "Office AI" in the top bar: cited answers over every record the officer may open; yes/no questions answered first; greetings and "what can you do" answered without any search. |
 | Chat history | Each officer's conversations are kept by the server and can be reopened, or deleted one by one or all at once in Settings. |
@@ -319,8 +320,10 @@ sufficient. The model never generates retrieval queries and never chooses a rung
 | **L3** graph expansion | Spanner Graph | Scope-constrained walk from L0–L2 hits for supersession, amendment and related orders. Always last. |
 
 - **L2 early exit is off.** L2 may end the ladder only under a calibration measured the way the
-  exit runs, whose precision clears the target at the low end of its 95% interval. The first cloud
-  measurement (150 questions) did not, so every L2 result continues to L3.
+  exit runs, whose precision clears the target at the low end of its 95% interval, and only after
+  canonical document deduplication, entity/attribute checks (`backend/config/l2_safeguards.yaml`),
+  and cross-candidate temporal graph checks pass. The first cloud measurement (150 questions) did
+  not clear the bar, so every L2 result continues to L3.
 - **Bounded graph walks.** `l3_max_nodes` and `l3_max_edges` in `backend/config/runtime.yaml`;
   only steps to records the officer may see count, so a limit never reveals hidden records. A cut
   walk is re-walked over binding relations and is reported to the officer, never silent.
@@ -393,7 +396,8 @@ See also [SECURITY.md](SECURITY.md).
 │   ├── app/                 # agents, audit, auth, cache, citation, conflict, connectors,
 │   │                        # eoffice_mock, graph, hitl, identifiers, ingestion, memory, noting,
 │   │                        # precedent, retrieval, temporal, tracking, updates
-│   ├── config/              # runtime.yaml (ladder, thresholds), draft formats, sandbox profiles
+│   ├── config/              # runtime.yaml (ladder, thresholds), relationship_governance.yaml,
+│   │                        # l2_safeguards.yaml, draft formats, sandbox profiles
 │   ├── prompts/             # versioned prompt files (intent, answers, summaries, drafts)
 │   └── tests/               # pytest suites (unit, security, integration)
 ├── frontend/
@@ -401,7 +405,7 @@ See also [SECURITY.md](SECURITY.md).
 │   └── server/              # static server and API proxy for Cloud Run
 ├── data/
 │   ├── ontology/            # document types, relations, hierarchy (working assumption)
-│   ├── schemas/             # PostgreSQL migrations (0001–0006) and BigQuery / Spanner DDL
+│   ├── schemas/             # PostgreSQL migrations (0001–0009) and BigQuery / Spanner DDL (0001–0002)
 │   └── synthetic/           # mock corpus and e-files; ground truth for evaluation only
 ├── data_collection/         # public-corpus collection tools (the corpus lives outside the repo)
 ├── evaluation/              # harness, datasets and checks (see evaluation/README.md)
@@ -450,8 +454,10 @@ docker compose -f infrastructure/local/compose.yaml up --build   # PostgreSQL, m
 bash infrastructure/local/smoke.sh                                # end-to-end checks
 ```
 
-With PostgreSQL state, migrations in `data/schemas/postgres/` (including `0006_chat_history`) are
-applied at start; on Cloud SQL, apply them and the grants in `infrastructure/gcp/12_cloudsql_schema.py`.
+With PostgreSQL state, migrations in `data/schemas/postgres/` (`0001–0009`, including
+`chat_history`, `sandbox_journal`, `link_learning`, and `graph_edge_state`) are applied at start; on
+Cloud SQL, apply them and the grants in `infrastructure/gcp/12_cloudsql_schema.py` (and Spanner DDL
+`data/schemas/spanner/0001–0002` when using Spanner Graph).
 
 ---
 
@@ -464,6 +470,9 @@ make eval        # evaluation harness → evaluation/reports/ (exits 1 on any di
 
 # chat intent and answer layout; add --live to call Gemini (billed)
 cd backend && env -u VIRTUAL_ENV uv run python ../evaluation/conversation_check.py
+
+# ADR-0074 end-to-end link-learning scenario (steps 1–5)
+cd backend && env -u VIRTUAL_ENV uv run python ../evaluation/link_learning_scenario.py
 ```
 
 Heavy and billed suites run on GCP as a Cloud Run Job (`infrastructure/gcp/32_eval_job.sh`), so

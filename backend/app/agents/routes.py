@@ -17,6 +17,7 @@ import re
 import threading
 import uuid
 from collections.abc import Callable, Iterator, Sequence
+from pathlib import Path as Path_
 from typing import Annotated, Any, Literal, NoReturn
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request, Response
@@ -68,7 +69,7 @@ from app.auth.models import DocumentAccessTags
 from app.auth.policy import ScopeError, check, scope_for
 from app.auth.rate_limit import RateLimiter
 from app.auth.store import AuthzStore
-from app.conflict.deterministic import ConflictFlag
+from app.conflict.deterministic import ConflictFlag, ConflictType
 from app.conflict.facts import extract_proposal_facts
 from app.conflict.highlights import highlight_citations
 from app.conflict.judgment import Evidence, _terms, contradiction_flags, settled_pairs
@@ -81,6 +82,24 @@ from app.connectors.eoffice import (
     FileContext,
     OfficerContext,
 )
+from app.graph.link_learning import (
+    LINK_KINDS,
+    Governance,
+    InMemoryLinkStore,
+    LinkDecision,
+    LinkKey,
+    LinkSignal,
+    LinkStore,
+    Permission,
+    WorkEventKind,
+    evidence_holds,
+    link_status,
+    linking_signals,
+    load_governance,
+    recent_link_changes,
+    work_signals,
+)
+from app.graph.link_learning import wording as link_wording
 from app.graph.repository import Direction, EdgeKind
 from app.hitl.feedback import (
     Action,
@@ -93,8 +112,11 @@ from app.hitl.feedback import (
 from app.hitl.queue import ReviewItem, ReviewKind
 from app.identifiers.canonical import InvalidCanonicalIdError, lookup_keys
 from app.identifiers.display import department_names, reference_text
+from app.identifiers.resolver import reference_candidates
+from app.ingestion.detect import detect
 from app.ingestion.diarise import prefill
 from app.ingestion.document_store import PREVIEWABLE, extension, media_type
+from app.ingestion.extract import extract_native
 from app.ingestion.metadata import (
     DocType,
     DocumentMetadata,
@@ -232,11 +254,33 @@ class AutofillIn(_In):
     request: str = Field(default="Prepare the draft", max_length=300)
 
 
+_LINK_ID = r"^[A-Za-z0-9._-]{3,200}$"
+
+
+class LinkIn(_In):
+    source: str = Field(pattern=_LINK_ID)  # the newer order
+    kind: str = Field(pattern=r"^[A-Z]{3,20}$")
+    target: str = Field(pattern=_LINK_ID)  # the older order
+
+
+class LinkSignalIn(LinkIn):
+    code: Literal["useful", "not_right"]
+    reason: str | None = Field(default=None, max_length=200)
+    file_no: str | None = Field(default=None, max_length=64)
+
+
+class LinkDecisionIn(LinkIn):
+    action: Literal["validate", "reject", "request_evidence"]
+    reason: str = Field(min_length=5, max_length=500)
+    evidence: str | None = Field(default=None, max_length=600)
+
+
 class NotePolishIn(_In):
-    computer_no: str = Field(pattern=r"^\d{4,12}$")
+    computer_no: str | None = Field(default=None, pattern=r"^\d{4,12}$")
     text: str = Field(min_length=1, max_length=5000)
     mode: str = Field(default="polish", pattern=r"^[a-z]{3,12}$")
     instruction: str = Field(default="", max_length=200)
+    subject: str = Field(default="", max_length=500)
 
 
 class FileSummaryIn(_In):
@@ -477,6 +521,155 @@ def answer_conflicts(
     }
 
 
+_CID_IN_TEXT = re.compile(r"AP-[A-Z0-9]+-[A-Z]+-\d+-\d{4}(?:-D\d{8})?")
+
+
+def record_file_work_signals(
+    run: AssistRuntime,
+    officer_ctx: OfficerContext,
+    link_store: LinkStore,
+    gov: Governance,
+    gov_version: str,
+    audit: AuditLog,
+    *,
+    request_id: str,
+    computer_no: str,
+    event_kind: WorkEventKind,
+    text: str,
+    earlier_text: str = "",
+    initial_text: str = "",
+    remarks: str = "",
+    prior_flagged_older: Sequence[str] = (),
+    flag_action: Literal["accept", "dismiss"] | None = None,
+    flag_older_id: str | None = None,
+    previous_references: Sequence[str] = (),
+) -> int:
+    """Record W1–W7, C1–C4 and L1–L3 signals over visible graph links (ADR-0074 §3, §5 rule 1)."""
+    store = run.store_for(officer_ctx)
+    ctx = run.tool_context(officer_ctx.user_id, store)
+    try:
+        scope = scope_for(officer_ctx.user_id, store, run.policy, run.classification)
+    except ScopeError:
+        return 0
+    combined = "\n".join(p for p in (text, earlier_text, initial_text, remarks) if p)
+    raw_ids: list[str] = list(_CID_IN_TEXT.findall(combined))
+    if run.departments is not None and combined:
+        raw_ids.extend(reference_candidates(combined, run.departments))
+    raw_ids.extend(prior_flagged_older)
+    if flag_older_id:
+        raw_ids.append(flag_older_id)
+    ref_doc_ids: list[str] = []
+    for ref_file in previous_references:
+        for ref_cid, _ in run.stores.files.get(ref_file, []):
+            if visible_document(ctx, ref_cid) is None:
+                continue
+            ref_txt = run.texts.get(ref_cid, "")
+            ref_doc_ids.extend(_CID_IN_TEXT.findall(ref_txt))
+            if run.departments is not None and ref_txt:
+                ref_doc_ids.extend(reference_candidates(ref_txt, run.departments))
+    raw_ids.extend(ref_doc_ids)
+
+    seen_docs: dict[str, Any] = {}
+    for raw in raw_ids:
+        base = raw.split("#")[0]
+        keys: Sequence[str]
+        try:
+            keys = lookup_keys(base)
+        except InvalidCanonicalIdError:
+            keys = [base]
+        for k in keys:
+            if (doc := visible_document(ctx, k)) is not None:
+                seen_docs[doc.canonical_id] = doc
+                break
+    if not seen_docs:
+        return 0
+
+    visible_links: list[LinkKey] = []
+    seen_links: set[tuple[str, str, str]] = set()
+    for doc in seen_docs.values():
+        for kind in sorted(LINK_KINDS):
+            for direction in (Direction.OUT, Direction.IN):
+                hits = ctx.graph.walk(
+                    [doc.canonical_id],
+                    scope,
+                    kinds=frozenset({EdgeKind(kind)}),
+                    direction=direction,
+                    max_hops=1,
+                    include_unconfirmed=True,
+                    max_nodes=30,
+                )
+                for h in hits:
+                    other = visible_document(ctx, h.canonical_id)
+                    if other is None:
+                        continue
+                    src, tgt = (
+                        (doc.canonical_id, other.canonical_id)
+                        if direction is Direction.OUT
+                        else (other.canonical_id, doc.canonical_id)
+                    )
+                    key_t = (src, kind, tgt)
+                    if key_t not in seen_links:
+                        seen_links.add(key_t)
+                        visible_links.append(LinkKey(source=src, kind=kind, target=tgt))
+    if not visible_links:
+        return 0
+
+    if event_kind == "file_created":
+        derived = linking_signals(
+            links=visible_links,
+            action="link_files",
+            primary_orders=list(seen_docs),
+            other_orders=ref_doc_ids,
+        )
+    elif event_kind == "receipt_added":
+        derived = linking_signals(
+            links=visible_links,
+            action="receipt_added",
+            primary_orders=list(seen_docs),
+            other_orders=prior_flagged_older,
+            receipt_text=text,
+        )
+    else:
+        derived = work_signals(
+            links=visible_links,
+            event_kind=event_kind,
+            text=text,
+            earlier_text=earlier_text,
+            initial_text=initial_text,
+            remarks=remarks,
+            prior_flagged_older=prior_flagged_older,
+            flag_action=flag_action,
+            flag_older_id=flag_older_id,
+        )
+    now = dt.datetime.now(dt.UTC)
+    for lk, code, reason in derived:
+        link_store.add_signal(
+            LinkSignal(
+                at=now,
+                request_id=request_id,
+                user_id=officer_ctx.user_id,
+                post=officer_ctx.post,
+                department=officer_ctx.department,
+                source=lk.source,
+                kind=lk.kind,
+                target=lk.target,
+                code=code,
+                weight=gov.signal_weights.get(code, 0),
+                reason=reason,
+                file_no=computer_no,
+                config_version=gov_version,
+            )
+        )
+        audit.record(
+            request_id,
+            officer_ctx.user_id,
+            f"assist.links.work.{code}",
+            "ok",
+            ids=(lk.source, lk.kind, lk.target, computer_no, gov_version),
+        )
+    return len(derived)
+
+
 def build_assist_router(
     *,
     connector: EOfficeConnector,
@@ -496,8 +689,17 @@ def build_assist_router(
     draft_formats: FormatCatalogue | None = None,
     workspaces: WorkspaceStore | None = None,
     history: ChatHistory | None = None,
+    links: LinkStore | None = None,
+    governance: tuple[Governance, str] | None = None,
 ) -> APIRouter:
     r = APIRouter(prefix="/assist", tags=["assist"])
+    link_store: LinkStore = links if links is not None else InMemoryLinkStore()
+    prior_type_a: dict[tuple[str, str], set[str]] = {}
+    gov, gov_version = (
+        governance
+        if governance is not None
+        else load_governance(Path_(__file__).parents[2] / "config" / "relationship_governance.yaml")
+    )
     saved_drafts: WorkspaceStore = (
         workspaces if workspaces is not None else InMemoryWorkspaceStore()
     )
@@ -957,6 +1159,28 @@ def build_assist_router(
                 **meta(run),
             }
         rep = run_presend(o, run, store, note_id, text, earlier)
+        prior_key = (o.ctx.user_id, body.computer_no)
+        prior = prior_type_a.get(prior_key, set())
+        if prior:
+            record_file_work_signals(
+                run,
+                o.ctx,
+                link_store,
+                gov,
+                gov_version,
+                audit,
+                request_id=o.request_id,
+                computer_no=body.computer_no,
+                event_kind="presend",
+                text=text,
+                earlier_text=earlier,
+                prior_flagged_older=tuple(prior),
+            )
+        now_flagged = {f.cited for f in rep.flags if f.type is ConflictType.A and f.cited}
+        if now_flagged:
+            prior_type_a[prior_key] = now_flagged
+        else:
+            prior_type_a.pop(prior_key, None)
         audit.record(
             o.request_id,
             o.ctx.user_id,
@@ -1277,7 +1501,7 @@ def build_assist_router(
             "engine": res.engine,
         }
 
-    def polish_ready(body: NotePolishIn, o: Officer) -> tuple[AssistRuntime, FileContext]:
+    def polish_ready(body: NotePolishIn, o: Officer) -> tuple[AssistRuntime, FileContext | None]:
         """Checks that answer with an HTTP error, before any stream opens."""
         action = "assist.note.polish"
         if body.mode not in POLISH_MODES:
@@ -1287,6 +1511,8 @@ def build_assist_router(
                 status_code=422, detail=f"Polish needs at least {MIN_POLISH_WORDS} words."
             )
         run = rt(o, action)
+        if body.computer_no is None:
+            return run, None
         return run, open_file(o, run, body.computer_no, action)
 
     def polish_turn(body: NotePolishIn, o: Officer, emit: Emit | None = None) -> dict[str, Any]:
@@ -1296,14 +1522,15 @@ def build_assist_router(
         run, fctx = polish_ready(body, o)
         # the note sheet gives the words a rewrite may use (designations, places) and, for
         # "Add facts from the file" or an instruction, the facts it may add
-        notes = note_sheet(o, body.computer_no, action)
+        target_id = body.computer_no or "new-file"
+        notes = note_sheet(o, body.computer_no, action) if body.computer_no else ()
         why = quota_left(o, run)
         res = polish_note(
             None if why else run.llm,
             text=body.text,
             mode=body.mode,
             instruction=body.instruction,
-            subject=fctx.subject,
+            subject=fctx.subject if fctx is not None else body.subject,
             notes=notes,
             emit=emit,
         )
@@ -1311,7 +1538,7 @@ def build_assist_router(
             spend(
                 o,
                 run,
-                body.computer_no,
+                target_id,
                 "note.polish",
                 res.reason or "ok",
                 res.engine,
@@ -1325,7 +1552,7 @@ def build_assist_router(
             o.ctx.user_id,
             action,
             "ok" if reason is None else "fallback",
-            ids=(body.computer_no,),
+            ids=(target_id,),
             detail=f"mode={body.mode};{reason or 'model'}",
         )
         return {
@@ -1396,6 +1623,39 @@ def build_assist_router(
         """The same, streamed sentence by sentence (each one only after it passed its check)."""
         polish_ready(body, o)  # bad input and access answered before the stream opens
         return streamed(lambda emit: polish_turn(body, o, emit))
+
+    @r.post("/extract-text")
+    async def extract_uploaded_text(
+        request: Request,
+        o: Annotated[Officer, Depends(officer)],
+        name: Annotated[str, Query(min_length=1, max_length=200)],
+    ) -> dict[str, Any]:
+        """Extract text from an uploaded PDF, Word, text or image file for the Context box."""
+        action = "assist.extract_text"
+        data = await request.body()
+        if not data:
+            raise HTTPException(status_code=422, detail="The uploaded file is empty.")
+        run = rt(o, action)
+        det = detect(data, name)
+        mt = media_type(data, name)
+        ext = extract_native(data, det)
+        text = ext.native_text.strip()
+        method = "native"
+        if not text and run.ocr is not None:
+            ocr_res = run.ocr.read(data, mt, [1, 2, 3, 4, 5])
+            text = "\n\n".join(p.text.strip() for p in ocr_res.pages if p.text.strip()).strip()
+            method = ocr_res.engine
+        if not text:
+            audit.record(o.request_id, o.ctx.user_id, action, "no_text", detail=mt)
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    "No readable text found in this file, and OCR is not configured on this "
+                    "server for scanned PDFs or images."
+                ),
+            )
+        audit.record(o.request_id, o.ctx.user_id, action, "ok", detail=f"{method}:{mt}")
+        return {"request_id": o.request_id, "filename": name, "text": text, "method": method}
 
     @r.post("/file-so-far")
     def so_far(body: FileIn, o: Annotated[Officer, Depends(officer)]) -> dict[str, Any]:
@@ -2396,6 +2656,235 @@ def build_assist_router(
             ],
         }
 
+    # ---- links between orders, learnt from officers' work (ADR-0074) ----
+    def link_ends(
+        o: Officer, run: AssistRuntime, body: LinkIn, action: str
+    ) -> tuple[Any, Any, Any, bool]:
+        """Both orders, only if this officer may open both (rule 1), and the link itself. Any
+        failure is the same 404 as a record the officer cannot see."""
+        store = run.store_for(o.ctx)
+        ctx = run.tool_context(o.ctx.user_id, store)
+        a = visible_document(ctx, body.source)
+        b = visible_document(ctx, body.target)
+        hits: set[str] = set()
+        sure: set[str] = set()
+        if a is not None and b is not None and body.kind in LINK_KINDS:
+            try:
+                scope = scope_for(o.ctx.user_id, store, run.policy, run.classification)
+            except ScopeError:
+                scope = None
+            if scope is not None:
+                for unconfirmed, into in ((True, hits), (False, sure)):
+                    into.update(
+                        h.canonical_id
+                        for h in ctx.graph.walk(
+                            [a.canonical_id],
+                            scope,
+                            kinds=frozenset({EdgeKind(body.kind)}),
+                            direction=Direction.OUT,
+                            max_hops=1,
+                            include_unconfirmed=unconfirmed,
+                        )
+                    )
+        if a is None or b is None or b.canonical_id not in hits:
+            audit.record(o.request_id, o.ctx.user_id, action, "not_available")
+            raise HTTPException(status_code=404, detail=DOC_NOT_AVAILABLE)
+        return store, a, b, b.canonical_id in sure
+
+    @r.get("/links/{canonical_id}")
+    def related_orders(
+        canonical_id: Annotated[str, Path(pattern=_LINK_ID)],
+        o: Annotated[Officer, Depends(officer)],
+    ) -> dict[str, Any]:
+        """The orders this one replaces, amends or clarifies, and those that do so to it, each
+        with its state and evidence: only links whose both ends this officer may open."""
+        action = "assist.links.read"
+        run = rt(o, action)
+        store = run.store_for(o.ctx)
+        ctx = run.tool_context(o.ctx.user_id, store)
+        doc = visible_document(ctx, canonical_id)
+        try:
+            scope = scope_for(o.ctx.user_id, store, run.policy, run.classification)
+        except ScopeError:
+            scope = None
+        if doc is None or scope is None:
+            audit.record(o.request_id, o.ctx.user_id, action, "not_available")
+            raise HTTPException(status_code=404, detail=DOC_NOT_AVAILABLE)
+        rows: list[tuple[str, str, str, bool, Any]] = []
+        # one walk per kind and direction: a walk visits a node once, so two links between the
+        # same two orders (e.g. SUPERSEDES and AMENDS) would otherwise show as one
+        for kind in sorted(LINK_KINDS):
+            for direction in (Direction.OUT, Direction.IN):
+                walk = {
+                    unconfirmed: ctx.graph.walk(
+                        [doc.canonical_id],
+                        scope,
+                        kinds=frozenset({EdgeKind(kind)}),
+                        direction=direction,
+                        max_hops=1,
+                        include_unconfirmed=unconfirmed,
+                        max_nodes=30,
+                    )
+                    for unconfirmed in (True, False)
+                }
+                sure = {h.canonical_id for h in walk[False]}
+                for h in walk[True]:
+                    other = visible_document(ctx, h.canonical_id)
+                    if other is None:
+                        continue
+                    src, tgt = (
+                        (doc.canonical_id, other.canonical_id)
+                        if direction is Direction.OUT
+                        else (other.canonical_id, doc.canonical_id)
+                    )
+                    rows.append((src, kind, tgt, h.canonical_id in sure, other))
+        keys = [LinkKey(source=s_, kind=k_, target=t_) for s_, k_, t_, _, _ in rows]
+        sigs = link_store.signals(keys)
+        decs = link_store.decisions(keys)
+        texts = run.evidence_texts(o.ctx.user_id, store)
+        perm = gov.permission(o.ctx.post)
+        out = []
+        for src, kind, tgt, stated, other in rows:
+            said = link_wording(texts.get(src) or "", tgt)
+            key = (src, kind, tgt)
+            st = link_status(
+                stated_in_text=stated,
+                wording_found=said is not None,
+                signals=[x for x in sigs if (x.source, x.kind, x.target) == key],
+                decisions=[x for x in decs if (x.source, x.kind, x.target) == key],
+                gov=gov,
+            )
+            out.append(
+                {
+                    "source": src,
+                    "kind": kind,
+                    "target": tgt,
+                    "this_is": "newer" if src == doc.canonical_id else "older",
+                    "other": {
+                        "canonical_id": other.canonical_id,
+                        "subject": other.subject,
+                        "issue_date": other.issue_date.isoformat() if other.issue_date else None,
+                    },
+                    **st.model_dump(mode="json"),
+                    # the evidence sentence: Senior Assistant level and above (governance config)
+                    "wording": said if perm.rank >= Permission.FLAG.rank else None,
+                    "can_flag": perm.rank >= Permission.FLAG.rank,
+                    "can_validate": gov.may_validate(
+                        o.ctx.post, o.ctx.department, {doc.tags.department, other.tags.department}
+                    ),
+                }
+            )
+        audit.record(
+            o.request_id,
+            o.ctx.user_id,
+            action,
+            "ok",
+            ids=(doc.canonical_id, gov_version),
+            detail=f"{len(out)} links",
+        )
+        return {
+            "request_id": o.request_id,
+            "canonical_id": doc.canonical_id,
+            "links": out,
+            "permission": perm.value,
+            "authority_status": gov.validation_authority.status,
+        }
+
+    @r.post("/links/feedback")
+    def link_signal(body: LinkSignalIn, o: Annotated[Officer, Depends(officer)]) -> dict[str, Any]:
+        """Useful / Not right on a link: evidence for its support, never its legal status."""
+        action = "assist.links.signal"
+        run = rt(o, action)
+        if gov.permission(o.ctx.post).rank < Permission.FLAG.rank:
+            audit.record(
+                o.request_id, o.ctx.user_id, action, "refused", detail="post may view only"
+            )
+            raise HTTPException(
+                status_code=403, detail="Your post can see these links but not flag them."
+            )
+        _, a, b, _ = link_ends(o, run, body, action)
+        link_store.add_signal(
+            LinkSignal(
+                at=dt.datetime.now(dt.UTC),
+                request_id=o.request_id,
+                user_id=o.ctx.user_id,
+                post=o.ctx.post,
+                department=o.ctx.department,
+                source=a.canonical_id,
+                kind=body.kind,
+                target=b.canonical_id,
+                code=body.code,
+                weight=gov.signal_weights.get(body.code, 0),
+                reason=body.reason,
+                file_no=body.file_no,
+                config_version=gov_version,
+            )
+        )
+        audit.record(
+            o.request_id,
+            o.ctx.user_id,
+            action,
+            body.code,
+            ids=(a.canonical_id, body.kind, b.canonical_id, gov_version),
+        )
+        return {"request_id": o.request_id, "recorded": True}
+
+    @r.post("/links/decision")
+    def link_decision(
+        body: LinkDecisionIn, o: Annotated[Officer, Depends(officer)]
+    ) -> dict[str, Any]:
+        """An authenticated officer validates, rejects or asks for more evidence (rule 4): a post
+        the governance config allows, within their department, on orders they may open; a
+        validation must quote the sentence of the newer order that states the link."""
+        action = "assist.links.decision"
+        run = rt(o, action)
+        store, a, b, _ = link_ends(o, run, body, action)
+        if not gov.may_validate(
+            o.ctx.post, o.ctx.department, {a.tags.department, b.tags.department}
+        ):
+            audit.record(
+                o.request_id, o.ctx.user_id, action, "refused", ids=(a.canonical_id, b.canonical_id)
+            )
+            raise HTTPException(status_code=403, detail="Your post cannot decide this link.")
+        if body.action == "validate":
+            newer = run.evidence_texts(o.ctx.user_id, store).get(a.canonical_id) or ""
+            if not body.evidence or not evidence_holds(newer, b.canonical_id, body.evidence):
+                audit.record(
+                    o.request_id,
+                    o.ctx.user_id,
+                    action,
+                    "no_evidence",
+                    ids=(a.canonical_id, b.canonical_id),
+                )
+                raise HTTPException(
+                    status_code=409,
+                    detail="A link is validated only with the sentence of the newer order that "
+                    "states it. None was found; ask for more evidence instead.",
+                )
+        d = LinkDecision(
+            at=dt.datetime.now(dt.UTC),
+            request_id=o.request_id,
+            user_id=o.ctx.user_id,
+            post=o.ctx.post,
+            department=o.ctx.department,
+            source=a.canonical_id,
+            kind=body.kind,
+            target=b.canonical_id,
+            action=body.action,
+            reason=body.reason,
+            evidence=body.evidence if body.action == "validate" else None,
+            config_version=gov_version,
+        )
+        link_store.add_decision(d)
+        audit.record(
+            o.request_id,
+            o.ctx.user_id,
+            action,
+            body.action,
+            ids=(a.canonical_id, body.kind, b.canonical_id, gov_version),
+        )
+        return {"request_id": o.request_id, "recorded": True, "action": body.action}
+
     @r.get("/review/ocr")
     def ocr_queue(o: Annotated[Officer, Depends(officer)]) -> dict[str, Any]:
         """Scans waiting for a reviewer that this officer may see. Others are simply absent; the
@@ -2660,8 +3149,21 @@ def build_assist_router(
         run = rt(o, "assist.monitor")
         since = dt.datetime.now(dt.UTC).date() - dt.timedelta(days=days - 1)
         data = monitor(since, run.classification.rank_of(o.ctx.clearance))
+        since_dt = dt.datetime.combine(since, dt.time(), dt.UTC)
+        ctx = run.tool_context(o.ctx.user_id, run.store_for(o.ctx))
+        link_changes = recent_link_changes(
+            audit.events(),
+            run.stores.graph,
+            since=since_dt,
+            visible=lambda cid: visible_document(ctx, cid) is not None,
+        )
         audit.record(o.request_id, o.ctx.user_id, "assist.monitor", "ok")
-        return {"request_id": o.request_id, "days": days, **data.model_dump(mode="json")}
+        return {
+            "request_id": o.request_id,
+            "days": days,
+            **data.model_dump(mode="json"),
+            "link_changes": [lc.model_dump(mode="json") for lc in link_changes],
+        }
 
     @r.get("/me/roles")
     def my_roles(o: Annotated[Officer, Depends(officer)]) -> dict[str, Any]:
@@ -2740,6 +3242,28 @@ def build_assist_router(
             flag_type=body.flag_type if body.kind is TargetKind.CONFLICT_FLAG else None,
         )
         feedback_log.write(rec)
+        if (
+            body.kind is TargetKind.CONFLICT_FLAG
+            and body.flag_type == "A"
+            and body.canonical_id
+            and body.computer_no
+            and body.action in (Action.ACCEPTED, Action.DISMISSED)
+        ):
+            run = rt(o, "assist.feedback")
+            record_file_work_signals(
+                run,
+                o.ctx,
+                link_store,
+                gov,
+                gov_version,
+                audit,
+                request_id=o.request_id,
+                computer_no=body.computer_no,
+                event_kind="flag_feedback",
+                text="",
+                flag_action="accept" if body.action is Action.ACCEPTED else "dismiss",
+                flag_older_id=body.canonical_id.split("#")[0],
+            )
         audit.record(
             o.request_id,
             o.ctx.user_id,

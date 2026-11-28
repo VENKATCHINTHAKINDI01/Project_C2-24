@@ -1,11 +1,13 @@
 // Thin client for the sandbox + assist API. Sign-in is SIMULATED with a header (sandbox only,
 // ADR-0012). Errors keep the server's neutral wording; nothing is retried with less scope.
 import type {
-  Movement, NoteAssistEvent, NoteSuggestions, PolishMode, PolishResult,
+  Movement, NoteAssistEvent, NoteSuggestions, PolishMode, PolishResult, OrderLinks,
   ChatConversation, ChatConversationRow, FileSummary,
   Brief, ChatTurn, DraftWorkspace, FileRecords, ClosingRemarks, Diarise, Handover, Movements, PreviousRefs, SinceDecision, DfaPreview, DocumentInfo, Highlights, OcrReviewDetail, OcrReviewItem, OcrReviewResult, ChatEvent, Digest, DraftReceipt, MonitorData, PassageContext, FeedbackIn, FilePage, FileRow, FileSoFar, FirstCut, LinkSuggestions, Me, Preferences, NoteReferenceSuggestion, NoteReferences, Notices, PresendReport, Profile, ReceiptReview, ReceiptRow, ReferenceResult, SearchResult, DraftFormats, DraftInputs, PreparedDraft } from "./types";
 
 export const SANDBOX_USER_HEADER = "X-Sandbox-User";
+
+export type LinkRef = { source: string; kind: string; target: string };
 
 export class ApiError extends Error {
   constructor(public status: number, message: string) { super(message); }
@@ -140,8 +142,12 @@ export function createApi(userId: string | null, fetchFn: Fetch = (i, init) => f
     diarise: (computerNo: string) => call<Diarise>("/assist/diarise", { computer_no: computerNo }),
     previousRefs: (subject: string) => call<PreviousRefs>("/assist/previous-references", { subject }),
     closingRemarks: (computerNo: string) => call<ClosingRemarks>("/assist/closing-remarks", { computer_no: computerNo }),
-    createFile: (subject: string, previousReferences: string[]) =>
-      call<{ file: FileRow & { previous_references: string[] } }>("/sandbox/files", { subject, previous_references: previousReferences }),
+    createFile: (subject: string, previousReferences: string[], content = "") =>
+      call<{ file: FileRow & { previous_references: string[] } }>("/sandbox/files", {
+        subject,
+        previous_references: previousReferences,
+        ...(content.trim() ? { content } : {}),
+      }),
     closeFile: (computerNo: string, remarks: string) =>
       call<{ file: FileRow }>(`/sandbox/files/${encodeURIComponent(computerNo)}/close`, { remarks }),
     dfa: (computerNo: string) => call<DfaPreview>("/assist/dfa", { computer_no: computerNo }),
@@ -262,6 +268,20 @@ export function createApi(userId: string | null, fetchFn: Fetch = (i, init) => f
     /** Polish the officer's own note (ADR-0072): nothing saved; figures kept or the rule-based clean-up. */
     polishNote: (computerNo: string, text: string, mode: PolishMode, instruction = "") =>
       call<PolishResult>("/assist/note/polish", { computer_no: computerNo, text, mode, instruction }),
+    polishContext: (subject: string, text: string, mode: PolishMode = "polish", instruction = "") =>
+      call<PolishResult>("/assist/note/polish", { computer_no: null, subject, text, mode, instruction }),
+    extractText: async (file: File): Promise<{ filename: string; text: string; method: string }> => {
+      const res = await fetchFn(
+        `/assist/extract-text?name=${encodeURIComponent(file.name)}`,
+        { method: "POST", headers: { ...headersFor(userId), "Content-Type": "application/octet-stream" }, body: file },
+      );
+      if (!res.ok) {
+        let detail = res.status === 413 ? "The file is too large (10 MB at most)." : res.statusText || "Request failed";
+        try { detail = ((await res.json()) as { detail?: string }).detail ?? detail; } catch { /* keep */ }
+        throw new ApiError(res.status, detail);
+      }
+      return (await res.json()) as { filename: string; text: string; method: string };
+    },
     reviseDraft: (computerNo: string, draftId: string | undefined, currentText: string, reviewRemarks: string) =>
       call<{ revised_text: string; changes_summary: string; engine?: string | null; fallback?: boolean; reason?: string | null }>(
         "/assist/draft/revise",
@@ -294,6 +314,12 @@ export function createApi(userId: string | null, fetchFn: Fetch = (i, init) => f
     deleteChat: (conversationId: string) =>
       call<{ deleted: boolean }>(`/assist/chat/history/${encodeURIComponent(conversationId)}/delete`, {}),
     fileRecords: (computerNo: string) => call<FileRecords>(`/assist/files/${encodeURIComponent(computerNo)}/records`),
+    // ADR-0074: links between orders, learnt from officers' work
+    orderLinks: (canonicalId: string) => call<OrderLinks>(`/assist/links/${encodeURIComponent(canonicalId)}`),
+    linkSignal: (l: LinkRef, code: "useful" | "not_right", reason?: string) =>
+      call<{ recorded: boolean }>("/assist/links/feedback", { ...l, code, reason: reason || null }),
+    linkDecision: (l: LinkRef, action: "validate" | "reject" | "request_evidence", reason: string, evidence?: string | null) =>
+      call<{ recorded: boolean }>("/assist/links/decision", { ...l, action, reason, evidence: evidence ?? null }),
     // Draft recovery (ADR-0046): the workspace the server keeps as the officer works.
     getWorkspace: (computerNo: string | null) =>
       call<{ workspace: DraftWorkspace | null; saved_at: string | null }>(

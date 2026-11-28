@@ -24,6 +24,7 @@ from __future__ import annotations
 import re
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
+from difflib import SequenceMatcher, get_close_matches
 from typing import Any
 
 from app.agents.llm import LLMClient, LLMError, load_prompt, stream_json
@@ -70,7 +71,41 @@ _DRAFTING = frozenset(
     "not also which who whom whose into upon under over after before about along per "
     "accordingly therefore however further furnished examined verified verification "
     "communicated received reported forwarded enclosed reference referred mentioned "
-    "required requirement necessary needful early possible concerned matter case".split()
+    "required requirement necessary needful early possible concerned matter case all my our".split()
+)
+
+# misspellings of notes typed in a hurry (owner report 27 Nov: "I aprove the file aftr cheking al
+# the relted fils from myside."); corrected by the rule-based polish, case kept
+MISSPELT: tuple[tuple[str, str], ...] = (
+    (r"\baprove", "approve"),
+    (r"\baproval\b", "approval"),
+    (r"\baftr\b", "after"),
+    (r"\bcheking\b", "checking"),
+    (r"\bal(?= (?:the|of|my|our|these|those)\b)", "all"),
+    (r"\brelted\b", "related"),
+    (r"\bfils\b", "files"),
+    (r"\bmyside\b", "my side"),
+    (r"\brecieved\b", "received"),
+    (r"\brecieve\b", "receive"),
+    (r"\bpropsal\b", "proposal"),
+    (r"\bsubmited\b", "submitted"),
+    (r"\bverfied\b", "verified"),
+    (r"\bimmediatly\b", "immediately"),
+    (r"\bnecesary\b", "necessary"),
+    (r"\bseperate\b", "separate"),
+    (r"\bpls\b", "please"),
+)
+# words of official noting the rule-based polish may correct a lowercase misspelling to
+_LEXICON = sorted(
+    _DRAFTING
+    | set(
+        "approve approved approving check checked checking related relevant file files side office "
+        "officer officers section department government proposal proposals pending immediate "
+        "immediately recommend recommended recommendation forward examine circular memo "
+        "representation transfer vacancy available sanction sanctioned budget amount release "
+        "released permission complete completed report reports details detailed instructions "
+        "letter letters enclosure enclosures meeting meetings agreed agree concurrence".split()
+    )
 )
 _WORD = re.compile(r"[A-Za-z][A-Za-z'.-]{2,}")
 _TAG = re.compile(r"\s*\[N(\d+)\]")
@@ -92,9 +127,53 @@ def _expand(text: str) -> str:
     return out
 
 
+def _subsequence(short: str, long: str) -> bool:
+    it = iter(long)
+    return all(c in it for c in short)
+
+
+def _near(word: str, pool: set[str]) -> bool:
+    """The word is the officer's own, allowing for their typing: "aprove" / "approve",
+    "cheking" / "checking", "fils" / "files", "myside" / "side". Five letters or more for a
+    spelling match, so a short name is never taken for another."""
+    if word in pool:
+        return True
+    for own in pool:
+        a, b = sorted((own, word), key=len)
+        if len(a) < 3 or len(a) < 0.5 * len(b):
+            continue
+        if a in b or (len(b) >= 4 and _subsequence(a, b) and len(a) >= 0.6 * len(b)):
+            return True
+        if len(b) >= 5 and SequenceMatcher(None, own, word).ratio() >= 0.8:
+            return True
+    return False
+
+
 def _overlap(text: str, source: str) -> float:
     words = _words(text)
-    return 1.0 if not words else len(words & _words(source)) / len(words)
+    if not words:
+        return 1.0
+    pool = _words(source)
+    return sum(1 for w in words if _near(w, pool)) / len(words)
+
+
+def _respell(text: str) -> str:
+    out = text
+    for pat, right in MISSPELT:
+
+        def keep_case(m: re.Match[str], r: str = right) -> str:
+            return r[0].upper() + r[1:] if m.group(0)[0].isupper() else r
+
+        out = re.sub(pat, keep_case, out, flags=re.I)
+
+    def fix(m: re.Match[str]) -> str:
+        w = m.group(0)
+        if len(w) < 5 or w in _LEXICON:
+            return w
+        hit = get_close_matches(w, _LEXICON, n=1, cutoff=0.86)
+        return hit[0] if hit else w
+
+    return re.sub(r"\b[a-z]{5,}\b", fix, out)
 
 
 def word_count(text: str) -> int:
@@ -102,11 +181,12 @@ def word_count(text: str) -> int:
 
 
 def rule_polish(text: str) -> str:
-    """No model: expand the usual abbreviations, capitalise and close each sentence; the
+    """No model: expand the usual abbreviations, correct common misspellings (lowercase words
+    only, never a name), capitalise and close each sentence; the
     officer's paragraphs are kept."""
     paras = []
     for para in text.strip().split("\n"):
-        s = _expand(" ".join(para.split()))
+        s = _respell(_expand(" ".join(para.split())))
         if not s:
             continue
         out = []
@@ -398,7 +478,8 @@ def polish_note(
         for s in raw if isinstance(raw, list) else []:
             take(s)
     if not shown:
-        return fallback("model returned nothing", llm.name, problems)
+        reason = "rewrote too much" if problems else "model returned nothing"
+        return fallback(reason, llm.name, problems)
     final = ""
     for sent, _, para in shown:
         final += ("\n" if para else " " if final else "") + sent

@@ -31,6 +31,7 @@ from tests.unit.test_graph_postgres import ALL, _random_graph, node, scope
 
 ROOT = Path(__file__).parents[3]
 PG = ROOT / "data" / "schemas" / "postgres" / "0002_graph.sql"
+PG_EDGE_STATE = ROOT / "data" / "schemas" / "postgres" / "0009_graph_edge_state.sql"
 DDL = ROOT / "data" / "schemas" / "spanner" / "0001_graph.ddl"
 _KEYS = {"graph_nodes": ("canonical_id",), "graph_edges": ("source", "kind", "target")}
 
@@ -41,7 +42,9 @@ class SqlitePort:
     def __init__(self) -> None:
         self.db = sqlite3.connect(":memory:")
         self.db.executescript(
-            "CREATE TABLE schema_migrations (version TEXT PRIMARY KEY);" + PG.read_text("utf-8")
+            "CREATE TABLE schema_migrations (version TEXT PRIMARY KEY);"
+            + PG.read_text("utf-8")
+            + PG_EDGE_STATE.read_text("utf-8").replace("ADD COLUMN IF NOT EXISTS ", "ADD COLUMN ")
         )
         self.reads: list[str] = []
 

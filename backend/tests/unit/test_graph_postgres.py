@@ -30,6 +30,9 @@ from app.graph.repository import (
 from app.pg import Pg
 
 SCHEMA = Path(__file__).parents[3] / "data" / "schemas" / "postgres" / "0002_graph.sql"
+EDGE_STATE_SCHEMA = (
+    Path(__file__).parents[3] / "data" / "schemas" / "postgres" / "0009_graph_edge_state.sql"
+)
 DSN = os.environ.get("C2_TEST_PG_DSN")
 
 
@@ -55,7 +58,11 @@ class _Conn:
     def __init__(self) -> None:
         self._db = sqlite3.connect(":memory:", check_same_thread=False)
         self._db.executescript(
-            "CREATE TABLE schema_migrations (version TEXT PRIMARY KEY);" + SCHEMA.read_text("utf-8")
+            "CREATE TABLE schema_migrations (version TEXT PRIMARY KEY);"
+            + SCHEMA.read_text("utf-8")
+            + EDGE_STATE_SCHEMA.read_text("utf-8").replace(
+                "ADD COLUMN IF NOT EXISTS ", "ADD COLUMN "
+            )
         )
 
     def cursor(self) -> _Cur:

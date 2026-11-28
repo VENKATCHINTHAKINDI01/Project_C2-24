@@ -208,3 +208,27 @@ def test_note_assist_api_holder_only_and_nothing_saved(c: TestClient) -> None:
     assert other.status_code in (200, 404)
     if other.status_code == 200:
         assert other.json()["suggestions"] == []
+
+
+def test_a_note_with_spelling_mistakes_is_polished() -> None:
+    """Owner report 27 Nov: Polish withheld the AI version of a note full of typing mistakes."""
+    typed = "I aprove the file aftr cheking al the relted fils from myside."
+    good = "I approve the file after checking all the related files from my side."
+    res = polish_note(Fake(_sents(good)), text=typed, notes=NOTES)
+    assert res.reason is None, res.withheld
+    assert res.text == good
+
+
+def test_the_basic_clean_up_corrects_common_misspellings_but_not_names() -> None:
+    assert rule_polish("I aprove the file aftr cheking al the relted fils from myside") == (
+        "I approve the file after checking all the related files from my side."
+    )
+    assert rule_polish("sent to Guntur and Kurnool") == "Sent to Guntur and Kurnool."
+
+
+def test_a_rewrite_that_changes_too_much_says_so() -> None:
+    res = polish_note(
+        Fake(_sents("The quarterly budget statement shows a deficit.")),
+        text="I aprove the file aftr cheking al the relted fils from myside.",
+    )
+    assert res.reason == "rewrote too much"

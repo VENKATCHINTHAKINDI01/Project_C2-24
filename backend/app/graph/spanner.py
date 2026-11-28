@@ -44,7 +44,7 @@ _NODE = (
     "SELECT canonical_id, department, section, classification, file_no, doc_id "
     "FROM graph_nodes WHERE canonical_id IN UNNEST(@ids)"
 )
-_EDGE = "SELECT source, kind, target, confirmed FROM graph_edges"
+_EDGE = "SELECT source, kind, target, confirmed, state, score, evidence FROM graph_edges"
 _EDGES = {
     "all": _EDGE + " ORDER BY source, kind, target",
     "from": _EDGE + " WHERE source IN UNNEST(@ids) ORDER BY source, kind, target",
@@ -153,10 +153,15 @@ class SpannerGraphRepository:
         ends = {x for e in edges for x in (e.source, e.target)}
         if len(self._nodes(ends)) != len(ends):  # the schema's foreign keys refuse it too
             raise GraphError("edge endpoints must be known nodes")
-        rows = [[e.source, e.kind.value, e.target, e.confirmed] for e in edges]
+        rows = [
+            [e.source, e.kind.value, e.target, e.confirmed, e.state, e.score, e.evidence]
+            for e in edges
+        ]
         for i in range(0, len(rows), _BATCH):
             self._db.upsert(
-                "graph_edges", ("source", "kind", "target", "confirmed"), rows[i : i + _BATCH]
+                "graph_edges",
+                ("source", "kind", "target", "confirmed", "state", "score", "evidence"),
+                rows[i : i + _BATCH],
             )
 
     # ---- reads ----------------------------------------------------------------------------
@@ -192,7 +197,15 @@ class SpannerGraphRepository:
             for i in range(0, len(ids), _BATCH):
                 rows += self._db.query(_EDGES[which], {"ids": list(ids[i : i + _BATCH])})
         return [
-            GraphEdge(source=r[0], kind=EdgeKind(r[1]), target=r[2], confirmed=bool(r[3]))
+            GraphEdge(
+                source=r[0],
+                kind=EdgeKind(r[1]),
+                target=r[2],
+                confirmed=bool(r[3]),
+                state=r[4] if len(r) > 4 else None,
+                score=int(r[5]) if len(r) > 5 and r[5] is not None else 0,
+                evidence=r[6] if len(r) > 6 else None,
+            )
             for r in rows
         ]
 
@@ -213,7 +226,15 @@ class SpannerGraphRepository:
         for i in range(0, len(wanted), _BATCH):
             rows += self._db.query(_EDGES_ANY, {"ids": wanted[i : i + _BATCH]})
         edges = [
-            GraphEdge(source=r[0], kind=EdgeKind(r[1]), target=r[2], confirmed=bool(r[3]))
+            GraphEdge(
+                source=r[0],
+                kind=EdgeKind(r[1]),
+                target=r[2],
+                confirmed=bool(r[3]),
+                state=r[4] if len(r) > 4 else None,
+                score=int(r[5]) if len(r) > 5 and r[5] is not None else 0,
+                evidence=r[6] if len(r) > 6 else None,
+            )
             for r in rows
         ]
         return split_edges(wanted, edges)

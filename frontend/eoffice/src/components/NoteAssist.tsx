@@ -50,6 +50,7 @@ const FALLBACK_TEXT: Record<string, string> = {
   "usage count unavailable": "AI is not available just now, so only a basic clean-up is shown.",
   "changed what the note says": "The AI version changed or added a name, date or figure, so it was withheld. Only a basic clean-up is shown.",
   "model returned nothing": "The AI returned nothing, so only a basic clean-up is shown.",
+  "rewrote too much": "The AI version changed too much of your wording, so it was not used. A basic clean-up (spelling, abbreviations, sentences) is shown.",
 };
 
 export function SuggestedNotes({ api, computerNo, active, onPick }: {

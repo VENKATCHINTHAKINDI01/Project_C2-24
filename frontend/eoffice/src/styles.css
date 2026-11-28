@@ -437,6 +437,13 @@ a.cite.not_found { cursor: help; }
 .newfile summary { cursor: pointer; font-weight: 600; }
 .newfile textarea { width: 100%; padding: 8px 10px; }
 .newfile ul.refs { list-style: none; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.newfile .context-box { position: relative; margin-top: 12px; }
+.newfile .context-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+.newfile .context-icons { display: flex; gap: 6px; align-items: center; }
+.newfile .icon-btn { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; padding: 0; border-radius: 6px; }
+.newfile .ref-docs { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+.newfile .att-queue { list-style: none; padding: 0; margin: 6px 0 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.newfile .att-chip { display: inline-flex; align-items: center; gap: 6px; padding: 2px 8px; border: 1px solid var(--line); border-radius: 999px; font-size: .82rem; }
 .searchrow { max-width: 860px; margin: 0 0 12px; }
 .searchrow input { height: 40px; }
 .examples { display: flex; gap: 8px 14px; align-items: baseline; flex-wrap: wrap; font-size: .9rem; margin-bottom: 18px; }
@@ -948,3 +955,17 @@ html[lang="te"] body, html[lang="hi"] body { line-height: 1.6; }
 }
 .dc-lang[lang="te"] { font-family: "Noto Sans Telugu", system-ui, sans-serif; }
 .dc-lang[lang="hi"] { font-family: "Noto Sans Devanagari", system-ui, sans-serif; }
+
+/* related orders (ADR-0074) */
+.links-row > td { background: var(--tint); }
+.olinks { list-style: none; margin: 0; padding: 4px 0; display: grid; gap: 10px; }
+.olink { padding: 10px 12px; background: var(--paper); border: 1px solid var(--line); border-left: 3px solid var(--line); border-radius: var(--r-sm); }
+.olink.validated { border-left-color: var(--green, #2e7d32); }
+.olink.suggested, .olink.supported_by_use { border-left-color: var(--primary); }
+.olink.rejected { opacity: .7; }
+.olink-line { margin: 0 0 2px; font-weight: 500; }
+.olink-subject { margin: 0 0 6px; }
+.olink-quote { margin: 6px 0; padding: 6px 10px; border-left: 2px solid var(--primary-line); background: var(--primary-wash); font-size: .88rem; }
+.olink-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.olink-decide { display: grid; gap: 8px; margin-top: 8px; }
+.olink-decide input { width: 100%; }

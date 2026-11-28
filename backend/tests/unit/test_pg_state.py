@@ -98,6 +98,8 @@ def pg() -> Iterator[Pg]:
             "0004_draft_workspaces",
             "0005_model_usage",
             "0006_chat_history",
+            "0007_sandbox_journal",
+            "0008_link_learning",
         ]
         apply_migrations(p, MIGRATIONS)  # idempotent
         yield p

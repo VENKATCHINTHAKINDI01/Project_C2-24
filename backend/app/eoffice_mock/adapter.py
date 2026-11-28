@@ -469,7 +469,9 @@ class MockEOfficeAdapter:
             None,
         )
 
-    def create_file(self, user_id: str, subject: str, previous_references: list[str]) -> EFile:
+    def create_file(
+        self, user_id: str, subject: str, previous_references: list[str], *, content: str = ""
+    ) -> EFile:
         """The officer opens a new file in their own section (simulated e-Office "Create File";
         SYNTHETIC number). Previous references are the file numbers the officer chose; only files
         they can reach are kept."""
@@ -506,6 +508,21 @@ class MockEOfficeAdapter:
             previous_references=[r for r in dict.fromkeys(previous_references) if r in reach],
         )
         self._files[cno] = f
+        body = content.strip()
+        if body:
+            now = self._clock()
+            opening = Note(
+                note_id=f"{cno}-N1",
+                computer_no=cno,
+                note_no=1,
+                paragraph_from=1,
+                state=NoteState.GREEN,
+                author=user_id,
+                author_post=p.post,
+                versions=[NoteVersion(version=1, text=body, saved_at=now, saved_by=user_id)],
+                confirmed_at=now,
+            )
+            self._notes = sorted([*self._notes, opening], key=lambda n: (n.computer_no, n.note_no))
         self._emit(EventKind.FILE_CREATED, f, cno, self._file_record(f))
         return f
 

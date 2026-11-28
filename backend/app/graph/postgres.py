@@ -55,10 +55,12 @@ _UPSERT_NODE = (
 )
 _ENDS = "SELECT count(*) FROM graph_nodes WHERE canonical_id IN (%s, %s)"
 _UPSERT_EDGE = (
-    "INSERT INTO graph_edges (source, kind, target, confirmed) VALUES (%s, %s, %s, %s) "
-    "ON CONFLICT (source, kind, target) DO UPDATE SET confirmed = excluded.confirmed"
+    "INSERT INTO graph_edges (source, kind, target, confirmed, state, score, evidence) "
+    "VALUES (%s, %s, %s, %s, %s, %s, %s) "
+    "ON CONFLICT (source, kind, target) DO UPDATE SET confirmed = excluded.confirmed, "
+    "state = excluded.state, score = excluded.score, evidence = excluded.evidence"
 )
-_EDGE = "SELECT source, kind, target, confirmed FROM graph_edges"
+_EDGE = "SELECT source, kind, target, confirmed, state, score, evidence FROM graph_edges"
 _EDGES = {
     "all": _EDGE + " ORDER BY source, kind, target",
     "to": _EDGE + " WHERE target = %s ORDER BY source, kind, target",
@@ -105,7 +107,18 @@ class PostgresGraphRepository:
             cur.execute(_ENDS, (edge.source, edge.target))
             if cur.fetchone()[0] != len({edge.source, edge.target}):
                 raise GraphError("edge endpoints must be known nodes")
-            cur.execute(_UPSERT_EDGE, (edge.source, edge.kind.value, edge.target, edge.confirmed))
+            cur.execute(
+                _UPSERT_EDGE,
+                (
+                    edge.source,
+                    edge.kind.value,
+                    edge.target,
+                    edge.confirmed,
+                    edge.state,
+                    edge.score,
+                    edge.evidence,
+                ),
+            )
 
     # ---- reads ----------------------------------------------------------------------------
 
@@ -143,7 +156,15 @@ class PostgresGraphRepository:
             cur.execute(_EDGES[which], params)
             rows = cur.fetchall()
         return [
-            GraphEdge(source=r[0], kind=EdgeKind(r[1]), target=r[2], confirmed=bool(r[3]))
+            GraphEdge(
+                source=r[0],
+                kind=EdgeKind(r[1]),
+                target=r[2],
+                confirmed=bool(r[3]),
+                state=r[4],
+                score=int(r[5]) if r[5] is not None else 0,
+                evidence=r[6],
+            )
             for r in rows
         ]
 
@@ -169,7 +190,15 @@ class PostgresGraphRepository:
             )
             rows = cur.fetchall()
         edges = [
-            GraphEdge(source=r[0], kind=EdgeKind(r[1]), target=r[2], confirmed=bool(r[3]))
+            GraphEdge(
+                source=r[0],
+                kind=EdgeKind(r[1]),
+                target=r[2],
+                confirmed=bool(r[3]),
+                state=r[4],
+                score=int(r[5]) if r[5] is not None else 0,
+                evidence=r[6],
+            )
             for r in rows
         ]
         return split_edges(wanted, edges)
@@ -343,7 +372,18 @@ class PostgresGraphRepository:
                      tg.file_no, tg.doc_id, *vals),
                 )  # fmt: skip
             for e in links:
-                cur.execute(_UPSERT_EDGE, (e.source, e.kind.value, e.target, e.confirmed))
+                cur.execute(
+                    _UPSERT_EDGE,
+                    (
+                        e.source,
+                        e.kind.value,
+                        e.target,
+                        e.confirmed,
+                        e.state,
+                        e.score,
+                        e.evidence,
+                    ),
+                )
             for cid in sorted(p.delete_nodes):  # their links are gone: none of them is built
                 cur.execute("DELETE FROM graph_nodes WHERE canonical_id = %s", (cid,))
         return p

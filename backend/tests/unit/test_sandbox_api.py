@@ -783,3 +783,47 @@ def test_unavailable_answers_guide_the_officer_without_revealing_existence(
         for leak in ("restricted", "not authorised", "classified", "confidential", "secret"):
             assert leak not in msg.lower()
     assert RECEIPT_NOT_AVAILABLE.startswith("This receipt isn't available to you.")
+
+
+def test_create_file_with_content_polish_and_extract_text(client: TestClient) -> None:
+    # 1. Extract text from an uploaded text file for the Context box
+    ext = client.post(
+        "/assist/extract-text?name=request.txt",
+        headers=_h("U01"),
+        content=b"Request for transfer on medical grounds per G.O.Ms.No.88 of 2022.",
+    )
+    assert ext.status_code == 200, ext.text
+    assert "medical grounds" in ext.json()["text"]
+
+    # 2. Polish fresh file context without a computer_no yet
+    pol = client.post(
+        "/assist/note/polish",
+        headers=_h("U01"),
+        json={
+            "subject": "Establishment – Request for transfer on medical grounds – Reg.",
+            "text": (
+                "The applicant has requested transfer on medical grounds per "
+                "G.O.Ms.No.88 of 2022 and submitted certificates."
+            ),
+            "mode": "polish",
+        },
+    )
+    assert pol.status_code == 200, pol.text
+    assert "G.O.Ms.No.88" in pol.json()["text"]
+
+    # 3. Creating a file with content records Note #1 so upper authorities see it
+    cf = client.post(
+        "/sandbox/files",
+        headers=_h("U01"),
+        json={
+            "subject": "Establishment – Request for transfer on medical grounds – Reg.",
+            "previous_references": [],
+            "content": pol.json()["text"],
+        },
+    )
+    assert cf.status_code == 200, cf.text
+    cno = cf.json()["file"]["computer_no"]
+    page = client.get(f"/sandbox/files/{cno}", headers=_h("U01"))
+    assert page.status_code == 200
+    notes = page.json()["notes"]
+    assert len(notes) == 1 and "G.O.Ms.No.88" in notes[0]["text"]

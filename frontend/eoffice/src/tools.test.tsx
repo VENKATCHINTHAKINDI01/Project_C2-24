@@ -165,6 +165,8 @@ describe("extended touchpoints 1, 5, 16 (ADR-0038)", () => {
   it("creating a file asks for references only on request", () => {
     const t = text(<NewFilePanel api={createApi("U01")} open={() => {}} />);
     expect(t).toContain("Create a file");
+    expect(t).toContain("Context");
+    expect(t).toContain("Attach files");
     expect(t).toContain("you choose which earlier files");
   });
 });

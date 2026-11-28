@@ -56,6 +56,9 @@ class Settings(BaseSettings):
     # what counts as unusual activity on the pad (ADR-0036): MOCK until the department decides
     monitoring_config_path: Path = REPO_ROOT / "backend" / "config" / "monitoring.yaml"
     draft_formats_path: Path = REPO_ROOT / "backend" / "config" / "draft_formats.yaml"  # ADR-0044
+    relationship_governance_path: Path = (
+        REPO_ROOT / "backend" / "config" / "relationship_governance.yaml"  # ADR-0074
+    )
     # Memorystore (Redis/Valkey) — cache only (ADR-0035). Unset: in-memory cache in this instance.
     # redis://[:password@]host:6379/0 ; the password comes from Secret Manager, never the repo.
     redis_url: str | None = None

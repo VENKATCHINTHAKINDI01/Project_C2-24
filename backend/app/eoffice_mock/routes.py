@@ -9,8 +9,9 @@ Unknown and unavailable files give the same answer. Every response carries the m
 
 import datetime as dt
 from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, ConfigDict, Field
@@ -47,6 +48,7 @@ class CreateFileIn(BaseModel):
 
     subject: str = Field(min_length=10, max_length=500)
     previous_references: list[str] = Field(default_factory=list, max_length=20)
+    content: str = Field(default="", max_length=20000)
 
 
 class SendFileIn(BaseModel):
@@ -77,6 +79,24 @@ class CloseFileIn(BaseModel):
     remarks: str = Field(min_length=5, max_length=4000)
 
 
+@dataclass(frozen=True, slots=True)
+class WorkSignalEvent:
+    """e-Office action passed to link learning via the composition root (ADR-0074 step 2)."""
+
+    user_id: str
+    post: str
+    department: str
+    computer_no: str
+    kind: Literal[
+        "note_written", "note_confirmed", "draft_approved", "draft_returned", "file_created"
+    ]
+    text: str
+    earlier_text: str = ""
+    initial_text: str = ""
+    remarks: str = ""
+    previous_references: tuple[str, ...] = ()
+
+
 def build_sandbox_router(
     *,
     adapter: MockEOfficeAdapter,
@@ -84,6 +104,7 @@ def build_sandbox_router(
     identify: Callable[[Request], str | None],
     on_event: Callable[[], None] = lambda: None,
     on_outcome: Callable[[DraftOutcome], None] = lambda _o: None,
+    on_work_signal: Callable[[WorkSignalEvent], None] = lambda _e: None,
     preferences: PreferenceStore | None = None,
 ) -> APIRouter:
     r = APIRouter(prefix="/sandbox", tags=["sandbox"])
@@ -324,18 +345,36 @@ def build_sandbox_router(
             ],
         }
 
+    def _note_text(n: Any) -> str:
+        return (n.versions[-1].text or "") if n.versions else ""
+
+    def _earlier_notes(computer_no: str) -> str:
+        return "\n".join(_note_text(n) for n in adapter.notes(computer_no))
+
     @r.post("/files/{computer_no}/notes")
     def write_note(
         computer_no: str, body: WriteNoteIn, p: Annotated[SandboxProfile, Depends(me)]
     ) -> dict[str, Any]:
         """The holder writes a note (saved as their Yellow Note until signed or sent)."""
         holder_file(computer_no, p)
+        earlier = _earlier_notes(computer_no)
         try:
             d = adapter.write_note(computer_no, p.user_id, body.text)
         except ConnectorError:
             raise HTTPException(status_code=404, detail=NOT_AVAILABLE) from None
         except ValueError as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from None
+        on_work_signal(
+            WorkSignalEvent(
+                user_id=p.user_id,
+                post=p.post,
+                department=p.department,
+                computer_no=computer_no,
+                kind="note_written",
+                text=body.text,
+                earlier_text=earlier,
+            )
+        )
         return {"banner": BANNER, "draft_id": d.draft_id, "status": d.status.value}
 
     @r.post("/files/{computer_no}/move")
@@ -346,6 +385,7 @@ def build_sandbox_router(
         Their own Yellow Notes are signed first. The officer's action under /sandbox; the
         assistant has no such endpoint, and no path carries "send" (test_feedback guard)."""
         holder_file(computer_no, p)
+        earlier = _earlier_notes(computer_no)
         try:
             m = adapter.send_file(
                 computer_no, p.user_id, body.to_user, body.remarks, body.priority, body.due_on
@@ -354,6 +394,21 @@ def build_sandbox_router(
             raise HTTPException(status_code=404, detail=NOT_AVAILABLE) from None
         except ValueError as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from None
+        notes_now = adapter.notes(computer_no)
+        latest = _note_text(notes_now[-1]) if notes_now else ""
+        if latest or body.remarks:
+            on_work_signal(
+                WorkSignalEvent(
+                    user_id=p.user_id,
+                    post=p.post,
+                    department=p.department,
+                    computer_no=computer_no,
+                    kind="note_written",
+                    text=latest,
+                    earlier_text=earlier,
+                    remarks=body.remarks,
+                )
+            )
         return {
             "banner": BANNER,
             "movement": {
@@ -393,6 +448,21 @@ def build_sandbox_router(
         """The officer confirms their Yellow Note → the next Green Note (simulated signature, no
         DSC/eSign). This is the officer's e-Office action; the assistant has no such endpoint."""
         own_draft_file(computer_no, p)
+        earlier = _earlier_notes(computer_no)
+        draft_obj = next(
+            (x for x in adapter.my_drafts(computer_no, p.user_id) if x.draft_id == draft_id),
+            None,
+        )
+        initial_text = (
+            (draft_obj.versions[0].text or "")
+            if draft_obj is not None and draft_obj.created_by_assistant and draft_obj.versions
+            else ""
+        )
+        confirmed_text = (
+            (draft_obj.versions[-1].text or "")
+            if draft_obj is not None and draft_obj.versions
+            else ""
+        )
         try:
             out = adapter.confirm_yellow_note(computer_no, draft_id, p.user_id)
         except ConnectorError:
@@ -401,6 +471,19 @@ def build_sandbox_router(
             raise HTTPException(status_code=409, detail=str(exc)) from None
         on_outcome(out)  # composition root: recorded as feedback (ADR-0031)
         on_event()  # the Green Note is an official act: the note sheet goes to ingestion
+        if confirmed_text:
+            on_work_signal(
+                WorkSignalEvent(
+                    user_id=p.user_id,
+                    post=p.post,
+                    department=p.department,
+                    computer_no=computer_no,
+                    kind="note_confirmed",
+                    text=confirmed_text,
+                    earlier_text=earlier,
+                    initial_text=initial_text,
+                )
+            )
         return {"banner": BANNER, "draft_id": draft_id, "note_id": out.note_id, "state": "green"}
 
     @r.post("/files/{computer_no}/drafts/{draft_id}/submit")
@@ -437,6 +520,17 @@ def build_sandbox_router(
         except ValueError as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from None
         on_event()
+        if d.versions:
+            on_work_signal(
+                WorkSignalEvent(
+                    user_id=p.user_id,
+                    post=p.post,
+                    department=p.department,
+                    computer_no=computer_no,
+                    kind="draft_approved",
+                    text=d.versions[-1].text or "",
+                )
+            )
         return {
             "banner": BANNER,
             "draft_id": d.draft_id,
@@ -458,6 +552,18 @@ def build_sandbox_router(
             d = adapter.return_draft(computer_no, draft_id, p.user_id, remarks=remarks)
         except ConnectorError:
             raise HTTPException(status_code=404, detail=DRAFT_NOT_AVAILABLE) from None
+        if remarks:
+            on_work_signal(
+                WorkSignalEvent(
+                    user_id=p.user_id,
+                    post=p.post,
+                    department=p.department,
+                    computer_no=computer_no,
+                    kind="draft_returned",
+                    text=(d.versions[-1].text or "") if d.versions else "",
+                    remarks=remarks,
+                )
+            )
         return {
             "banner": BANNER,
             "draft_id": d.draft_id,
@@ -567,12 +673,26 @@ def build_sandbox_router(
         """Simulated e-Office "Create File" (touchpoint 5): the officer opens a file in their own
         section with the previous references THEY chose (the assistant only suggests)."""
         try:
-            f = adapter.create_file(p.user_id, body.subject, body.previous_references)
+            f = adapter.create_file(
+                p.user_id, body.subject, body.previous_references, content=body.content
+            )
         except ValueError:
             raise HTTPException(
                 status_code=422, detail="You hold no section to open a file in."
             ) from None
         on_event()  # the file's particulars go to ingestion (its record)
+        if f.previous_references:
+            on_work_signal(
+                WorkSignalEvent(
+                    user_id=p.user_id,
+                    post=p.post,
+                    department=f.department,
+                    computer_no=f.computer_no,
+                    kind="file_created",
+                    text=body.subject,
+                    previous_references=tuple(f.previous_references),
+                )
+            )
         return {
             "banner": BANNER,
             "file": {**file_row(f), "previous_references": f.previous_references},

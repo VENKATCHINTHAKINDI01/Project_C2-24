@@ -368,6 +368,12 @@ export interface OfficerActivity {
 export interface FeedbackRow {
   ts: string; user_id: string; target: string; action: string; reason: string | null; edit_share: number | null;
 }
+export interface LinkChangeRow {
+  ts: string; source: string; kind: string; target: string;
+  from_state?: string | null; to_state: string; score: number;
+  evidence?: string | null; detail?: string; gov_version?: string;
+}
+
 export interface MonitorData {
   request_id: string; days: number; since: string; overview: UsageOverview;
   activity: ActivityRow[]; frequent: FrequentQuestion[]; officers: OfficerActivity[];
@@ -375,7 +381,7 @@ export interface MonitorData {
   cache: Record<string, string | number | boolean | null>; truncated: boolean;
   alerts?: AlertsView | null;
   by_department?: Breakdown[]; by_role?: Breakdown[]; by_intent?: Breakdown[];
-  topics?: Topic[]; reasked?: number;
+  topics?: Topic[]; reasked?: number; link_changes?: LinkChangeRow[];
 }
 
 /** Unusual-activity alerts (ADR-0036). Codes only; words gated by clearance as on the pad. */
@@ -542,3 +548,18 @@ export type NoteAssistEvent =
   | { type: "sentence"; text: string; note_no: number | null; new_paragraph: boolean }
   | { type: "done"; result: unknown }
   | { type: "error"; message: string };
+
+/** ADR-0074: a link between two orders, its state and the evidence this officer may see. */
+export type LinkState = "candidate" | "suggested" | "supported_by_use" | "validated" | "rejected";
+export interface OrderLink {
+  source: string; kind: "SUPERSEDES" | "AMENDS" | "REPEALS" | "CLARIFIES"; target: string;
+  this_is: "newer" | "older";
+  other: { canonical_id: string; subject: string; issue_date: string | null };
+  state: LinkState; score: number; officers: number; stated_in_text: boolean; contested: boolean;
+  evidence_requested: boolean; decided_post: string | null; decided_at: string | null;
+  wording: string | null; can_flag: boolean; can_validate: boolean;
+}
+export interface OrderLinks {
+  request_id: string; canonical_id: string; links: OrderLink[];
+  permission: "view" | "flag" | "validate"; authority_status: "TO_CONFIRM" | "CONFIRMED";
+}

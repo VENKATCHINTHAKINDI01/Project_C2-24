@@ -1,0 +1,58 @@
+# Relationship governance (ADR-0074). Versioned: change `version` with every edit; the version and a
+# hash of this file are recorded with every signal and decision, and logged at start-up.
+# The designation list is a PROPOSAL, not an Andhra Pradesh Government rule: TO_CONFIRM until the
+# department approves it. Departmental administrators maintain this list; nothing is hard-coded.
+relationship_governance:
+  version: "2026-11-27.3"
+  validation_authority:
+    status: "TO_CONFIRM"
+    minimum_designation: "SECTION_OFFICER"
+    department_scoped: true                # validate only links whose orders are in the officer's department
+    require_authenticated_identity: true   # signed-in officer only (sandbox: simulated sign-in)
+    default_permission: "view"             # any post not listed
+    designations:                          # longest matching prefix of the officer's post wins
+      - { post: "Junior Assistant", permission: "view" }
+      - { post: "Assistant", permission: "view" }
+      - { post: "Senior Assistant", permission: "flag" }
+      - { post: "Assistant Section Officer", permission: "flag" }
+      - { post: "Section Officer", permission: "validate" }
+      - { post: "Assistant Secretary", permission: "validate" }
+      - { post: "Under Secretary", permission: "validate" }
+      - { post: "Deputy Secretary", permission: "validate" }
+      - { post: "Joint Secretary", permission: "validate" }
+      - { post: "Additional Secretary", permission: "validate" }
+      - { post: "Secretary", permission: "validate" }
+      - { post: "Principal Secretary", permission: "validate" }
+      - { post: "Special Chief Secretary", permission: "validate" }
+      - { post: "Monitoring Officer", permission: "view" }
+  usage_support:                           # establishes SUPPORTED_BY_USE only, never VALIDATED
+    enabled: true
+    minimum_score: 5
+    minimum_distinct_officers: 2
+    max_score_per_officer: 3               # repeated use by one officer cannot pass for adoption
+    exclude_test_activity: true
+    exclude_automated_activity: true
+    test_officers: []                      # user IDs whose actions are demo / test activity
+  legal_validation:                        # fixed by the owner's rules; the service refuses other values
+    auto_validate_from_usage: false
+    auto_validate_from_approval: false
+    require_human_validation: true
+    require_documentary_evidence: true
+  signal_weights:                          # ADR-0074 §3
+    useful: 1                              # A1
+    not_right: -2                          # A2
+    note_cites_newer: 2                    # W1
+    note_cites_older: -2                   # W2
+    note_states_supersession: 3            # W3 (+)
+    note_states_in_force: -3               # W3 (-)
+    draft_kept: 2                          # W4
+    draft_removed: -2                      # W5
+    draft_approved: 3                      # W6 (operational support only; never validates)
+    draft_returned_wrong: -3               # W7
+    presend_fixed: 3                       # C1
+    presend_still_in_force: -3             # C2
+    flag_accepted: 2                       # C3
+    flag_dismissed: -2                     # C4
+    file_adds_reference: 1                 # L1
+    files_linked: 1                        # L2
+    receipt_cites_newer: 1                 # L3

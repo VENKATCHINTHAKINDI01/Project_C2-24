@@ -21,7 +21,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
 from app.agents.llm import llm_from_settings
-from app.agents.routes import build_assist_router
+from app.agents.routes import build_assist_router, record_file_work_signals
 from app.agents.runtime import AssistRuntime
 from app.audit.log import AuditLog
 from app.audit.pg_log import PostgresAuditLog
@@ -43,6 +43,14 @@ from app.connectors.eoffice import (
     ConnectorUnavailableError,
     EOfficeConnector,
     GuardedConnector,
+)
+from app.graph.link_learning import (
+    FileLinkSource,
+    InMemoryLinkStore,
+    PostgresLinkStore,
+    build_file_and_section_links,
+    load_governance,
+    rollup_links,
 )
 from app.hitl.feedback import (
     ActionLog,
@@ -227,7 +235,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         artefacts_from_v2,
     )
     from app.eoffice_mock.models import BANNER, SandboxProfile
-    from app.eoffice_mock.routes import build_sandbox_router
+    from app.eoffice_mock.routes import WorkSignalEvent, build_sandbox_router
 
     seeds, artefacts, arrivals = [], [], []
     if settings.sandbox_seed in ("v1", "both"):
@@ -360,6 +368,32 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     actions = action_log_from_settings(settings)
     app.state.actions = actions  # tests read the in-memory log
+    governance = load_governance(settings.relationship_governance_path)
+    logging.getLogger("c2.governance").info("relationship governance %s", governance[1])
+    link_store = PostgresLinkStore(pg) if pg is not None else InMemoryLinkStore()
+    connector = cast(EOfficeConnector, GuardedConnector(adapter))
+
+    def _on_work_signal(ev: WorkSignalEvent) -> None:
+        run = assist_runtime()
+        if run is None:
+            return
+        record_file_work_signals(
+            run,
+            connector.officer_context(ev.user_id),
+            link_store,
+            governance[0],
+            governance[1],
+            audit,
+            request_id=f"sbx-{ev.computer_no}",
+            computer_no=ev.computer_no,
+            event_kind=ev.kind,
+            text=ev.text,
+            earlier_text=ev.earlier_text,
+            initial_text=ev.initial_text,
+            remarks=ev.remarks,
+            previous_references=ev.previous_references,
+        )
+
     app.include_router(
         build_sandbox_router(
             adapter=adapter,
@@ -367,6 +401,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             identify=identify,
             on_event=lambda: _sync(assist_runtime(), adapter),
             on_outcome=lambda out: actions.write(action_from_outcome(out)),
+            on_work_signal=_on_work_signal,
         )
     )
     query_log = query_log_from_settings(settings)
@@ -446,9 +481,44 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     chat_history = PostgresChatHistory(pg) if pg is not None else InMemoryChatHistory()
     app.state.chat_history = chat_history
     app.state.model_usage = model_usage
+
+    def _rollup() -> Any:
+        run = assist_runtime()
+        if run is None:
+            return None
+        file_sources = [
+            FileLinkSource(
+                file_no=file_no,
+                tags=tags,
+                texts=tuple(run.texts.get(cid, "") for cid, _ in docs if run.texts.get(cid)),
+            )
+            for file_no, docs in run.stores.files.items()
+            if docs and (tags := run.tags(docs[0][0])) is not None
+        ]
+        if file_sources:
+            build_file_and_section_links(
+                run.stores.graph,
+                file_sources,
+                order_ids=run.stores.instruments.keys(),
+            )
+        return rollup_links(
+            graph=run.stores.graph,
+            link_store=link_store,
+            texts=run.texts,
+            gov=governance[0],
+            gov_version=governance[1],
+            audit=audit,
+            caches=[
+                c
+                for c in (getattr(run.stores, "cache", None),)
+                if c is not None and hasattr(c, "invalidate_documents")
+            ],
+        )
+
+    app.state.rollup_links = _rollup
     app.include_router(
         build_assist_router(
-            connector=cast(EOfficeConnector, GuardedConnector(adapter)),  # plan §14.4
+            connector=connector,  # plan §14.4
             runtime=assist_runtime,
             audit=audit,
             identify=identify,
@@ -468,6 +538,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             draft_formats=load_formats(settings.draft_formats_path),  # validated at start
             workspaces=PostgresWorkspaceStore(pg) if pg is not None else InMemoryWorkspaceStore(),
             history=chat_history,
+            # ADR-0074: signals and decisions on links; settings validated at start, version logged
+            links=link_store,
+            governance=governance,
         )
     )
     app.state.banner = BANNER

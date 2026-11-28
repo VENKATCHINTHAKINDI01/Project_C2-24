@@ -1,16 +1,16 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { fmtDate, fmtDateTime } from "../format";
 import type { Api } from "../api";
-import type { ActivityRow, Alert, AlertsView, Breakdown, FrequentQuestion, MonitorData, OfficerActivity, Severity, Topic } from "../types";
+import type { ActivityRow, Alert, AlertsView, Breakdown, FrequentQuestion, LinkChangeRow, MonitorData, OfficerActivity, Severity, Topic } from "../types";
 import { BarChart, LineChart, ShareList } from "./Charts";
 
 /** The monitoring officer's pad (ADR-0035). Only a monitoring officer reaches it; the server
  *  decides that and withholds the words of questions asked under a clearance above theirs. */
-type Tab = "alerts" | "activity" | "frequent" | "asked" | "gaps" | "officers" | "slowest" | "feedback" | "cache";
+type Tab = "alerts" | "activity" | "frequent" | "asked" | "gaps" | "officers" | "slowest" | "feedback" | "links" | "cache";
 const TABS: [Tab, string][] = [
   ["alerts", "Alerts"], ["activity", "Activity"], ["frequent", "Frequent questions"], ["asked", "What is asked"],
   ["gaps", "Unanswered"],
-  ["officers", "Officers"], ["slowest", "Slowest"], ["feedback", "Feedback"], ["cache", "Cache"],
+  ["officers", "Officers"], ["slowest", "Slowest"], ["feedback", "Feedback"], ["links", "Link changes"], ["cache", "Cache"],
 ];
 const OUTCOME: Record<string, string> = {
   answered: "Answered", review_needed: "Review needed", no_answer: "No answer",
@@ -129,6 +129,7 @@ export function MonitorPad({ api }: { api: Api }) {
         {TABS.map(([k, label]) => (
           <button key={k} role="tab" aria-selected={tab === k} className={tab === k ? "on" : ""} onClick={() => setTab(k)}>
             {label}{k === "gaps" && data.gaps.length ? <span className="count">{data.gaps.length}</span> : null}
+            {k === "links" && data.link_changes?.length ? <span className="count">{data.link_changes.length}</span> : null}
             {k === "alerts" && openAll ? <span className={`count${openHigh ? " hot" : ""}`}>{openAll}</span> : null}
           </button>
         ))}
@@ -163,6 +164,7 @@ export function MonitorPad({ api }: { api: Api }) {
             </tbody>
           </table>
         )}
+        {tab === "links" && <LinkChanges rows={data.link_changes ?? []} />}
         {tab === "cache" && <Cache c={data.cache} />}
       </section>
     </main>
@@ -490,5 +492,49 @@ export function Alerts({ view, api, onChange }: { view: AlertsView; api: Api; on
         ))}
       </ul>
     </>
+  );
+}
+
+const LINK_STATE_LABEL: Record<string, string> = {
+  candidate: "Candidate",
+  suggested: "Suggested",
+  supported_by_use: "Supported by use",
+  validated: "Validated",
+  rejected: "Rejected",
+  please_review: "Please review",
+};
+
+function LinkChanges({ rows }: { rows: LinkChangeRow[] }) {
+  if (!rows.length) {
+    return <p className="muted">No link state changes in this window.</p>;
+  }
+  return (
+    <table className="grid mon">
+      <thead>
+        <tr>
+          <th>When</th>
+          <th>Link</th>
+          <th>Change</th>
+          <th>Score</th>
+          <th>Evidence</th>
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((r, i) => (
+          <tr key={i}>
+            <td className="nowrap">{when(r.ts)}</td>
+            <td><code>{r.source}</code> {r.kind.toLowerCase()} <code>{r.target}</code></td>
+            <td>
+              {r.from_state ? `${LINK_STATE_LABEL[r.from_state] ?? r.from_state} → ` : ""}
+              <span className={`badge ${r.to_state === "rejected" || r.to_state === "please_review" ? "warn" : "ok"}`}>
+                {LINK_STATE_LABEL[r.to_state] ?? r.to_state}
+              </span>
+            </td>
+            <td>{r.score}</td>
+            <td>{r.evidence ?? "—"}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
   );
 }
